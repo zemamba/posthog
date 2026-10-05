@@ -435,7 +435,10 @@ export async function getInsightWithRetry(
                                                 await pollForResults(rerunResponse.query_status.id, methodOptions)
                                             )
                                         }
-                                        return rerunResponse ? getQueryBasedInsightModel(rerunResponse) : null
+                                        if (rerunResponse?.result == null) {
+                                            throw new Error('The rerun returned no result')
+                                        }
+                                        return getQueryBasedInsightModel(rerunResponse)
                                     },
                                     (rerunInsight) => rerunInsight?.result != null && !rerunInsight.query_status?.error
                                 )

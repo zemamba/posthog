@@ -505,8 +505,12 @@ describe('getInsightWithRetry', () => {
         }
     )
 
-    it('reads the cached result when the status of its async run expired while the tab was hidden', async () => {
+    it.each([
+        { description: 'available', cachedResult: ['from the cache'] },
+        { description: 'missing', cachedResult: null },
+    ])('handles a cached result that is $description after status expiry', async ({ cachedResult }) => {
         const capture = jest.spyOn(posthog, 'capture').mockImplementation()
+        jest.spyOn(lemonToast, 'error').mockImplementation()
         const rateLimited = {
             ...insight,
             result: null,
@@ -516,7 +520,7 @@ describe('getInsightWithRetry', () => {
         const getSpy = jest
             .spyOn(api, 'get')
             .mockResolvedValueOnce({ ...insight, result: null, query_status: { id: 'cache_1_abc', complete: false } })
-            .mockResolvedValueOnce({ ...insight, result: ['from the cache'], query_status: null })
+            .mockResolvedValueOnce({ ...insight, result: cachedResult, query_status: null })
         jest.spyOn(api.queryStatus, 'get').mockRejectedValueOnce(new ApiError('Query not found', 404))
 
         const request = getInsightWithRetry(
@@ -533,11 +537,16 @@ describe('getInsightWithRetry', () => {
             1
         )
         await jest.runAllTimersAsync()
-        await expect(request).resolves.toMatchObject({ result: ['from the cache'] })
+        const result = await request
+        expect(result?.result).toEqual(cachedResult)
+        expect(Boolean(result?.query_status?.error)).toBe(cachedResult === null)
         expect(getSpy.mock.calls[1][0]).toContain('refresh=async')
+        expect(
+            capture.mock.calls.filter(([event]) => event === 'dashboard tile recovered from capacity error')
+        ).toHaveLength(cachedResult === null ? 0 : 1)
         expect(capture).toHaveBeenCalledWith(
-            'dashboard tile recovered from capacity error',
-            { insight_short_id: 'abc123', dashboard_id: 60, attempts: 1 },
+            'query rerun after status expired',
+            { source: 'dashboard_tile', recovered: cachedResult !== null },
             undefined
         )
     })
