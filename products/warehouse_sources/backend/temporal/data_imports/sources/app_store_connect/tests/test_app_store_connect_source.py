@@ -231,7 +231,7 @@ class TestAppStoreConnectSource:
     def test_raw_sales_report_400_is_non_retryable(self) -> None:
         raised = (
             "400 Client Error: Bad Request for url: https://api.appstoreconnect.apple.com/v1/salesReports"
-            "?filter%5Bfrequency%5D=DAILY&filter%5BreportDate%5D=2025-10-05"
+            "?filter%5Bfrequency%5D=DAILY&filter%5BreportDate%5D=2026-03-04"
         )
 
         assert _resolve_friendly_error(raised) is not None
