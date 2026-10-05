@@ -2634,12 +2634,12 @@ class TestCanvasActions(CanvasAPIBaseTest):
         assert enabled.status_code == status.HTTP_200_OK, enabled.json()
         assert enabled.json()["result"] == {"flag_id": flag.id, "flag_key": "beta-checkout", "active": True}
         flag.refresh_from_db()
-        assert flag.active is True
+        assert flag.active
 
         disabled = self._invoke(canvas_id, "feature_flags.disable", {"flag_key": "beta-checkout"})
         assert disabled.status_code == status.HTTP_200_OK, disabled.json()
         flag.refresh_from_db()
-        assert flag.active is False
+        assert not flag.active
 
         missing = self._invoke(canvas_id, "feature_flags.enable", {"flag_key": "no-such-flag"})
         assert missing.status_code == status.HTTP_404_NOT_FOUND, missing.json()
@@ -2868,7 +2868,7 @@ class TestCanvasOperations(CanvasAPIBaseTest):
         assert unknown.status_code == status.HTTP_404_NOT_FOUND, unknown.json()
 
         entries = self._activity("operation_invoked")
-        assert [entry.detail["trigger"]["job_id"] for entry in entries] == ["mark-incident", "enable-beta"]
+        assert [(entry.detail or {})["trigger"]["job_id"] for entry in entries] == ["mark-incident", "enable-beta"]
 
     def test_scoped_key_needs_the_operations_verb_scope(self):
         canvas_id = self._operations_canvas()
