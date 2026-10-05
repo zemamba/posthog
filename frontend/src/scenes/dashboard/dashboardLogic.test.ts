@@ -2695,6 +2695,58 @@ describe('dashboardLogic', () => {
         })
 
         describe('insight refresh', () => {
+            it.each([false, true])('clears a cooldown replaced by a batch (old request batch: %s)', async (batch) => {
+                await expectLogic(logic).toFinishAllListeners()
+                const tile = logic.values.insightTiles[0]
+                const insights = logic.values.insightTiles.map((item) => item.insight!)
+                let replacement = false
+                const originalGetResponse = api.getResponse.bind(api)
+                const getResponse = jest.spyOn(api, 'getResponse').mockImplementation(async (url, options) => {
+                    const insight = insights.find((item) => String(url).includes(`/insights/${item.id}/`))
+                    if (!insight) {
+                        return originalGetResponse(url, options)
+                    }
+                    if (!replacement) {
+                        throw new ApiError('Busy', 503, new Headers({ 'Retry-After': '30' }))
+                    }
+                    return new Response(JSON.stringify({ ...insight, result: [{ count: 42 }] }))
+                })
+                jest.useFakeTimers()
+                try {
+                    if (batch) {
+                        logic.actions.refreshDashboardItems({
+                            action: RefreshDashboardItemsAction.Refresh,
+                            forceRefresh: true,
+                        })
+                    } else {
+                        logic.actions.refreshDashboardItem({ tile })
+                    }
+                    await jest.advanceTimersByTimeAsync(1)
+                    expect(logic.values.capacityRetryQueryIds[tile.insight!.short_id]).toBeTruthy()
+                    const oldSignal = getResponse.mock.calls.find(([url]) =>
+                        String(url).includes(`/insights/${tile.insight!.id}/`)
+                    )?.[1]?.signal
+
+                    replacement = true
+                    logic.actions.refreshDashboardItems({
+                        action: RefreshDashboardItemsAction.Refresh,
+                        forceRefresh: true,
+                    })
+                    await jest.advanceTimersByTimeAsync(1)
+
+                    expect(oldSignal?.aborted).toBe(true)
+                    expect(logic.values.insightTiles[0].insight!.result).toEqual([{ count: 42 }])
+                    expect(logic.values.capacityRetryQueryIds).toEqual({})
+                    expect(logic.values.isRefreshing(tile.insight!.short_id)).toBe(false)
+                    const completedRequests = getResponse.mock.calls.length
+                    await jest.advanceTimersByTimeAsync(60_000)
+                    expect(getResponse).toHaveBeenCalledTimes(completedRequests)
+                } finally {
+                    getResponse.mockRestore()
+                    jest.useRealTimers()
+                }
+            })
+
             it.each([
                 { action: 'unmount', batch: false },
                 { action: 'cancel', batch: false },

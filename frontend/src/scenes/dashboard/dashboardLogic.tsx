@@ -4261,7 +4261,7 @@ export const dashboardLogic = kea<dashboardLogicType>([
                     {
                         signal: controller.signal,
                         onCapacityWaitChange: (waiting) => {
-                            if (!controller.signal.aborted && !disposables.isDisposed) {
+                            if (!disposables.isDisposed && (!waiting || !controller.signal.aborted)) {
                                 actions.setCapacityRetry(insight.short_id, queryId, waiting)
                             }
                         },
@@ -4405,7 +4405,10 @@ export const dashboardLogic = kea<dashboardLogicType>([
                             {
                                 signal: tileController.signal,
                                 onCapacityWaitChange: (waiting) => {
-                                    if (ownsRequest() && !tileController.signal.aborted && !disposables.isDisposed) {
+                                    if (
+                                        !disposables.isDisposed &&
+                                        (!waiting || (ownsRequest() && !tileController.signal.aborted))
+                                    ) {
                                         actions.setCapacityRetry(insight.short_id, queryId, waiting)
                                     }
                                 },
