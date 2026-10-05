@@ -34,7 +34,7 @@ import {
     type WidgetIssueMetadataDelta,
 } from '@posthog/products-dashboards/frontend/widgets/error_tracking/applyWidgetIssueMetadataChange'
 
-import api, { ApiMethodOptions, getJSONOrNull } from 'lib/api'
+import api, { getJSONOrNull } from 'lib/api'
 import { ApiError, isAccessDeniedError } from 'lib/api-error'
 import { DataColorTheme } from 'lib/colors'
 import { OrganizationMembershipLevel } from 'lib/constants'
@@ -4226,17 +4226,17 @@ export const dashboardLogic = kea<dashboardLogicType>([
             // Cache values before the long-running await — the logic may unmount
             const { currentTeamId, effectiveRefreshFilters, settingsForRefresh, urlFilters } = values
             const urlVariables = settingsForRefresh.variables
-            const controllers: Map<string, AbortController> = (cache.manualRefreshControllers ??= new Map())
+            const controllers: Map<number, AbortController> = (cache.tileRefreshControllers ??= new Map())
             const controller = new AbortController()
-            controllers.get(insight.short_id)?.abort()
-            controllers.set(insight.short_id, controller)
+            controllers.get(tile.id)?.abort()
+            controllers.set(tile.id, controller)
             const queryId = uuid()
             const disposables = cache.disposables
             disposables.add(
                 () => () => {
                     controller.abort()
-                    if (controllers.get(insight.short_id) === controller) {
-                        controllers.delete(insight.short_id)
+                    if (controllers.get(tile.id) === controller) {
+                        controllers.delete(tile.id)
                     }
                 },
                 queryId,
@@ -4261,7 +4261,7 @@ export const dashboardLogic = kea<dashboardLogicType>([
                     {
                         signal: controller.signal,
                         onCapacityWaitChange: (waiting) => {
-                            if (!disposables.isDisposed) {
+                            if (!controller.signal.aborted && !disposables.isDisposed) {
                                 actions.setCapacityRetry(insight.short_id, queryId, waiting)
                             }
                         },
@@ -4349,20 +4349,21 @@ export const dashboardLogic = kea<dashboardLogicType>([
                     true
                 )
 
-                await breakpoint()
-
                 actions.abortAnyRunningQuery()
-                const manualControllers: Map<string, AbortController> | undefined = cache.manualRefreshControllers
-                for (const tile of sortedTilesToRefresh) {
-                    manualControllers?.get(tile.insight.short_id)?.abort()
-                }
+                const controllers: Map<number, AbortController> = (cache.tileRefreshControllers ??= new Map())
+                const tileControllers = sortedTilesToRefresh.map((tile) => {
+                    const tileController = new AbortController()
+                    controllers.get(tile.id)?.abort()
+                    controllers.set(tile.id, tileController)
+                    return tileController
+                })
                 const controller = new AbortController()
                 cache.abortController = controller
-                const methodOptions: ApiMethodOptions = { signal: controller.signal }
                 const disposables = cache.disposables
                 disposables.add(
                     () => () => {
                         controller.abort()
+                        tileControllers.forEach((tileController) => tileController.abort())
                         if (cache.abortController === controller) {
                             cache.abortController = null
                         }
@@ -4371,6 +4372,8 @@ export const dashboardLogic = kea<dashboardLogicType>([
                     { pauseOnPageHidden: false }
                 )
 
+                await breakpoint()
+
                 // Cache values used during and after the long-running fetch, since the logic
                 // may be unmounted by the time the awaits complete (kea's no-arg breakpoint()
                 // only cancels on newer invocations, not on unmount).
@@ -4378,16 +4381,20 @@ export const dashboardLogic = kea<dashboardLogicType>([
                 const effectiveRefreshFilters = combineDashboardFilters(settingsToRefresh.filters, externalFilters)
                 const urlVariables = settingsToRefresh.variables
 
-                const fetchSyncInsightFunctions = sortedTilesToRefresh.map((tile) => async () => {
+                const fetchSyncInsightFunctions = sortedTilesToRefresh.map((tile, index) => async () => {
                     const insight = tile.insight
+                    const tileController = tileControllers[index]
+                    const ownsRequest = (): boolean => controllers.get(tile.id) === tileController
                     const queryId = uuid()
                     const queryStartTime = performance.now()
                     const dashboardId: number = props.id
 
-                    // Set insight as refreshing
-                    actions.setRefreshStatus(insight.short_id, true, true)
-
                     try {
+                        if (tileController.signal.aborted || disposables.isDisposed) {
+                            tilesAbortedCount++
+                            return
+                        }
+                        actions.setRefreshStatus(insight.short_id, true, true)
                         const insightRefreshStartTime = performance.now()
                         const refreshedInsight = await getInsightWithRetry(
                             currentTeamId,
@@ -4396,9 +4403,9 @@ export const dashboardLogic = kea<dashboardLogicType>([
                             queryId,
                             forceRefresh ? 'force_blocking' : 'blocking', // 'blocking' returns cached data if available, when manual refresh is triggered we want fresh results
                             {
-                                ...methodOptions,
+                                signal: tileController.signal,
                                 onCapacityWaitChange: (waiting) => {
-                                    if (!disposables.isDisposed) {
+                                    if (ownsRequest() && !tileController.signal.aborted && !disposables.isDisposed) {
                                         actions.setCapacityRetry(insight.short_id, queryId, waiting)
                                     }
                                 },
@@ -4407,6 +4414,11 @@ export const dashboardLogic = kea<dashboardLogicType>([
                             urlVariables,
                             tile.filters_overrides
                         )
+
+                        if (!ownsRequest() || tileController.signal.aborted || disposables.isDisposed) {
+                            tilesAbortedCount++
+                            return
+                        }
 
                         if (refreshedInsight && !isRefreshRejectionStub(refreshedInsight)) {
                             const queryError = getInsightQueryError(refreshedInsight)
@@ -4434,6 +4446,10 @@ export const dashboardLogic = kea<dashboardLogicType>([
                             tilesErroredCount++
                         }
                     } catch (e: any) {
+                        if (!ownsRequest() || disposables.isDisposed) {
+                            tilesAbortedCount++
+                            return
+                        }
                         if (shouldCancelQuery(e)) {
                             console.warn(`Insight refresh cancelled for ${insight.short_id} due to abort signal:`, e)
                             actions.abortQuery({ queryId, queryStartTime, shortId: insight.short_id })
@@ -4441,6 +4457,10 @@ export const dashboardLogic = kea<dashboardLogicType>([
                         } else {
                             actions.setRefreshError(insight.short_id, e)
                             tilesErroredCount++
+                        }
+                    } finally {
+                        if (ownsRequest()) {
+                            controllers.delete(tile.id)
                         }
                     }
                 })
@@ -4917,7 +4937,7 @@ export const dashboardLogic = kea<dashboardLogicType>([
             cache.disposables.dispose('dashboardRefresh')
         },
         cancelDashboardRefresh: () => {
-            const controllers: Map<string, AbortController> | undefined = cache.manualRefreshControllers
+            const controllers: Map<number, AbortController> | undefined = cache.tileRefreshControllers
             controllers?.forEach((controller) => controller.abort())
             actions.abortAnyRunningQuery()
         },

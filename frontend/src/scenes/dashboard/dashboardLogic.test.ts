@@ -2799,6 +2799,82 @@ describe('dashboardLogic', () => {
                 }
             })
 
+            it.each(['cooldown', 'in-flight'] as const)(
+                'keeps the new override when it replaces a batch tile during %s',
+                async (phase) => {
+                    await expectLogic(logic).toFinishAllListeners()
+                    const [tile, sibling] = logic.values.insightTiles
+                    const insight = tile.insight!
+                    const siblingInsight = sibling.insight!
+                    let finishOld!: () => void
+                    let finishSibling!: () => void
+                    const oldReady = new Promise<void>((resolve) => {
+                        finishOld = resolve
+                    })
+                    const siblingReady = new Promise<void>((resolve) => {
+                        finishSibling = resolve
+                    })
+                    let oldAttempts = 0
+                    const getResponse = jest.spyOn(api, 'getResponse').mockImplementation(async (url) => {
+                        if (String(url).includes(`/insights/${siblingInsight.id}/`)) {
+                            await siblingReady
+                            return new Response(JSON.stringify({ ...siblingInsight, result: [{ count: 84 }] }))
+                        }
+                        const override = new URL(String(url), 'https://example.com').searchParams.get(
+                            'tile_filters_override'
+                        )
+                        if (override) {
+                            return new Response(JSON.stringify({ ...insight, result: [{ count: 7 }] }))
+                        }
+                        oldAttempts++
+                        if (phase === 'cooldown' && oldAttempts === 1) {
+                            throw new ApiError('Busy', 503, new Headers({ 'Retry-After': '30' }))
+                        }
+                        await oldReady
+                        return new Response(JSON.stringify({ ...insight, result: [{ count: 30 }] }))
+                    })
+                    jest.useFakeTimers()
+                    try {
+                        logic.actions.refreshDashboardItems({
+                            action: RefreshDashboardItemsAction.Refresh,
+                            forceRefresh: true,
+                        })
+                        await jest.advanceTimersByTimeAsync(1)
+                        const oldSignal = getResponse.mock.calls.find(([url]) =>
+                            String(url).includes(`/insights/${insight.id}/`)
+                        )?.[1]?.signal
+                        const siblingSignal = getResponse.mock.calls.find(([url]) =>
+                            String(url).includes(`/insights/${siblingInsight.id}/`)
+                        )?.[1]?.signal
+                        logic.actions.refreshDashboardItem({
+                            tile: { ...tile, filters_overrides: { date_from: '-7d' } },
+                        })
+                        await jest.advanceTimersByTimeAsync(1)
+                        expect(logic.values.insightTiles.find((item) => item.id === tile.id)?.insight?.result).toEqual([
+                            { count: 7 },
+                        ])
+                        finishOld()
+                        finishSibling()
+                        await jest.advanceTimersByTimeAsync(60_000)
+                        expect(logic.values.insightTiles.find((item) => item.id === tile.id)?.insight?.result).toEqual([
+                            { count: 7 },
+                        ])
+                        expect(
+                            logic.values.insightTiles.find((item) => item.id === sibling.id)?.insight?.result
+                        ).toEqual([{ count: 84 }])
+                        expect(oldSignal?.aborted).toBe(true)
+                        expect(siblingSignal?.aborted).toBe(false)
+                        expect(oldAttempts).toBe(1)
+                        expect(logic.values.capacityRetryQueryIds).toEqual({})
+                    } finally {
+                        finishOld()
+                        finishSibling()
+                        getResponse.mockRestore()
+                        jest.useRealTimers()
+                    }
+                }
+            )
+
             it.each([
                 { scenario: 'keeps a manual refresh when only another tile is stale', manualTileIsStale: false },
                 { scenario: 'replaces a manual refresh when the same tile is stale', manualTileIsStale: true },
