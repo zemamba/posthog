@@ -100,9 +100,8 @@ class AppStoreConnectEndpointConfig:
     # `_fetch_report` reads the body, so a genuinely malformed request (wrong version or sub type)
     # still fails loudly instead of reading as a quiet account. Apple words that same 400 for a
     # vendor number it doesn't know, so a sales-report check separates the two before the misleading
-    # wording is tolerated across the whole lookback. SALES tolerates 400 too, only so its body goes
-    # through the same checks and fails with a readable, non-retryable message.
-    missing_report_status_codes: tuple[int, ...] = (404, 400)
+    # wording is tolerated across the whole lookback.
+    missing_report_status_codes: tuple[int, ...] = (404,)
 
 
 _REPORT_DATE_FIELD: IncrementalField = incremental_field("report_date", IncrementalFieldType.Date)
@@ -229,6 +228,7 @@ APP_STORE_CONNECT_ENDPOINTS: dict[str, AppStoreConnectEndpointConfig] = {
         incremental_fields=[_REPORT_DATE_FIELD],
         partition_key="report_date",
         should_sync_default=False,
+        missing_report_status_codes=(404, 400),
     ),
     # Daily subscription lifecycle events (renewals, cancellations, upgrades).
     "subscription_event_reports": AppStoreConnectEndpointConfig(
@@ -241,6 +241,7 @@ APP_STORE_CONNECT_ENDPOINTS: dict[str, AppStoreConnectEndpointConfig] = {
         incremental_fields=[_REPORT_DATE_FIELD],
         partition_key="report_date",
         should_sync_default=False,
+        missing_report_status_codes=(404, 400),
     ),
     # Analytics Reports API streams: the behavioural data (sessions, downloads, installs
     # and deletions, discovery, crashes, pre-orders, App Clips) that has no sales-report
