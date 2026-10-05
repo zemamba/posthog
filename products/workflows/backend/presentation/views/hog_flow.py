@@ -163,6 +163,7 @@ from products.workflows.backend.facade.secrets import (
     strip_content_secrets,
     strip_secrets_from_content,
 )
+from products.workflows.backend.facade.suggestions_scout import PROPOSAL_WRITE_SCOPE, sync_suggestions_scout
 from products.workflows.backend.facade.templates import get_function_template_schema
 from products.workflows.backend.facade.validation import (
     DURATION_PATTERN,
@@ -220,7 +221,6 @@ from products.workflows.backend.presentation.views.message_assets import (
     fetch_message_assets,
 )
 from products.workflows.backend.presentation.views.publish_impact import build_publish_impact
-from products.workflows.backend.services.suggestions_scout import PROPOSAL_WRITE_SCOPE, sync_suggestions_scout
 from products.workflows.backend.services.timing_reschedule import (
     get_all_timing_action_ids,
     get_timing_reschedule_action_ids,
