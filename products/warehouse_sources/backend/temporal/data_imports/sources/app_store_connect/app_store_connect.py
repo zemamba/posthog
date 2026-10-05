@@ -997,7 +997,7 @@ def _fetch_report(
     )
     if response.status_code in config.missing_report_status_codes:
         # A 404 is always Apple's "no activity for this date" — normal for quiet days and for dates
-        # before the app shipped. A tolerated 400 is the subscription-family equivalent, but Apple
+        # before the app shipped. A 400 is the subscription-family equivalent, but Apple
         # reuses 400 for a genuinely malformed request and for a vendor number it doesn't know too,
         # so read the body: only a day Apple really has no data for is tolerated and counted, and
         # anything else fails loudly instead of masquerading as a quiet account across the lookback.
@@ -1005,7 +1005,8 @@ def _fetch_report(
             apple_error = _parse_apple_error(response)
             text = _apple_error_text(apple_error)
             if _VENDOR_NUMBER_400_MARKER in text:
-                if not vendor_check.known(report_date):
+                # The SALES report keeps this 400 for a vendor number Apple doesn't know, so it needs no check.
+                if config.report_type == "SALES" or not vendor_check.known(report_date):
                     logger.error(
                         f"App Store Connect rejected the vendor number: endpoint={config.name}, "
                         f"status=400, apple_error={text!r}"

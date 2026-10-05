@@ -1816,17 +1816,21 @@ class TestSalesReports:
         assert rows == []
         assert api.report_dates("SUBSCRIPTION") == ["2026-03-02", "2026-03-03", "2026-03-04"]
 
+    @parameterized.expand(
+        [
+            ("unknown_vendor", "Invalid vendor number specified", "does not recognize the vendor number"),
+            ("malformed_request", "filter[version] '9_9' is not a valid value", "rejected a report request as invalid"),
+        ]
+    )
     @time_machine.travel("2026-03-05 09:00:00", tick=False)
-    def test_sales_report_400_is_not_tolerated(self) -> None:
-        # SALES reports don't carry the subscription-family quirk, so a 400 there is a real error and
-        # must still surface rather than being silently treated as an empty day.
+    def test_sales_report_400_fails_with_a_readable_error(self, _name: str, apple_detail: str, expected: str) -> None:
+        # A SALES 400 used to escape as a raw HTTPError that the activity retried. It must go through
+        # the body checks and raise the clear, non-retryable error instead of an empty day.
         session = MagicMock()
-        bad_request = _report_response(None, missing_status_code=400)
-        bad_request.raise_for_status.side_effect = Exception("400 Client Error: Bad Request")
-        session.get.return_value = bad_request
+        session.get.return_value = _report_response(None, missing_status_code=400, error_detail=apple_detail)
 
         with patch(f"{MODULE}._make_session", return_value=session):
-            with pytest.raises(Exception, match="400"):
+            with pytest.raises(AppStoreConnectReportError, match=expected):
                 list(
                     get_rows(
                         issuer_id="issuer",
@@ -1838,6 +1842,9 @@ class TestSalesReports:
                         resumable_source_manager=_FakeManager(),
                     )
                 )
+
+        # A SALES 400 settles the vendor number on its own, so no extra check request is sent.
+        assert session.get.call_count == 1
 
     @time_machine.travel("2026-03-05 09:00:00", tick=False)
     def test_subscription_report_unrecognized_400_fails_loudly(self) -> None:
