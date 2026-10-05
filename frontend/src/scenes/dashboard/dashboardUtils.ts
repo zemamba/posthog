@@ -381,40 +381,7 @@ export async function getInsightWithRetry(
                                 ...(variablesOverride ? { variables_override: variablesOverride } : {}),
                                 ...(tileFiltersOverride ? { tile_filters_override: tileFiltersOverride } : {}),
                             })}`
-                        // The async call returns an insight with a query_status object
-                        // nosemgrep: prefer-codegen-api -- Legacy raw API call with a URL built at runtime and an unchecked response type. Use a generated function if one covers this endpoint.
-                        const insightResponse = await api.get(asyncApiUrl('force_async'), methodOptions)
-
-                        if (insightResponse?.query_status?.id) {
-                            let finalStatus: QueryStatus
-                            try {
-                                finalStatus = await pollForResults(insightResponse.query_status.id, methodOptions)
-                            } catch (e) {
-                                // pollForResults pauses in a hidden tab, so the status can expire before the next poll.
-                                // The insights endpoint ignores client_query_id and names the run by its cache key, so
-                                // the rerun in executeQuery never sees this poll. Submit once more with async, which
-                                // reads the result that the finished run cached.
-                                if (!isExpiredQueryStatusError(e)) {
-                                    throw e
-                                }
-                                const rerun = await captureRerunAfterStatusExpired('dashboard_tile', async () => {
-                                    // nosemgrep: prefer-codegen-api -- Legacy raw API call with a URL built at runtime and an unchecked response type. Use a generated function if one covers this endpoint.
-                                    const rerunResponse = await api.get(asyncApiUrl('async'), methodOptions)
-                                    if (rerunResponse?.query_status?.id && !rerunResponse.query_status.complete) {
-                                        return {
-                                            status: await pollForResults(rerunResponse.query_status.id, methodOptions),
-                                        }
-                                    }
-                                    if (rerunResponse?.result == null) {
-                                        throw new Error('The rerun returned no result')
-                                    }
-                                    return { insight: getQueryBasedInsightModel(rerunResponse) }
-                                })
-                                if ('insight' in rerun) {
-                                    return rerun.insight
-                                }
-                                finalStatus = rerun.status
-                            }
+                        const readCachedInsight = async (finalStatus: QueryStatus): Promise<InsightModel | null> => {
                             if (finalStatus.complete && !finalStatus.error) {
                                 const cacheUrl = `api/projects/${currentTeamId}/insights/${insight.id}/?${toParams({
                                     refresh: 'force_cache',
@@ -433,7 +400,6 @@ export async function getInsightWithRetry(
                                 const legacyInsight: InsightModel | null = await getJSONOrNull(refreshedInsightResponse)
                                 if (legacyInsight) {
                                     const queryBasedInsight = getQueryBasedInsightModel(legacyInsight)
-                                    captureRecovery(queryBasedInsight)
                                     return {
                                         ...queryBasedInsight,
                                         query_status: queryBasedInsight.query_status?.error
@@ -441,6 +407,48 @@ export async function getInsightWithRetry(
                                             : finalStatus,
                                     }
                                 }
+                            }
+                            return null
+                        }
+                        // nosemgrep: prefer-codegen-api -- Legacy raw API call with a URL built at runtime and an unchecked response type. Use a generated function if one covers this endpoint.
+                        const insightResponse = await api.get(asyncApiUrl('force_async'), methodOptions)
+
+                        if (insightResponse?.query_status?.id) {
+                            let finalStatus: QueryStatus
+                            try {
+                                finalStatus = await pollForResults(insightResponse.query_status.id, methodOptions)
+                            } catch (e) {
+                                // pollForResults pauses in a hidden tab, so the status can expire before the next poll.
+                                // The insights endpoint ignores client_query_id and names the run by its cache key, so
+                                // the rerun in executeQuery never sees this poll. Submit once more with async, which
+                                // reads the result that the finished run cached.
+                                if (!isExpiredQueryStatusError(e)) {
+                                    throw e
+                                }
+                                const rerun = await captureRerunAfterStatusExpired(
+                                    'dashboard_tile',
+                                    async () => {
+                                        // nosemgrep: prefer-codegen-api -- Preserve the existing dynamic insight request and its filter overrides.
+                                        const rerunResponse = await api.get(asyncApiUrl('async'), methodOptions)
+                                        if (rerunResponse?.query_status?.id && !rerunResponse.query_status.complete) {
+                                            return await readCachedInsight(
+                                                await pollForResults(rerunResponse.query_status.id, methodOptions)
+                                            )
+                                        }
+                                        return rerunResponse ? getQueryBasedInsightModel(rerunResponse) : null
+                                    },
+                                    (rerunInsight) => rerunInsight?.result != null && !rerunInsight.query_status?.error
+                                )
+                                if (!rerun) {
+                                    throw new Error('The rerun returned no result')
+                                }
+                                captureRecovery(rerun)
+                                return rerun
+                            }
+                            const cachedInsight = await readCachedInsight(finalStatus)
+                            if (cachedInsight) {
+                                captureRecovery(cachedInsight)
+                                return cachedInsight
                             }
                         }
 

@@ -274,11 +274,12 @@ async function executeQuery<N extends DataNode>(
 /** Records whether a rerun after an expired status poll recovers, because the 404 alone does not show it. */
 export async function captureRerunAfterStatusExpired<T>(
     source: 'query' | 'dashboard_tile',
-    rerun: () => Promise<T>
+    rerun: () => Promise<T>,
+    didRecover: (result: T) => boolean = () => true
 ): Promise<T> {
     try {
         const result = await rerun()
-        posthog.capture('query rerun after status expired', { source, recovered: true })
+        posthog.capture('query rerun after status expired', { source, recovered: didRecover(result) })
         return result
     } catch (e) {
         if (!isAbortError(e)) {
