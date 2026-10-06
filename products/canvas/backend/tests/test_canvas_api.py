@@ -2633,13 +2633,11 @@ class TestCanvasActions(CanvasAPIBaseTest):
         enabled = self._invoke(canvas_id, "feature_flags.enable", {"flag_key": "beta-checkout"})
         assert enabled.status_code == status.HTTP_200_OK, enabled.json()
         assert enabled.json()["result"] == {"flag_id": flag.id, "flag_key": "beta-checkout", "active": True}
-        flag.refresh_from_db()
-        assert flag.active
+        assert FeatureFlag.objects.get(pk=flag.pk).active is True
 
         disabled = self._invoke(canvas_id, "feature_flags.disable", {"flag_key": "beta-checkout"})
         assert disabled.status_code == status.HTTP_200_OK, disabled.json()
-        flag.refresh_from_db()
-        assert not flag.active
+        assert FeatureFlag.objects.get(pk=flag.pk).active is False
 
         missing = self._invoke(canvas_id, "feature_flags.enable", {"flag_key": "no-such-flag"})
         assert missing.status_code == status.HTTP_404_NOT_FOUND, missing.json()
