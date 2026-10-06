@@ -2,7 +2,7 @@ import os
 import re
 import json
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, NoReturn, Protocol, cast
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -70,6 +70,8 @@ from posthog.models.integration import (
     SLACK_INTEGRATION_KINDS,
     AnthropicIntegration,
     ApplePushIntegration,
+    Assignee,
+    AssigneeLookupFailed,
     AWSRedshiftIntegration,
     AWSRedshiftRoleBasedIntegration,
     AWSS3Integration,
@@ -94,6 +96,7 @@ from posthog.models.integration import (
     LinkedInAdsIntegration,
     OauthIntegration,
     PostgreSQLIntegration,
+    ReconnectRequired,
     RedshiftIntegration,
     S3CompatibleIntegration,
     SlackIntegration,
@@ -105,6 +108,7 @@ from posthog.models.integration import (
     resolve_aliased_oauth_kind,
 )
 from posthog.models.integration.github_audit import GitHubAudit
+from posthog.models.integration.twitter_ads import TwitterAdsIntegration
 from posthog.models.user_integration import UserIntegration
 from posthog.permissions import (
     AccessControlPermission,
@@ -405,6 +409,61 @@ class LinearTeamSerializer(serializers.Serializer):
 
 class LinearTeamsResponseSerializer(serializers.Serializer):
     teams = LinearTeamSerializer(many=True, help_text="Linear teams available to this integration.")
+
+
+class IntegrationAssigneeSerializer(serializers.Serializer):
+    id = serializers.CharField(
+        help_text=(
+            "Provider user identifier to pass as error tracking config.assignee: a Linear user ID, "
+            "a GitHub login, a GitLab user ID, or a Jira account ID."
+        )
+    )
+    name = serializers.CharField(help_text="User display name.")
+
+
+class IntegrationAssigneesResponseSerializer(serializers.Serializer):
+    users = IntegrationAssigneeSerializer(many=True, help_text="Users who can be assigned an issue, up to 100.")
+    reconnect_required = serializers.BooleanField(
+        help_text=(
+            "True when the connection lacks the permission to list users. Reconnecting the integration grants it."
+        ),
+    )
+
+
+class IntegrationAssigneesQuerySerializer(serializers.Serializer):
+    search = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Optional case-insensitive name search. Leave blank to list the first users.",
+    )
+
+
+class LinearTeamMembersQuerySerializer(IntegrationAssigneesQuerySerializer):
+    team_id = serializers.CharField(help_text="Linear team ID whose members to list.")
+
+
+class GitHubAssigneesQuerySerializer(IntegrationAssigneesQuerySerializer):
+    repository = serializers.CharField(
+        help_text="Repository name, or owner/name, whose assignable users to list.",
+    )
+
+
+class JiraAssignableUsersQuerySerializer(IntegrationAssigneesQuerySerializer):
+    project_key = serializers.CharField(help_text="Jira project key whose assignable users to list.")
+
+
+def assignees_response(lookup: Callable[[], list[Assignee]]) -> Response:
+    """Shape an assignee lookup as an `IntegrationAssigneesResponseSerializer` body."""
+    try:
+        assignees = lookup()
+    except ReconnectRequired:
+        return Response({"users": [], "reconnect_required": True})
+    except AssigneeLookupFailed as error:
+        raise ValidationError(str(error))
+    return Response(
+        {"users": [{"id": assignee.id, "name": assignee.name} for assignee in assignees], "reconnect_required": False}
+    )
 
 
 class GitHubTeamSerializer(serializers.Serializer):
@@ -1099,6 +1158,11 @@ class IntegrationSerializer(serializers.ModelSerializer, UserAccessControlSerial
                 raise ValidationError(str(e))
             return instance
 
+        elif validated_data["kind"] == "twitter-ads":
+            return TwitterAdsIntegration.integration_from_callback(
+                team_id, request.user, validated_data.get("config") or {}
+            )
+
         elif validated_data["kind"] in OauthIntegration.supported_kinds:
             # Stripe marketplace installs redirect to /integrations/stripe/callback without
             # a PostHog-minted CSRF state token — Stripe drives the OAuth flow itself.
@@ -1360,7 +1424,11 @@ class IntegrationViewSet(
         "github_teams",
         "github_available_installations",
         "jira_projects",
+        "jira_assignable_users",
         "linear_teams",
+        "linear_team_members",
+        "github_assignees",
+        "gitlab_members",
         "anthropic_managed_agents",
         "anthropic_managed_agent_environments",
         "anthropic_managed_agent_vaults",
@@ -1532,6 +1600,18 @@ class IntegrationViewSet(
         kind = request.GET.get("kind")
         next = request.GET.get("next", "")
         token = os.urandom(33).hex()
+
+        if kind == "twitter-ads":
+            response = redirect(TwitterAdsIntegration.authorize_url(self.team_id, cast(User, request.user).id, next))
+            response.set_cookie(
+                "ph_twitter_ads_team_id",
+                str(self.team_id),
+                max_age=600,
+                samesite="Lax",
+                secure=request.is_secure(),
+                httponly=False,
+            )
+            return response
 
         if kind in OauthIntegration.supported_kinds:
             region: str | None = None
@@ -2036,6 +2116,21 @@ class IntegrationViewSet(
         linear = LinearIntegration(instance)
         return Response({"teams": linear.list_teams()})
 
+    @extend_schema(
+        parameters=[LinearTeamMembersQuerySerializer], responses={200: IntegrationAssigneesResponseSerializer}
+    )
+    @action(methods=["GET"], detail=True, url_path="linear_team_members")
+    def linear_team_members(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        query_serializer = LinearTeamMembersQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+
+        instance = self.get_object()
+        if instance.kind != "linear":
+            raise ValidationError("linear_team_members endpoint is only supported for Linear integrations")
+        _ensure_oauth_token_valid(instance)
+        query = query_serializer.validated_data
+        return assignees_response(lambda: LinearIntegration(instance).list_assignees(query["team_id"], query["search"]))
+
     @extend_schema(operation_id="integrations_anthropic_managed_agents_retrieve")
     @action(methods=["GET"], detail=True, url_path="anthropic_managed_agents")
     def anthropic_managed_agents(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -2161,6 +2256,20 @@ class IntegrationViewSet(
         if instance.kind != "github":
             raise ValidationError("github_repos endpoint is only supported for GitHub integrations")
         return Response(github_repos_page(GitHubIntegration(instance), query_serializer.validated_data))
+
+    @extend_schema(parameters=[GitHubAssigneesQuerySerializer], responses={200: IntegrationAssigneesResponseSerializer})
+    @action(methods=["GET"], detail=True, url_path="github_assignees")
+    def github_assignees(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        query_serializer = GitHubAssigneesQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+
+        instance = self.get_object()
+        if instance.kind != "github":
+            raise ValidationError("github_assignees endpoint is only supported for GitHub integrations")
+        query = query_serializer.validated_data
+        return assignees_response(
+            lambda: GitHubIntegration(instance).list_assignees(query["repository"], query["search"])
+        )
 
     @extend_schema(request=GitHubPrepareCallbackRequestSerializer, responses={204: None})
     @action(methods=["POST"], detail=False, url_path="github/prepare_callback")
@@ -2412,6 +2521,37 @@ class IntegrationViewSet(
         jira = JiraIntegration(instance)
         return Response({"projects": jira.list_projects()})
 
+    @extend_schema(
+        parameters=[JiraAssignableUsersQuerySerializer], responses={200: IntegrationAssigneesResponseSerializer}
+    )
+    @action(methods=["GET"], detail=True, url_path="jira_assignable_users")
+    def jira_assignable_users(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        query_serializer = JiraAssignableUsersQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+
+        instance = self.get_object()
+        if instance.kind != "jira":
+            raise ValidationError("jira_assignable_users endpoint is only supported for Jira integrations")
+        _ensure_oauth_token_valid(instance)
+        query = query_serializer.validated_data
+        return assignees_response(
+            lambda: JiraIntegration(instance).list_assignees(query["project_key"], query["search"])
+        )
+
+    @extend_schema(
+        parameters=[IntegrationAssigneesQuerySerializer], responses={200: IntegrationAssigneesResponseSerializer}
+    )
+    @action(methods=["GET"], detail=True, url_path="gitlab_members")
+    def gitlab_members(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        query_serializer = IntegrationAssigneesQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+
+        instance = self.get_object()
+        if instance.kind != "gitlab":
+            raise ValidationError("gitlab_members endpoint is only supported for GitLab integrations")
+        search = query_serializer.validated_data["search"]
+        return assignees_response(lambda: GitLabIntegration(instance).list_assignees(search))
+
     @action(methods=["POST"], detail=True, url_path="email/verify")
     def email_verify(self, request, **kwargs):
         email = EmailIntegration(self.get_object())
@@ -2511,6 +2651,7 @@ class IntegrationViewSet(
                 host=resolved.host,
                 provider_endpoint=provider_endpoint,
                 redirect_uri=redirect_uri,
+                group_ids=resolved.group_ids,
             )
         except DomainConnectSigningKeyMissing as e:
             capture_exception(
