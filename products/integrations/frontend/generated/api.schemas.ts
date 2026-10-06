@@ -187,6 +187,7 @@ export interface RoleLookupResponseApi {
  * * `postgresql` - Postgresql
  * * `posthog` - Posthog
  * * `reddit-ads` - Reddit Ads
+ * * `twitter-ads` - Twitter Ads
  * * `resend` - Resend
  * * `s3-compatible` - S3 Compatible
  * * `salesforce` - Salesforce
@@ -239,6 +240,7 @@ export const IntegrationKindEnumApi = {
     Postgresql: 'postgresql',
     Posthog: 'posthog',
     RedditAds: 'reddit-ads',
+    TwitterAds: 'twitter-ads',
     Resend: 'resend',
     S3Compatible: 's3-compatible',
     Salesforce: 'salesforce',
@@ -342,6 +344,20 @@ export interface PatchedIntegrationConfigApi {
     readonly installation_shared?: boolean | null
     /** GitHub only, null otherwise. `unavailable` means the App was uninstalled or suspended on GitHub and PostHog can no longer mint tokens for it; `connected` otherwise. */
     readonly installation_status?: InstallationStatusEnumApi | null
+}
+
+export interface IntegrationAssigneeApi {
+    /** Provider user identifier to pass as error tracking config.assignee: a Linear user ID, a GitHub login, a GitLab user ID, or a Jira account ID. */
+    id: string
+    /** User display name. */
+    name: string
+}
+
+export interface IntegrationAssigneesResponseApi {
+    /** Users who can be assigned an issue, up to 100. */
+    users: IntegrationAssigneeApi[]
+    /** True when the connection lacks the permission to list users. Reconnecting the integration grants it. */
+    reconnect_required: boolean
 }
 
 export interface GitHubBranchesResponseApi {
@@ -613,6 +629,7 @@ export interface IntegrationAccessRequestApi {
      * * `postgresql` - Postgresql
      * * `posthog` - Posthog
      * * `reddit-ads` - Reddit Ads
+     * * `twitter-ads` - Twitter Ads
      * * `resend` - Resend
      * * `s3-compatible` - S3 Compatible
      * * `salesforce` - Salesforce
@@ -777,6 +794,7 @@ export type IntegrationsListParams = {
      * * `postgresql` - Postgresql
      * * `posthog` - Posthog
      * * `reddit-ads` - Reddit Ads
+     * * `twitter-ads` - Twitter Ads
      * * `resend` - Resend
      * * `s3-compatible` - S3 Compatible
      * * `salesforce` - Salesforce
@@ -850,6 +868,7 @@ export const IntegrationsListKind = {
     Stripe: 'stripe',
     TiktokAds: 'tiktok-ads',
     Twilio: 'twilio',
+    TwitterAds: 'twitter-ads',
     Vercel: 'vercel',
     YoutubeAnalytics: 'youtube-analytics',
 } as const
@@ -868,6 +887,18 @@ export type IntegrationsChannelsRetrieveParams = {
     offset?: number
     /**
      * Optional case-insensitive channel name or ID search query.
+     */
+    search?: string
+}
+
+export type IntegrationsGithubAssigneesRetrieveParams = {
+    /**
+     * Repository name, or owner/name, whose assignable users to list.
+     * @minLength 1
+     */
+    repository: string
+    /**
+     * Optional case-insensitive name search. Leave blank to list the first users.
      */
     search?: string
 }
@@ -933,6 +964,37 @@ export type IntegrationsGithubTeamsRetrieveParams = {
      * Optional case-insensitive team name or slug search query.
      */
     search?: string
+}
+
+export type IntegrationsGitlabMembersRetrieveParams = {
+    /**
+     * Optional case-insensitive name search. Leave blank to list the first users.
+     */
+    search?: string
+}
+
+export type IntegrationsJiraAssignableUsersRetrieveParams = {
+    /**
+     * Jira project key whose assignable users to list.
+     * @minLength 1
+     */
+    project_key: string
+    /**
+     * Optional case-insensitive name search. Leave blank to list the first users.
+     */
+    search?: string
+}
+
+export type IntegrationsLinearTeamMembersRetrieveParams = {
+    /**
+     * Optional case-insensitive name search. Leave blank to list the first users.
+     */
+    search?: string
+    /**
+     * Linear team ID whose members to list.
+     * @minLength 1
+     */
+    team_id: string
 }
 
 export type IntegrationsUsersRetrieveParams = {
