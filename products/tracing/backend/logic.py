@@ -58,6 +58,10 @@ TIME_BUCKET_DATE_RANGE_WHERE = (
     "and toStartOfDay(time_bucket, 'UTC') <= toStartOfDay({date_to}, 'UTC')"
 )
 
+# A trace can start shortly before the selected range. The list loads a root span from up to this long
+# before the range, so the trace does not show as having no root.
+ROOT_SPAN_LOOKBACK = dt.timedelta(minutes=15)
+
 # Hard cap on number of rows returned per period by the span aggregation runners. Keeps
 # payloads bounded when name cardinality blows up (e.g. untemplated URL paths). The flame
 # graph collapses long tails anyway so the lower-ranked rows aren't visible.
@@ -659,6 +663,27 @@ class TraceSpansQueryRunner(TraceSpansQueryRunnerMixin, AnalyticsQueryRunner[Tra
         if root_only:
             key_predicate = ast.And(exprs=[self.where(), parse_expr("is_root_span = 1")])
 
+        filters_expr: ast.Expr = (
+            ast.Constant(value=True)
+            if self._unbounded_trace_lookup
+            else ast.Placeholder(expr=ast.Field(chain=["filters"]))
+        )
+        # Under root_only the subquery already picks traces by an in-range root.
+        if not self._unbounded_trace_lookup and not root_only and self.query.traceId is None:
+            date_from = self.query_date_range.date_from()
+            filters_expr = ast.Or(
+                exprs=[
+                    filters_expr,
+                    parse_expr(
+                        "is_root_span AND timestamp >= {lookback_from} AND timestamp < {date_from}",
+                        placeholders={
+                            "lookback_from": ast.Constant(value=date_from - ROOT_SPAN_LOOKBACK),
+                            "date_from": ast.Constant(value=date_from),
+                        },
+                    ),
+                ]
+            )
+
         query = parse_select(
             """
             SELECT
@@ -689,9 +714,7 @@ class TraceSpansQueryRunner(TraceSpansQueryRunnerMixin, AnalyticsQueryRunner[Tra
                 if self._unbounded_trace_lookup
                 else parse_expr("trace_id IN ({trace_id_query})", placeholders={"trace_id_query": trace_id_query}),
                 "limit": ast.Constant(value=(self.query.limit or 1) * limit_by_n),
-                "filters": ast.Constant(value=True)
-                if self._unbounded_trace_lookup
-                else ast.Placeholder(expr=ast.Field(chain=["filters"])),
+                "filters": filters_expr,
                 # The attribute maps dominate payload size (db.statement holds multi-KB SQL;
                 # process.command_args etc. bulk up the resource map). When excluded we still
                 # SELECT a column so the positional result mapping stays stable — an empty map
