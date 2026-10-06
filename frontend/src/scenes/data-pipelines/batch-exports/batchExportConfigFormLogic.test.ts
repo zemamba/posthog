@@ -386,6 +386,7 @@ const HOGQL_BATCH_EXPORT: BatchExportConfiguration = {
     ...fixture('test-hogql-id', 'HogQL Export', { type: 'AwsS3', integration: 31, config: AWS_S3_CONFIG }),
     model: 'hogql',
     hogql_query: 'SELECT event FROM events WHERE timestamp >= {data_interval_start}',
+    hogql_modifiers: { convertToProjectTimezone: false },
 }
 
 const ALL_BATCH_EXPORTS: BatchExportConfiguration[] = [
@@ -1372,8 +1373,9 @@ describe('batchExportConfigFormLogic', () => {
             const body = patchBodiesById[fixture.id]
             expect(body).not.toBeUndefined()
             expect(body.destination).toEqual(fixture.destination)
-            // The backend rejects this field for every model but 'hogql', so other models must not send it
+            // The backend rejects these two fields for every model but 'hogql', so other models must not send them
             expect(body.hogql_query).toEqual(fixture.hogql_query)
+            expect(body.hogql_modifiers).toEqual(fixture.hogql_modifiers)
         })
 
         it.each([
