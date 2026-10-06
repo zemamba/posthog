@@ -3167,6 +3167,7 @@ export namespace Schemas {
       Person: 'person',
       Event: 'event',
       EventMetadata: 'event_metadata',
+      Element: 'element',
       Group: 'group',
       Session: 'session',
       Hogql: 'hogql',
@@ -3182,6 +3183,7 @@ export namespace Schemas {
       Person: 'person',
       Event: 'event',
       EventMetadata: 'event_metadata',
+      Element: 'element',
       Group: 'group',
       Session: 'session',
       Hogql: 'hogql',
@@ -7166,6 +7168,8 @@ export namespace Schemas {
     export interface HogQLFilters {
       /** Breakdown consumed by the {filters.breakdown(...)} placeholder. Set from the dashboard-level breakdown. */
       breakdownFilter?: BreakdownFilter | null;
+      /** Comparison range consumed by {filters.previous} and {filters.compareDate(expr)}. */
+      compareFilter?: CompareFilter | null;
       dateRange?: DateRange | null;
       filterTestAccounts?: boolean | null;
       /** Time granularity consumed by the {filters.interval} placeholder. Set from the dashboard-level interval. */
@@ -10721,6 +10725,7 @@ export namespace Schemas {
     export interface BIConfig {
       chartType: ChartDisplayType;
       columns: BIField[];
+      compareFilter?: CompareFilter | null;
       /** Column that receives the worksheet and dashboard date range. */
       dateField?: BIField | null;
       dateRange?: DateRange | null;
@@ -30711,6 +30716,7 @@ export namespace Schemas {
      * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
      * * `WhoGho` - WhoGho
      * * `Whop` - Whop
+     * * `Wistia` - Wistia
      * * `Wiz` - Wiz
      * * `Wompi` - Wompi
      * * `Workiz` - Workiz
@@ -32078,6 +32084,7 @@ export namespace Schemas {
       WhatsappBusinessManagement: 'WhatsappBusinessManagement',
       WhoGho: 'WhoGho',
       Whop: 'Whop',
+      Wistia: 'Wistia',
       Wiz: 'Wiz',
       Wompi: 'Wompi',
       Workiz: 'Workiz',
@@ -33459,6 +33466,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -36088,6 +36096,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -47351,6 +47360,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -48752,6 +48762,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -59517,7 +59528,7 @@ export namespace Schemas {
 
     export interface LeakedKeyReport {
       /**
-         * The leaked PostHog personal API key, project secret API key, or OAuth access/refresh token to revoke.
+         * The leaked PostHog personal API key, project secret API key, legacy feature flags secure API key, or OAuth access/refresh token to revoke.
          * @maxLength 200
          */
       token: string;
@@ -59526,6 +59537,7 @@ export namespace Schemas {
     /**
      * * `personal_api_key` - personal_api_key
      * * `project_secret_api_key` - project_secret_api_key
+     * * `team_secret_token` - team_secret_token
      * * `oauth_access_token` - oauth_access_token
      * * `oauth_refresh_token` - oauth_refresh_token
      */
@@ -59535,17 +59547,19 @@ export namespace Schemas {
     export const LeakedKeyReportResponseTypeEnum = {
       PersonalApiKey: 'personal_api_key',
       ProjectSecretApiKey: 'project_secret_api_key',
+      TeamSecretToken: 'team_secret_token',
       OauthAccessToken: 'oauth_access_token',
       OauthRefreshToken: 'oauth_refresh_token',
     } as const;
 
     export interface LeakedKeyReportResponse {
-      /** Whether a matching PostHog key or token was found and revoked. */
+      /** Whether a matching PostHog key or token was found. It was revoked, or, for team_secret_token, its project admins were told to rotate it. */
       found: boolean;
-      /** The type of key that was found and revoked, or null if no match was found.
+      /** The type of key that was found and revoked, or null if no match was found. team_secret_token means the string is a legacy feature flags secure API key: its migrated project secret API key row was removed, but the legacy key itself cannot be auto-rotated, so project admins are emailed to rotate it.
        *
        * * `personal_api_key` - personal_api_key
        * * `project_secret_api_key` - project_secret_api_key
+       * * `team_secret_token` - team_secret_token
        * * `oauth_access_token` - oauth_access_token
        * * `oauth_refresh_token` - oauth_refresh_token */
       type: LeakedKeyReportResponseTypeEnum | null;
@@ -63686,6 +63700,8 @@ export namespace Schemas {
       readonly id: string;
       /** Meeting title; may be empty. */
       readonly title: string;
+      /** Whether the meeting belongs to a recurring series. Account meeting lists include all past occurrences and only the next upcoming, non-canceled occurrence of each series. */
+      readonly is_recurring: boolean;
       /**
          * Gong call URL matched through the calendar event id; null when no Gong call is available.
          * @nullable
@@ -98636,6 +98652,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -100053,6 +100070,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
@@ -101452,6 +101470,7 @@ export namespace Schemas {
        * * `WhatsappBusinessManagement` - WhatsappBusinessManagement
        * * `WhoGho` - WhoGho
        * * `Whop` - Whop
+       * * `Wistia` - Wistia
        * * `Wiz` - Wiz
        * * `Wompi` - Wompi
        * * `Workiz` - Workiz
