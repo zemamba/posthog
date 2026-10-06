@@ -118,6 +118,9 @@ def _make_pipeline() -> PipelineV3:
     pipeline._attempt = 1
     pipeline._uses_delta_write_column_selection = False
     pipeline._observed_columns = {}
+    pipeline._continues_incremental_handoff = False
+    pipeline._resumed_incremental_run_uuid = None
+    pipeline._sent_resumed_run_finalization = False
 
     return pipeline
 
@@ -1172,6 +1175,19 @@ class TestFinalMarkerIsTheLastDataRow:
             stack.enter_context(patch(f"{_PIPELINE}.activity")).in_activity.return_value = False
             await pipeline.run()
 
+    @pytest.mark.asyncio
+    async def test_a_zero_batch_continuation_finalizes_the_earlier_queue_run(self) -> None:
+        pipeline = _make_pipeline()
+        pipeline._continues_incremental_handoff = True
+        pipeline._resumed_incremental_run_uuid = "workflow-run-a1"
+
+        await pipeline._finalize(row_count=0)
+
+        cast(MagicMock, pipeline._pg_producer.send_final_batch_for_resumed_run).assert_called_once_with(
+            "workflow-run-a1"
+        )
+        assert pipeline._consumer_finalizes_this_run() is True
+
     @pytest.mark.parametrize(
         "ids,expected_rows",
         [
@@ -1274,8 +1290,8 @@ class TestIncrementalHandoffCheckpoint:
             incremental_field_type=IncrementalFieldType.Integer,
             table=None,
         )
-        pipeline._schema.stage_handoff_resume_value.side_effect = lambda run_uuid, value: events.append(
-            ("resume_value", value)
+        pipeline._schema.stage_handoff_resume_value.side_effect = lambda run_uuid, value, owner_run_uuid=None: (
+            events.append(("resume_value", value))
         )
         pipeline._s3_batch_writer = MagicMock(
             write_batch=MagicMock(
@@ -1335,6 +1351,61 @@ class TestIncrementalHandoffCheckpoint:
 
         monitor.is_worker_shutdown.side_effect = is_shutdown
         monitor.raise_if_is_worker_shutdown.side_effect = raise_if_shutdown
+
+    @pytest.mark.asyncio
+    async def test_an_inherited_value_keeps_the_earlier_owner_until_this_attempt_queues_a_batch(self) -> None:
+        # a2 inherits a1's value before extracting anything. If a2 hands off before queuing a batch
+        # of its own, a3 must still finalize a1 - the run whose queue rows the value describes.
+        events: list[Any] = []
+        pipeline = self._pipeline(lambda: iter(()), events, resumed_from=40)
+        pipeline._resumed_incremental_run_uuid = "run-0"
+
+        stage_mock = cast(MagicMock, pipeline._schema.stage_handoff_resume_value)
+
+        await pipeline._stage_handoff_resume_value(force=True)
+
+        assert stage_mock.call_args.args == ("run-1", 40, "run-0")
+
+        # Once a2 queues a batch of its own, it owns the queue rows: the owner is cleared so the
+        # model defaults it to this run, even though the resume value itself has not changed yet.
+        pipeline._queued_own_batch = True
+        await pipeline._stage_handoff_resume_value()
+
+        assert stage_mock.call_args.args == ("run-1", 40, None)
+
+        # A later write from this attempt's own progress keeps the owner cleared.
+        cast(IncrementalHandoffCheckpoint, pipeline._handoff_checkpoint)._resume_value = 55
+        await pipeline._stage_handoff_resume_value()
+
+        assert stage_mock.call_args.args == ("run-1", 55, None)
+
+    @pytest.mark.asyncio
+    async def test_ownership_follows_a_queue_row_only_once_it_is_actually_inserted(self) -> None:
+        # The first batch an attempt holds is not inserted yet, so a crash right there must not grant
+        # this attempt ownership of a queue row it does not yet have.
+        pipeline = self._pipeline(lambda: iter(()), [], resumed_from=40)
+        pipeline._resumed_incremental_run_uuid = "run-0"
+        pipeline._pg_producer = _recording_producer()
+
+        await pipeline._stage_batch(pa.table({"id": ["a"], "n": [1]}), 0, 1)
+        assert pipeline._queued_own_batch is False
+
+        # Holding a second batch flushes the first one into the queue, so it is now this attempt's.
+        await pipeline._stage_batch(pa.table({"id": ["b"], "n": [2]}), 1, 2)
+        assert pipeline._queued_own_batch is True
+
+    @pytest.mark.asyncio
+    async def test_releasing_a_held_batch_also_grants_ownership(self) -> None:
+        pipeline = self._pipeline(lambda: iter(()), [], resumed_from=40)
+        pipeline._resumed_incremental_run_uuid = "run-0"
+        pipeline._pg_producer = _recording_producer()
+
+        await pipeline._stage_batch(pa.table({"id": ["a"], "n": [1]}), 0, 1)
+        assert pipeline._queued_own_batch is False
+
+        pipeline._release_held_batches()
+
+        assert pipeline._queued_own_batch is True
 
     @pytest.mark.asyncio
     async def test_a_handoff_stages_the_buffered_rows_and_then_records_where_to_continue(self) -> None:

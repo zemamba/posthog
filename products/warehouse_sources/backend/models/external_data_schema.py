@@ -188,6 +188,12 @@ STAGED_CURSOR_PENDING_LIMIT = MAX_RESUMABLE_SOURCE_RETRIES_PRODUCTION
 # when the whole run completes.
 STAGED_RESUME_VALUE_KEY = "resume_value"
 
+# The key, inside a staged cursor, for the run whose queue rows the resume value actually describes.
+# An attempt that only inherits the value from an earlier attempt, without queuing a batch of its
+# own yet, is not that run: finalizing a later zero-batch continuation must target the run that
+# holds the rows, not whichever attempt most recently restated the same value.
+STAGED_RESUME_OWNER_KEY = "resume_owner_run_uuid"
+
 
 class ExternalDataSchemaQuerySet(models.QuerySet["ExternalDataSchema"]):
     def update(self, **kwargs: Any) -> int:
@@ -1035,14 +1041,24 @@ class ExternalDataSchema(  # nosemgrep: semgrep.rules.security.prefer-uuid7-djan
         }
         self._stage_cursor_values(run_uuid, values)
 
-    def stage_handoff_resume_value(self, run_uuid: str, resume_value: Any) -> None:
+    def stage_handoff_resume_value(self, run_uuid: str, resume_value: Any, owner_run_uuid: str | None = None) -> None:
         """Record the incremental value a later attempt of this workflow run can resume after.
 
         Stage only a value whose rows already have their queue rows, because the next attempt reads
         the source strictly above it. None records that this attempt has no such value, which stops
         the next attempt from using the value of an older attempt.
+
+        `owner_run_uuid` is the run whose queue rows the value describes, for finalizing a later
+        zero-batch continuation. It defaults to `run_uuid`, the common case of an attempt that just
+        queued the batch the value describes.
         """
-        self._stage_cursor_values(run_uuid, {STAGED_RESUME_VALUE_KEY: self._serialize_incremental_value(resume_value)})
+        self._stage_cursor_values(
+            run_uuid,
+            {
+                STAGED_RESUME_VALUE_KEY: self._serialize_incremental_value(resume_value),
+                STAGED_RESUME_OWNER_KEY: owner_run_uuid if owner_run_uuid is not None else run_uuid,
+            },
+        )
 
     def stage_source_cursor(self, run_uuid: str, payload: dict[str, Any]) -> None:
         """Hold a run's source cursor in `incremental_staged`, which the load side promotes with the watermark."""
@@ -1388,12 +1404,15 @@ def _drop_parked_staged_cursor(config: dict[str, Any], run_uuid: str) -> dict[st
     return dropped
 
 
-def staged_handoff_resume_value(config: dict[str, Any], workflow_run_id: str | None) -> Any:
-    """The value the newest attempt of `workflow_run_id` recorded with `stage_handoff_resume_value`.
+def staged_handoff_resume_point(config: dict[str, Any], workflow_run_id: str | None) -> tuple[str, Any] | None:
+    """The run that owns the queued rows, and the value, recorded by the newest attempt of
+    `workflow_run_id`.
 
-    Only the newest attempt counts. An attempt that restarted from the stored watermark can replace
-    the queue rows of the attempts before it, so their values no longer describe what the loader
-    will load.
+    The returned run is `STAGED_RESUME_OWNER_KEY`, not necessarily the attempt that most recently
+    staged the entry: an attempt that only inherited the value, without queuing a batch of its own
+    yet, stages it under its own `run_uuid` for parking purposes but records the earlier run as the
+    owner. A caller that finalizes a zero-batch continuation needs the owner, since that is the run
+    whose queue rows still need the final marker.
     """
     if not workflow_run_id:
         return None
@@ -1407,7 +1426,21 @@ def staged_handoff_resume_value(config: dict[str, Any], workflow_run_id: str | N
         attempt = run_uuid.removeprefix(prefix)
         if attempt.isdigit() and int(attempt) > newest_attempt:
             newest, newest_attempt = staged, int(attempt)
-    return None if newest is None else newest.get(STAGED_RESUME_VALUE_KEY)
+    if newest is None:
+        return None
+    owner_run_uuid = newest.get(STAGED_RESUME_OWNER_KEY) or newest["run_uuid"]
+    return owner_run_uuid, newest.get(STAGED_RESUME_VALUE_KEY)
+
+
+def staged_handoff_resume_value(config: dict[str, Any], workflow_run_id: str | None) -> Any:
+    """The value the newest attempt of `workflow_run_id` recorded with `stage_handoff_resume_value`.
+
+    Only the newest attempt counts. An attempt that restarted from the stored watermark can replace
+    the queue rows of the attempts before it, so their values no longer describe what the loader
+    will load.
+    """
+    point = staged_handoff_resume_point(config, workflow_run_id)
+    return None if point is None else point[1]
 
 
 def _advance_promoted_cursor(

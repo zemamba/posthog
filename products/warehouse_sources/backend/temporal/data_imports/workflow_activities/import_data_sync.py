@@ -35,7 +35,7 @@ from products.warehouse_sources.backend.models.external_data_schema import (
     apply_incremental_lookback,
     get_schema_if_exists,
     process_incremental_value,
-    staged_handoff_resume_value,
+    staged_handoff_resume_point,
 )
 from products.warehouse_sources.backend.models.external_data_source import ExternalDataSource
 from products.warehouse_sources.backend.models.table import DataWarehouseTable
@@ -560,13 +560,19 @@ async def _import_data_with_progress(
         # promotes the stored watermark only when the whole run completes. Reading after the value
         # skips the rows that are already queued. A run that fails later leaves the stored watermark
         # where it was, so the next run extracts those rows again.
-        incremental_checkpoints_allowed = use_stored_cursors and (schema.is_incremental or schema.is_append)
+        incremental_checkpoints_allowed = use_stored_cursors and schema.is_incremental
+        resumed_incremental_run_uuid = None
         resumed_incremental_value = None
         if incremental_checkpoints_allowed and settings.DATA_WAREHOUSE_IMPORT_WATERMARK_CARRY_OVER_ENABLED:
-            resumed_incremental_value = process_incremental_value(
-                staged_handoff_resume_value(schema.sync_type_config, model.workflow_run_id),
-                schema.incremental_field_type,
-            )
+            resume_point = staged_handoff_resume_point(schema.sync_type_config, model.workflow_run_id)
+            if resume_point is not None:
+                resumed_incremental_run_uuid, resumed_incremental_value = resume_point
+                resumed_incremental_value = process_incremental_value(
+                    resumed_incremental_value,
+                    schema.incremental_field_type,
+                )
+                if resumed_incremental_value is None:
+                    resumed_incremental_run_uuid = None
         if resumed_incremental_value is not None:
             # The earlier attempt already read the lookback window, so the value is used as it is.
             processed_incremental_last_value = resumed_incremental_value
@@ -747,6 +753,7 @@ async def _import_data_with_progress(
                 resumable_source_manager=resumable_source_manager,
                 source_cursor_manager=source_cursor_manager,
                 incremental_checkpoints_allowed=incremental_checkpoints_allowed,
+                resumed_incremental_run_uuid=resumed_incremental_run_uuid,
                 resumed_incremental_value=resumed_incremental_value,
                 preemption=preemption,
             )
@@ -1088,6 +1095,7 @@ async def _run(
     resumable_source_manager: ResumableSourceManager | None,
     source_cursor_manager: SourceCursorManager[Any] | None = None,
     incremental_checkpoints_allowed: bool = False,
+    resumed_incremental_run_uuid: str | None = None,
     resumed_incremental_value: Any = None,
     preemption: PreemptionConfig | None = None,
 ) -> PipelineResult:
@@ -1105,6 +1113,7 @@ async def _run(
             models=models,
             source_cursor_manager=source_cursor_manager,
             incremental_checkpoints_allowed=incremental_checkpoints_allowed,
+            resumed_incremental_run_uuid=resumed_incremental_run_uuid,
             resumed_incremental_value=resumed_incremental_value,
             preemption=preemption,
         )
