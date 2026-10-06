@@ -33,6 +33,7 @@ import { ActivityScope } from '~/types'
 import { AlertType } from 'products/alerts/frontend/types'
 
 import { AI_OBSERVABILITY_CLUSTER_URL_PATTERN } from '../../products/ai_observability/frontend/clusters/constants'
+import { scorerFiltersFromSearchParams } from '../../products/ai_observability/frontend/scoreDefinitions/scoreDefinitionNavigation'
 import type { WarehousePropertiesSceneTab } from '../../products/customer_analytics/frontend/scenes/WarehousePropertiesScene/warehousePropertiesSceneLogic'
 import type { ModelsSceneTab } from '../../products/data_modeling/frontend/modelsSceneLogic'
 import type { NodeDetailSceneTab } from '../../products/data_modeling/frontend/nodeDetail/nodeDetailSceneLogic'
@@ -86,11 +87,20 @@ export const productRoutes: Record<string, [string, string]> = {
     '/ai-evals/taggers': ['AIObservabilityTags', 'aiObservabilityTags'],
     '/ai-evals/taggers/:id': ['AIObservabilityTag', 'aiObservabilityTag'],
     '/ai-evals/evaluations': ['AIObservabilityEvaluations', 'aiObservabilityEvaluations'],
-    '/ai-evals/evaluations/offline/experiments': ['AIObservabilityEvaluations', 'aiObservabilityOfflineEvaluations'],
+    '/ai-evals/evaluations/offline/experiments': [
+        'AIObservabilityOfflineExperiments',
+        'aiObservabilityOfflineEvaluations',
+    ],
     '/ai-evals/evaluations/offline/experiments/:experimentId': [
-        'AIObservabilityEvaluations',
+        'AIObservabilityOfflineExperiment',
         'aiObservabilityOfflineEvaluationExperiment',
     ],
+    '/ai-evals/evaluations/scorers': ['AIObservabilityScorers', 'aiObservabilityScorers'],
+    '/ai-evals/evaluations/scorers/:scorerId/offline': [
+        'AIObservabilityOfflineScorerHistory',
+        'aiObservabilityOfflineScorerHistory',
+    ],
+    '/ai-evals/evaluations/scorers/:scorerId': ['AIObservabilityScorer', 'aiObservabilityScorer'],
     '/ai-evals/evaluations/templates': ['AIObservabilityEvaluationTemplates', 'aiObservabilityEvaluationTemplates'],
     '/ai-evals/evaluations/:id': ['AIObservabilityEvaluation', 'aiObservabilityEvaluation'],
     '/prompt-management/prompts': ['AIObservabilityPrompts', 'aiObservabilityPrompts'],
@@ -273,7 +283,10 @@ export const productRoutes: Record<string, [string, string]> = {
     '/subscriptions/:subscriptionId': ['Subscription', 'subscription'],
     '/slack-task-context': ['SlackTaskContext', 'slackTaskContext'],
     '/spaces': ['TaskSpaces', 'taskSpaces'],
+    '/spaces/new': ['TaskNewSession', 'taskNewSession'],
     '/spaces/:id': ['TaskSpace', 'taskSpace'],
+    '/spaces/:id/canvases': ['TaskSpace', 'taskSpaceCanvases'],
+    '/spaces/:id/new': ['TaskNewSession', 'taskSpaceNewSession'],
     '/spaces/:id/settings': ['TaskSpace', 'taskSpaceSettings'],
     '/tracing': ['Tracing', 'tracing'],
     '/tracing/operation': ['TracingOperation', 'tracingOperation'],
@@ -367,7 +380,9 @@ export const productRedirects: Record<
     '/llm-analytics/generations': (_params, searchParams, hashParams) =>
         combineUrl(urls.aiObservabilityGenerations(), searchParams, hashParams).url,
     '/llm-analytics/reviews': (_params, searchParams, hashParams) =>
-        combineUrl(urls.aiObservabilityReviews(), searchParams, hashParams).url,
+        searchParams.human_reviews_tab === 'scorers'
+            ? combineUrl(urls.aiObservabilityScorers(), scorerFiltersFromSearchParams(searchParams)).url
+            : combineUrl(urls.aiObservabilityReviews(), searchParams, hashParams).url,
     '/llm-analytics/traces': (_params, searchParams, hashParams) =>
         combineUrl(urls.aiObservabilityTraces(), searchParams, hashParams).url,
     '/llm-analytics/traces/:id': (params, searchParams, hashParams) =>
@@ -423,7 +438,9 @@ export const productRedirects: Record<
     '/llm-observability/generations': (_params, searchParams, hashParams) =>
         combineUrl(urls.aiObservabilityGenerations(), searchParams, hashParams).url,
     '/llm-observability/reviews': (_params, searchParams, hashParams) =>
-        combineUrl(urls.aiObservabilityReviews(), searchParams, hashParams).url,
+        searchParams.human_reviews_tab === 'scorers'
+            ? combineUrl(urls.aiObservabilityScorers(), scorerFiltersFromSearchParams(searchParams)).url
+            : combineUrl(urls.aiObservabilityReviews(), searchParams, hashParams).url,
     '/llm-observability/traces': (_params, searchParams, hashParams) =>
         combineUrl(urls.aiObservabilityTraces(), searchParams, hashParams).url,
     '/llm-observability/traces/:id': (params, searchParams, hashParams) =>
@@ -541,6 +558,31 @@ export const productConfiguration: Record<string, any> = {
         layout: 'app-container',
         iconType: 'llm_evaluations',
         docsHref: 'https://posthog.com/docs/ai-evals',
+    },
+    AIObservabilityScorers: {
+        projectBased: true,
+        name: 'Scorers',
+        layout: 'app-container',
+        iconType: 'llm_evaluations',
+    },
+    AIObservabilityScorer: { projectBased: true, name: 'Scorer', layout: 'app-container', iconType: 'llm_evaluations' },
+    AIObservabilityOfflineExperiments: {
+        projectBased: true,
+        name: 'Offline evals',
+        layout: 'app-container',
+        iconType: 'llm_evaluations',
+    },
+    AIObservabilityOfflineExperiment: {
+        projectBased: true,
+        name: 'Offline experiment',
+        layout: 'app-container',
+        iconType: 'llm_evaluations',
+    },
+    AIObservabilityOfflineScorerHistory: {
+        projectBased: true,
+        name: 'Scorer history',
+        layout: 'app-container',
+        iconType: 'llm_evaluations',
     },
     AIObservabilityEvaluation: {
         projectBased: true,
@@ -1050,6 +1092,7 @@ export const productConfiguration: Record<string, any> = {
     },
     SlackTaskContext: { name: 'Slack task context', projectBased: true },
     TaskSpaces: { name: 'Spaces', projectBased: true },
+    TaskNewSession: { name: 'New session', projectBased: true },
     TaskSpace: { name: 'Space', projectBased: true },
     Toolbar: {
         name: 'Toolbar',
@@ -1226,6 +1269,15 @@ export const productUrls = {
     aiObservabilityTags: (): string => '/ai-evals/taggers',
     aiObservabilityTag: (id: string): string => `/ai-evals/taggers/${id}`,
     aiObservabilityEvaluations: (): string => '/ai-evals/evaluations',
+    aiObservabilityScorers: (): string => '/ai-evals/evaluations/scorers',
+    aiObservabilityScorer: (
+        scorerId: string,
+        params?: {
+            duplicate?: string
+        }
+    ): string => combineUrl(`/ai-evals/evaluations/scorers/${encodeURIComponent(scorerId)}`, params).url,
+    aiObservabilityOfflineScorerHistory: (scorerId: string, encode: boolean = true): string =>
+        `/ai-evals/evaluations/scorers/${encode ? encodeURIComponent(scorerId) : scorerId}/offline`,
     aiObservabilityOfflineEvaluations: (): string => '/ai-evals/evaluations/offline/experiments',
     aiObservabilityOfflineEvaluationExperiment: (experimentId: string, encode: boolean = true): string =>
         `/ai-evals/evaluations/offline/experiments/${encode ? encodeURIComponent(experimentId) : experimentId}`,
@@ -1404,8 +1456,13 @@ export const productUrls = {
         `/engineering-analytics/teams/${encodeURIComponent(ownerTeam)}`,
     engineeringAnalyticsPullRequest: (repoOwner: string, repoName: string, number: number | string): string =>
         `/engineering-analytics/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/pull-requests/${number}`,
-    engineeringAnalyticsWorkflowRun: (repoOwner: string, repoName: string, runId: number | string): string =>
-        `/engineering-analytics/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/actions/runs/${runId}`,
+    engineeringAnalyticsWorkflowRun: (
+        repoOwner: string,
+        repoName: string,
+        runId: number | string,
+        ciEngine?: string | null
+    ): string =>
+        `/engineering-analytics/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/actions/runs/${runId}${ciEngine ? `?ci_engine=${encodeURIComponent(ciEngine)}` : ''}`,
     engineeringAnalyticsWorkflowRuns: (repoOwner: string, repoName: string, workflowName: string): string =>
         `/engineering-analytics/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/actions/workflows/${encodeURIComponent(workflowName)}`,
     engineeringAnalyticsAuthor: (handle: string): string =>
@@ -1676,7 +1733,10 @@ export const productUrls = {
         `/surveys/guided/${id}${template ? `?template=${encodeURIComponent(template)}` : ''}`,
     slackTaskContext: (): string => '/slack-task-context',
     taskSpaces: (): string => '/spaces',
+    taskNewSession: (): string => '/spaces/new',
     taskSpace: (id: string): string => `/spaces/${id}`,
+    taskSpaceCanvases: (id: string): string => `/spaces/${id}/canvases`,
+    taskSpaceNewSession: (id: string): string => `/spaces/${id}/new`,
     taskSpaceSettings: (id: string): string => `/spaces/${id}/settings`,
     toolbarLaunch: (): string => '/toolbar',
     tracing: (): string => '/tracing',
@@ -2129,10 +2189,10 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
     },
     {
         path: 'Business knowledge',
-        intents: [ProductKey.CONVERSATIONS],
+        intents: [ProductKey.BUSINESS_KNOWLEDGE],
         category: ProductItemCategory.DATA,
         href: urls.businessKnowledge(),
-        tags: ['alpha'],
+        tags: ['beta'],
         iconType: 'business_knowledge',
         iconColor: ['var(--color-product-business-knowledge-light)', 'var(--color-product-business-knowledge-dark)'],
         flag: FEATURE_FLAGS.PRODUCT_BUSINESS_KNOWLEDGE,
@@ -2162,6 +2222,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2270,6 +2335,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2375,6 +2445,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2435,6 +2510,7 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
         iconType: 'inbox' as FileSystemIconType,
         href: urls.inbox(),
         flag: FEATURE_FLAGS.PRODUCT_AUTONOMY,
+        tags: ['beta'],
         sceneKey: 'Inbox',
         sceneKeys: ['Inbox'],
     },
@@ -2464,6 +2540,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2568,6 +2649,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2623,6 +2709,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
@@ -2735,6 +2826,11 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'AIObservabilityDatasets',
             'AIObservabilityDataset',
             'AIObservabilityEvaluations',
+            'AIObservabilityScorers',
+            'AIObservabilityScorer',
+            'AIObservabilityOfflineExperiments',
+            'AIObservabilityOfflineExperiment',
+            'AIObservabilityOfflineScorerHistory',
             'AIObservabilityEvaluation',
             'AIObservabilityEvaluationTemplates',
             'AIObservabilityTags',
