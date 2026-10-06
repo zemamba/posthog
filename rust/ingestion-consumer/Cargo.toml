@@ -42,3 +42,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 rstest = "0.26"
 tokio = { workspace = true, features = ["test-util"] }
 uuid = { workspace = true }
+
+[[bench]]
+name = "batcher"
+harness = false
