@@ -161,6 +161,10 @@ class PipelineV3(Generic[ResumableData]):
     _handoff_checkpoint: IncrementalHandoffCheckpoint | None = None
     _batch_range_reader: IncrementalBatchRangeReader
     _staged_handoff_resume_value: Any = None
+    _staged_handoff_resume_owner: str | None = None
+    # True once this attempt has queued a batch of its own, rather than only inheriting the
+    # resume value an earlier attempt recorded. Decides who owns the queue rows the value describes.
+    _queued_own_batch: bool = False
     # True when this attempt reads the source after a value an earlier attempt of the run recorded.
     _continues_incremental_handoff: bool = False
     # The manager the source holds, also when this run cannot resume from it.
@@ -382,6 +386,9 @@ class PipelineV3(Generic[ResumableData]):
         batch_result = await asyncio.to_thread(self._s3_batch_writer.write_batch, pa_table, batch_index)
         self._batch_results.append(batch_result)
 
+        # `hold_batch` only inserts the batch this attempt is already holding, not the one it is
+        # about to hold. A row from this attempt exists in the queue only once this call flushes one.
+        flushes_a_held_batch = self._pg_producer.has_held_batch
         try:
             self._pg_producer.hold_batch(batch_result, cumulative_row_count=row_count)
         except Exception:
@@ -389,6 +396,10 @@ class PipelineV3(Generic[ResumableData]):
             # counts that batch, so no later value of it is safe. The value staged earlier stays valid.
             self._handoff_checkpoint = None
             raise
+        if flushes_a_held_batch:
+            # This attempt now owns an inserted queue row, so any resume value it stages from here
+            # describes rows it holds, not rows an earlier attempt queued.
+            self._queued_own_batch = True
         return pa_table.num_rows
 
     def _total_batches(self) -> int:
@@ -412,7 +423,9 @@ class PipelineV3(Generic[ResumableData]):
 
     def _release_held_batches(self) -> None:
         """Put every held queue row into the queue now, as a non-final row."""
-        self._pg_producer.release_held_batch()
+        if self._pg_producer.release_held_batch():
+            # The row this attempt was holding is inserted now, so it owns a queue row of its own.
+            self._queued_own_batch = True
 
     def _mark_first_ever_sync(self) -> None:
         self._pg_producer.is_first_ever_sync = True
@@ -503,16 +516,32 @@ class PipelineV3(Generic[ResumableData]):
         await asyncio.to_thread(self._resumable_source_manager.commit)
 
     async def _stage_handoff_resume_value(self, *, force: bool = False) -> None:
-        """Persist the checkpoint's value. Call it only when every observed batch has its queue row."""
+        """Persist the checkpoint's value. Call it only when every observed batch has its queue row.
+
+        Until this attempt queues a batch of its own, the value is still inherited from an earlier
+        attempt and describes rows that attempt's queue holds. The owner recorded alongside it
+        stays that earlier attempt's run until this one actually queues a row, so a later zero-batch
+        continuation finalizes whichever run truly holds the queued rows.
+        """
         if self._handoff_checkpoint is None:
             return
         resume_value = self._handoff_checkpoint.resume_value
-        if not force and resume_value == self._staged_handoff_resume_value:
+        # None (the common case) means "whichever run stages this", resolved against `run_uuid` on
+        # the model side. Only the inheritance window - before this attempt has queued a batch of
+        # its own - needs an explicit owner, so a zero-batch continuation still finalizes the run
+        # that holds the rows instead of this one, which holds none yet.
+        owner_run_uuid = None if self._queued_own_batch else self._resumed_incremental_run_uuid
+        if (
+            not force
+            and resume_value == self._staged_handoff_resume_value
+            and owner_run_uuid == self._staged_handoff_resume_owner
+        ):
             return
         await database_sync_to_async_pool(self._schema.stage_handoff_resume_value)(
-            self._s3_batch_writer.get_run_uuid(), resume_value
+            self._s3_batch_writer.get_run_uuid(), resume_value, owner_run_uuid
         )
         self._staged_handoff_resume_value = resume_value
+        self._staged_handoff_resume_owner = owner_run_uuid
 
     async def _advance_handoff_checkpoint(self, pa_table: pa.Table) -> None:
         if self._handoff_checkpoint is None:
