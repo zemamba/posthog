@@ -22,6 +22,10 @@ from tenacity import RetryCallState, retry, retry_if_exception_type
 from posthog.temporal.common.errors import NonReportableError
 
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.http import make_tracked_session
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.interruptible_wait import (
+    interruptible_sleep,
+    safe_point_during_waits,
+)
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.safe_point import (
     reach_framework_safe_point,
 )
@@ -465,9 +469,18 @@ class RESTClient:
                 paginator.set_resume_state(initial_paginator_state)
             paginator.init_request(request)
 
+        # True when nothing changed since this call reached a framework safe point. A retry wait
+        # of the next request is then a safe point too. The first request of a call does not
+        # qualify, because the caller can stage a cursor between two calls.
+        at_safe_point = False
+
         while True:
             try:
-                response, body = self._send_request(request, hooks, body_check=malformed_check)
+                if at_safe_point:
+                    with safe_point_during_waits(reach_framework_safe_point):
+                        response, body = self._send_request(request, hooks, body_check=malformed_check)
+                else:
+                    response, body = self._send_request(request, hooks, body_check=malformed_check)
             except IgnoreResponseException:
                 break
 
@@ -489,6 +502,7 @@ class RESTClient:
             # is safe even when a dependent resource routes its resume hook only to the child.
             if resume_hook is None:
                 reach_framework_safe_point()
+            at_safe_point = True
 
             if paginator is None or not paginator.has_next_page:
                 break
@@ -497,6 +511,7 @@ class RESTClient:
         retry=retry_if_exception_type(RESTClientRetryableError),
         stop=_stop_after_client_attempts,
         wait=_retry_wait_seconds,
+        sleep=interruptible_sleep,
         reraise=True,
     )
     def _send_request(

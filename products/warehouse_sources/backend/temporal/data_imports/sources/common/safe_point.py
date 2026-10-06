@@ -21,6 +21,8 @@ from contextvars import ContextVar
 
 from posthog.dataclasses import frozen
 
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.progress import SAFE_POINT, note_progress
+
 SafePointHook = Callable[[], None]
 
 
@@ -50,6 +52,7 @@ def activate_safe_point(hook: SafePointHook, *, covers_framework_checkpoints: bo
 
 def reach_safe_point() -> None:
     """Tell the pipeline that the source is at a safe point. Does nothing outside an extraction."""
+    note_progress(SAFE_POINT)
     active = _active_safe_point.get()
     if active is not None:
         active.hook()
@@ -57,6 +60,7 @@ def reach_safe_point() -> None:
 
 def reach_framework_safe_point() -> None:
     """The REST framework's safe point, which applies only when nothing wraps the framework's output."""
+    note_progress(SAFE_POINT)
     active = _active_safe_point.get()
     if active is not None and active.covers_framework_checkpoints:
         active.hook()

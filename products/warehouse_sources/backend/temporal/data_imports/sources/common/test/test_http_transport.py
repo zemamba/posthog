@@ -8,6 +8,7 @@ from urllib3.util.retry import Retry
 
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.http.transport import (
     DEFAULT_RETRY,
+    DEFAULT_TIMEOUT,
     BoundedRetry,
     TrackedHTTPAdapter,
     _NoRedirectSession,
@@ -102,6 +103,37 @@ def test_no_redirect_session_does_not_follow_redirects(mock_record):
     assert response.status_code == 302
     # A single dispatch: the redirect target is never fetched.
     assert adapter_send.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "adapter_kwargs,request_timeout,expected",
+    [
+        pytest.param({}, None, DEFAULT_TIMEOUT, id="request_without_a_timeout"),
+        pytest.param({}, 5, 5, id="request_timeout_wins"),
+        pytest.param({}, (3, 7), (3, 7), id="request_timeout_pair_wins"),
+        pytest.param({"default_timeout": (1.0, 2.0)}, None, (1.0, 2.0), id="adapter_default"),
+        pytest.param({"default_timeout": None}, None, None, id="adapter_without_a_default"),
+    ],
+)
+def test_a_request_without_a_timeout_gets_the_default_one(mock_record, adapter_kwargs, request_timeout, expected):
+    session = requests.Session()
+    session.mount("https://", TrackedHTTPAdapter(**adapter_kwargs))
+
+    with patch.object(HTTPAdapter, "send", return_value=_fake_response()) as adapter_send:
+        session.get("https://api.example.com/items", timeout=request_timeout)
+
+    assert adapter_send.call_args.kwargs["timeout"] == expected
+
+
+def test_a_tracked_session_bounds_every_request_by_default(mock_record):
+    session = make_tracked_session()
+
+    with patch.object(HTTPAdapter, "send", return_value=_fake_response()) as adapter_send:
+        session.get("https://api.example.com/items")
+
+    connect_timeout, read_timeout = adapter_send.call_args.kwargs["timeout"]
+    assert connect_timeout > 0
+    assert read_timeout > 0
 
 
 def test_make_tracked_session_merges_headers():

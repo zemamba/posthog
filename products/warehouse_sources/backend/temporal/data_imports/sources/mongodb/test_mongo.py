@@ -710,6 +710,7 @@ class TestGetRowsToSync(SimpleTestCase):
         coll = MagicMock()
         coll.count_documents.return_value = 42
         assert _get_rows_to_sync(coll, {}, MagicMock()) == 42
+        assert coll.count_documents.call_args.kwargs["maxTimeMS"] > 0
 
     def test_pymongo_error_returns_zero_without_capture(self):
         coll = MagicMock()
@@ -879,7 +880,7 @@ class _FakeCollection:
         self.last_cursor = cursor
         return cursor
 
-    def count_documents(self, query: dict[str, Any]) -> int:
+    def count_documents(self, query: dict[str, Any], **kwargs: Any) -> int:
         return len(self._docs)
 
 

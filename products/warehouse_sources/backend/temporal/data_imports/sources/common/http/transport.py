@@ -26,6 +26,19 @@ from urllib3.exceptions import InvalidHeader
 from urllib3.util.retry import Retry
 
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.http.observer import record_request
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.progress import (
+    SOURCE_REQUEST,
+    note_progress,
+)
+
+# Applied to a request that names no timeout of its own. Without one, a server that accepts the
+# connection and then sends nothing holds the thread of the source for as long as the socket lives.
+# The read timeout is the longest gap between two reads from the socket, not a limit on the whole
+# response, so a large or streamed body does not hit it. It is long because some report endpoints
+# compute for minutes before they send the first byte.
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 30.0
+DEFAULT_READ_TIMEOUT_SECONDS = 600.0
+DEFAULT_TIMEOUT: tuple[float, float] = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
 
 
 class BoundedRetry(Retry):
@@ -99,11 +112,22 @@ class TrackedHTTPAdapter(HTTPAdapter):
     `capture=False` keeps requests metered and logged but excludes them from HTTP
     sample capture — for auth exchanges whose bodies carry secrets the name-based
     scrubbers can't recognise (e.g. a minted session token in a generic `id` field).
+
+    `default_timeout` is the (connect, read) timeout of a request that names none. Pass None only
+    for a caller that must wait without limit.
     """
 
-    def __init__(self, *args: Any, redact_values: tuple[str, ...] = (), capture: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        redact_values: tuple[str, ...] = (),
+        capture: bool = True,
+        default_timeout: tuple[float, float] | None = DEFAULT_TIMEOUT,
+        **kwargs: Any,
+    ) -> None:
         self._redact_values = redact_values
         self._capture = capture
+        self._default_timeout = default_timeout
         super().__init__(*args, **kwargs)
 
     def send(
@@ -118,6 +142,8 @@ class TrackedHTTPAdapter(HTTPAdapter):
         started = time.monotonic()
         response: Response | None = None
         exception: BaseException | None = None
+        if timeout is None:
+            timeout = self._default_timeout
         try:
             response = super().send(
                 request,
@@ -132,6 +158,8 @@ class TrackedHTTPAdapter(HTTPAdapter):
             exception = exc
             raise
         finally:
+            # The call returned, with a response or with an error, so the thread is not blocked.
+            note_progress(SOURCE_REQUEST)
             try:
                 record_request(
                     request,

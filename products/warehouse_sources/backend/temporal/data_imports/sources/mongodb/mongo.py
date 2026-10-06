@@ -55,6 +55,11 @@ from products.warehouse_sources.backend.types import IncrementalFieldType, Parti
 SCHEMA_INFERENCE_LIMIT = 10_000  # First 10k documents
 SCHEMA_INFERENCE_TIMEOUT_MS = 45_000  # 45 seconds
 
+# The count is only a progress estimate, and a count that fails becomes 0. On a view or an
+# unindexed filter the server scans every document, which can take hours and blocks the import
+# before its first row.
+ROW_COUNT_TIMEOUT_MS = 300_000
+
 # Mongo yields whole documents (the full doc rides along under `data`), so a collection of large
 # documents can OOM the worker when a chunk is materialised into a PyArrow table — before any Delta
 # merge. Size the extraction chunk to a fixed byte budget: rows-per-chunk are derived from the average
@@ -630,7 +635,7 @@ def _get_avg_document_size(collection: Collection, logger: FilteringBoundLogger)
 
 def _get_rows_to_sync(collection: Collection, query: dict[str, Any], logger: FilteringBoundLogger) -> int:
     try:
-        rows_to_sync = collection.count_documents(query)
+        rows_to_sync = collection.count_documents(query, maxTimeMS=ROW_COUNT_TIMEOUT_MS)
         logger.debug(f"_get_rows_to_sync: rows_to_sync={rows_to_sync}")
         return rows_to_sync
     except _UNREACHABLE_CLUSTER_ERRORS:

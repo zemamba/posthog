@@ -5,6 +5,10 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Optional, ParamSpec, TypeVar
 
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.interruptible_wait import (
+    interruptible_sleep,
+)
+
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
 
@@ -45,7 +49,7 @@ class RequestPacer:
         self,
         per_second: float,
         clock: Callable[[], float] = time.monotonic,
-        sleep: Callable[[float], None] = time.sleep,
+        sleep: Callable[[float], None] = interruptible_sleep,
         hold_seconds: float = RATE_LIMIT_HOLD_SECONDS,
     ) -> None:
         self._base_interval = 1.0 / per_second

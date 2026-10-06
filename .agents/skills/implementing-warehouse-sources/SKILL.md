@@ -435,6 +435,14 @@ Call it only where resuming from the staged cursor loses no rows: every row the 
 References: `document_deltas` in `convex/convex.py`, the sparse-sweep checkpoint in `stripe/stripe.py`, `_page_fan_out` in `notion/notion.py`.
 The `rest_source` framework reaches a safe point after each page on its own, but only when `SourceResponse.items` returns the framework's `Resource` directly. A source that wraps it gets no framework safe points, because the wrapper could buffer rows.
 
+Use `interruptible_sleep` from `sources/common/interruptible_wait.py`, not `time.sleep`, for a retry or rate-limit wait (pass it as `sleep=` to a tenacity `retry`).
+The wait time is the same, but the wait ends when the pipeline no longer reads the source, so the thread does not continue its retries on a worker that shuts down.
+Wrap the call in `with safe_point_during_waits():` when a wait inside it is also a safe point by the rule above. A resumable run then hands off at a worker shutdown and does not sleep through it.
+The `rest_source` client does both for its own retries.
+
+Give every external call a deadline. A session from `make_tracked_session` applies a default connect and read timeout to a request that names none. An SDK client, a database driver and a gRPC call need their own timeout.
+The import activity measures progress (an item, a staged checkpoint, a safe point, a request through the tracked HTTP or gRPC transport, a written batch). An attempt with no progress for longer than `DATA_WAREHOUSE_IMPORT_NO_PROGRESS_LIMIT_SECONDS` is reported, and can lose its heartbeat, so a source that works for a long time between items through its own client must call `manager.safe_point()` or `note_progress(...)`.
+
 ### Webhook source pattern
 
 - Implement `webhook_template` returning a `HogFunctionTemplateDC` that transforms incoming webhook payloads.

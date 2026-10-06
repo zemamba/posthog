@@ -2,7 +2,7 @@ import time
 import asyncio
 import datetime
 import contextlib
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator
 from typing import TYPE_CHECKING, Any, Generic
 
 import pyarrow as pa
@@ -99,6 +99,19 @@ from products.warehouse_sources.backend.temporal.data_imports.pipelines.pipeline
 )
 from products.warehouse_sources.backend.temporal.data_imports.pipelines.pipeline_v3.s3.writer import ParquetCompression
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.cursor import SourceCursorManager
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.interruptible_wait import (
+    SourceWaitSignals,
+    activate_wait_signals,
+)
+from products.warehouse_sources.backend.temporal.data_imports.sources.common.progress import (
+    BATCH_WRITTEN,
+    SOURCE_ITEM,
+    ImportStalledError,
+    current_import_progress,
+    note_progress,
+    raise_if_import_stalled,
+    watch_source_threads,
+)
 from products.warehouse_sources.backend.temporal.data_imports.sources.common.resumable import (
     ResumableSourceManager,
     resolve_resume_manager,
@@ -487,6 +500,26 @@ class PipelineV3(Generic[ResumableData]):
             mode = "preempted" if isinstance(error, SourcePreemptedError) else "cooperative"
             get_shutdown_handoff_delay_metric(source_type, mode).record(delay)
 
+    def _watch_source(self, items: Any) -> tuple[Any, SourceWaitSignals]:
+        """Connect the source to the shutdown of the worker and to the progress record of the attempt."""
+        wait_signals = SourceWaitSignals()
+        self._shutdown_monitor.run_on_shutdown(wait_signals.notify_shutdown)
+
+        def stop_stalled_source() -> None:
+            # Temporal starts another attempt while the thread of this source can still be alive.
+            # The thread must not move the resume point of that attempt, and must not continue
+            # its retries.
+            wait_signals.notify_abandoned()
+            if self._source_resume_manager is not None:
+                self._source_resume_manager.revoke_writes(SOURCE_FENCE_TIMEOUT_SECONDS)
+
+        progress = current_import_progress()
+        if progress is not None:
+            progress.on_stall(stop_stalled_source)
+        if not isinstance(items, AsyncIterable):
+            items = watch_source_threads(items)
+        return items, wait_signals
+
     async def _commit_resume_state(self) -> None:
         if self._resumable_source_manager is None:
             return
@@ -642,11 +675,17 @@ class PipelineV3(Generic[ResumableData]):
 
             items = self._resource.items()
             safe_point_scope = self._activate_safe_point(items)
+            items, wait_signals = self._watch_source(items)
+            safe_point_scope.enter_context(activate_wait_signals(wait_signals))
             source_items = self._source_items(items, source_type)
             awaiting_source = True
             try:
                 async for item in source_items:
                     awaiting_source = False
+                    note_progress(SOURCE_ITEM)
+                    # The source can return from a call long after the heartbeats stopped. Another
+                    # attempt owns the run by then, so this one must not write the item.
+                    raise_if_import_stalled()
                     py_table = None
 
                     record_source_item_stats(
@@ -716,6 +755,8 @@ class PipelineV3(Generic[ResumableData]):
                         await self._logger.aexception("Failed to stage the rows buffered before the source error")
                 raise
             finally:
+                # Ends a retry wait of a source that the loop left behind.
+                wait_signals.notify_abandoned()
                 safe_point_scope.close()
                 if isinstance(source_items, AsyncGenerator) and self._preemption is not None:
                     # Stops the thread of the source now. A loop that ended early left it waiting.
@@ -742,6 +783,10 @@ class PipelineV3(Generic[ResumableData]):
         except Exception as error:
             status = "error"
             self._logger.exception("V3 Pipeline: Extraction failed")
+            if isinstance(error, ImportStalledError):
+                # Another attempt owns the queue rows and the resume value of this run now. A write
+                # from this attempt could move them behind that attempt.
+                raise
             # Same queue state a failed run has always left: every staged batch has a row, so an
             # incremental run's loadable tail can still drain (see `_drainable_after_failure`).
             try:
@@ -821,6 +866,7 @@ class PipelineV3(Generic[ResumableData]):
         )
 
         tracked_rows = await self._stage_batch(pa_table, batch_index, row_count)
+        note_progress(BATCH_WRITTEN)
 
         self._internal_schema.add_pyarrow_table(pa_table)
 
