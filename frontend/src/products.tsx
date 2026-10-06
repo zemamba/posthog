@@ -2079,6 +2079,7 @@ export type ProductTreePath =
     | 'Autoresearch'
     | 'Broadcasts'
     | 'Business knowledge'
+    | 'Canvases'
     | 'Clusters'
     | 'Code review'
     | 'Customer analytics'
@@ -2190,6 +2191,18 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'BusinessKnowledgeSettings',
             'BusinessKnowledgeSource',
         ],
+    },
+    {
+        path: 'Canvases',
+        intents: [],
+        category: ProductItemCategory.TOOLS,
+        type: 'canvas',
+        iconType: 'tools',
+        href: `${urls.views()}?type=canvas`,
+        flag: FEATURE_FLAGS.SMALL_SOFTWARE_APPS,
+        tags: ['beta'],
+        sceneKey: 'Views',
+        sceneKeys: ['Views', 'CanvasDetail', 'CanvasNew'],
     },
     {
         path: 'Clusters',
