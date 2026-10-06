@@ -1068,7 +1068,7 @@ class TestResumeCursorCommit:
         assert [json.loads(call.args[1])["id"] for call in redis.set.call_args_list] == ["a", "b"]
 
 
-def _recording_producer(events: list[str] | None = None) -> PostgresProducer:
+def _recording_producer(events: list[str] | None = None, *, is_resume: bool = False) -> PostgresProducer:
     """A real producer over a mocked queue connection, so the rows it inserts can be read back."""
     with patch(f"{_PRODUCER}.psycopg") as mock_psycopg:
         conn = MagicMock()
@@ -1085,6 +1085,7 @@ def _recording_producer(events: list[str] | None = None) -> PostgresProducer:
             sync_type="full_refresh",
             run_uuid="run-1",
             logger=MagicMock(),
+            is_resume=is_resume,
         )
     return producer
 
@@ -1375,7 +1376,7 @@ class TestIncrementalHandoffCheckpoint:
         # this attempt ownership of a queue row it does not yet have.
         pipeline = self._pipeline(lambda: iter(()), [], resumed_from=40)
         pipeline._resumed_incremental_run_uuid = "run-0"
-        pipeline._pg_producer = _recording_producer()
+        pipeline._pg_producer = _recording_producer(is_resume=True)
 
         await pipeline._stage_batch(pa.table({"id": ["a"], "n": [1]}), 0, 1)
         assert pipeline._queued_own_batch is False
@@ -1388,7 +1389,7 @@ class TestIncrementalHandoffCheckpoint:
     async def test_releasing_a_held_batch_also_grants_ownership(self) -> None:
         pipeline = self._pipeline(lambda: iter(()), [], resumed_from=40)
         pipeline._resumed_incremental_run_uuid = "run-0"
-        pipeline._pg_producer = _recording_producer()
+        pipeline._pg_producer = _recording_producer(is_resume=True)
 
         await pipeline._stage_batch(pa.table({"id": ["a"], "n": [1]}), 0, 1)
         assert pipeline._queued_own_batch is False
