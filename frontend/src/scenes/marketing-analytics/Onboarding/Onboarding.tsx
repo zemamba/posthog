@@ -6,16 +6,25 @@ import { teamLogic } from 'scenes/teamLogic'
 
 import { ProductIntentContext, ProductKey } from '~/queries/schema/schema-general'
 
-import { DetectedSources } from 'products/marketing_analytics/frontend/dashboard/DetectedSources'
+import { detectedSourcesLogic } from 'products/marketing_analytics/frontend/dashboard/detectedSourcesLogic'
+import { SourceOnboardingScan } from 'products/marketing_analytics/frontend/dashboard/SourceOnboardingScan'
 
 import { MarketingAnalyticsSourceStatusBanner } from '../../web-analytics/tabs/marketing-analytics/frontend/components/MarketingAnalyticsSourceStatusBanner'
 import { marketingAnalyticsLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
+import { setupPlanLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 import { AddSourceStep } from './AddSourceStep'
+import { marketingOnboardingLogic } from './marketingOnboardingLogic'
 
 export function Onboarding({ completeOnboarding }: { completeOnboarding: () => void }): JSX.Element {
     const { reportMarketingAnalyticsOnboardingViewed, reportMarketingAnalyticsOnboardingCompleted } =
         useActions(eventUsageLogic)
     const { addProductIntent } = useActions(teamLogic)
+    const { currentTeamId } = useValues(teamLogic)
+    useValues(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
+    const { setupPlan, setupPlanLoading, visibleSuggestions } = useValues(setupPlanLogic)
+    const { loadSetupPlan } = useActions(setupPlanLogic)
+    const { showManualSources } = useValues(marketingOnboardingLogic)
+    const { setShowManualSources } = useActions(marketingOnboardingLogic)
     const { hasSources } = useValues(marketingAnalyticsLogic)
 
     useOnMountEffect(() => {
@@ -35,8 +44,21 @@ export function Onboarding({ completeOnboarding }: { completeOnboarding: () => v
     return (
         <div className="space-y-4">
             <MarketingAnalyticsSourceStatusBanner />
-            <DetectedSources />
-            <AddSourceStep onContinue={handleComplete} hasSources={hasSources} />
+            {showManualSources ? (
+                <AddSourceStep onContinue={handleComplete} hasSources={hasSources} />
+            ) : (
+                <SourceOnboardingScan
+                    loading={setupPlanLoading}
+                    failed={!setupPlan && !setupPlanLoading}
+                    suggestions={visibleSuggestions.filter(
+                        (suggestion) =>
+                            suggestion.kind === 'connect_source' && suggestion.apply?.op === 'open_source_wizard'
+                    )}
+                    onManual={() => setShowManualSources(true)}
+                    onContinue={handleComplete}
+                    onRescan={() => loadSetupPlan({ refresh: true })}
+                />
+            )}
         </div>
     )
 }

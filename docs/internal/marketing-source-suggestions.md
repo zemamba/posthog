@@ -54,3 +54,7 @@ The event scan is cached for seven days per project and lookback window; source 
 Use **Scan events again** in Setup → Sources to bypass the event cache.
 The dashboard keeps pending source suggestions and sync status visible so missing spend data is not mistaken for zero spend.
 Conversion goals are configured within the product rather than as an onboarding step.
+
+The source onboarding shows only the scan while it runs, then only the detected platforms.
+**Skip and add manually** opens the complete source selector at any time, including while the scan runs.
+The scan message states its seven-day detection window.

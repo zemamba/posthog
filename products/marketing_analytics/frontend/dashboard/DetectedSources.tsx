@@ -3,7 +3,6 @@ import { useActions, useValues } from 'kea'
 import { IconChevronDown, IconChevronRight } from '@posthog/icons'
 import { LemonBanner, LemonButton, LemonCard, Spinner } from '@posthog/lemon-ui'
 
-import { SuggestionIcon } from 'scenes/marketing-analytics/Setup/SuggestionIcon'
 import { teamLogic } from 'scenes/teamLogic'
 import { urls } from 'scenes/urls'
 import {
@@ -11,6 +10,8 @@ import {
     marketingAnalyticsLogic,
 } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import { setupPlanLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
+
+import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
 
 import { detectedSourcesLogic } from './detectedSourcesLogic'
 
@@ -35,7 +36,7 @@ export function DetectedSources(): JSX.Element | null {
             <LemonBanner type="info">
                 <span className="flex items-center gap-2">
                     <Spinner />
-                    <span>Scanning events for marketing sources…</span>
+                    <span>Scanning events from the last 7 days…</span>
                 </span>
             </LemonBanner>
         )
@@ -95,7 +96,7 @@ export function DetectedSources(): JSX.Element | null {
                         >
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <SuggestionIcon suggestion={source} />
+                                    <SourceIcon type={source.apply?.kind as string} size="small" disableTooltip />
                                     <strong>{source.title}</strong>
                                 </div>
                                 <p className="text-secondary text-sm mb-0">{source.evidence}</p>
