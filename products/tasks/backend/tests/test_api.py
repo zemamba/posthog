@@ -78,6 +78,7 @@ from products.tasks.backend.logic.services.staged_artifacts import (
 )
 from products.tasks.backend.logic.services.task_usage import TaskTokenUsageUnavailable, TaskUsage
 from products.tasks.backend.logic.services.workflow_dispatch import materialize_due_scheduled_task_runs
+from products.tasks.backend.logic.stream import sse as stream_sse
 from products.tasks.backend.logic.stream.redis_stream import (
     TaskRunRedisStream,
     TaskRunStreamEntryOrKeepalive,
@@ -109,7 +110,6 @@ from products.tasks.backend.presentation.serializers import (
     TaskRunLivingArtifactChartRequestSerializer,
     TaskSerializer,
 )
-from products.tasks.backend.presentation.views import api as views_api
 from products.tasks.backend.redis import get_tasks_cache
 from products.tasks.backend.temporal.process_task.utils import get_cached_github_user_token
 
@@ -2853,6 +2853,7 @@ class TestTaskAPI(BaseTaskAPITest):
             (Task.OriginProduct.SLACK,),
             (Task.OriginProduct.SPACE_SETUP,),
             (Task.OriginProduct.BUSINESS_KNOWLEDGE,),
+            (Task.OriginProduct.CLOUD_AGENTS,),
         ]
     )
     def test_create_task_rejects_server_created_origin(self, origin_product: Task.OriginProduct):
@@ -7514,6 +7515,8 @@ class TestTaskRunAPI(BaseTaskAPITest):
                 "sandbox_id": "sb-real",
                 "sandbox_cpu_cores": 2,
                 "sandbox_memory_gb": 8,
+                "sandbox_size": "2x8",
+                "burstable_sandbox_resources_enabled": False,
                 "sandbox_ttl_seconds": 1800,
                 "inactivity_timeout_seconds": 600,
                 "use_modal_directory_resume_snapshots": True,
@@ -7594,6 +7597,8 @@ class TestTaskRunAPI(BaseTaskAPITest):
                     "sandbox_id": "sb-attacker",
                     "sandbox_cpu_cores": 128,
                     "sandbox_memory_gb": 512,
+                    "sandbox_size": "16x64",
+                    "burstable_sandbox_resources_enabled": True,
                     "sandbox_ttl_seconds": 86400,
                     "inactivity_timeout_seconds": 86400,
                     "wizard_config": {},
@@ -7678,6 +7683,8 @@ class TestTaskRunAPI(BaseTaskAPITest):
         assert run.state["sandbox_id"] == "sb-real"
         assert run.state["sandbox_cpu_cores"] == 2
         assert run.state["sandbox_memory_gb"] == 8
+        assert run.state["sandbox_size"] == "2x8"
+        assert run.state["burstable_sandbox_resources_enabled"] is False
         assert run.state["sandbox_ttl_seconds"] == 1800
         assert run.state["inactivity_timeout_seconds"] == 600
         assert "wizard_config" not in run.state  # caller cannot mark a run as a wizard run
@@ -11990,7 +11997,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
             ["boot1-4", None],
         )
         self.assertEqual(events[-1]["event"], "stream-end")
-        self.assertEqual(views_api._backlog_inflight_bytes, 0)
+        self.assertEqual(stream_sse._backlog_inflight_bytes, 0)
 
     def test_stream_thin_tail_resumes_backlog_from_log_cursor(self):
         task, run = self._make_thin_tail_run_with_backlog()
@@ -12044,7 +12051,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
     ):
         task, run = self._make_thin_tail_run_with_backlog(tail_event_ids=tail_event_ids, tail_method=method)
 
-        with patch.object(views_api, "observe_stream_backlog_gap") as observe_gap:
+        with patch.object(stream_sse, "observe_stream_backlog_gap") as observe_gap:
             response = self.client.get(self._stream_url(task, run), headers={"accept": "text/event-stream"})
             events = self._collect_sse_events(response)
 
@@ -12068,7 +12075,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
 
         # A cap of 0 trips the elapsed check on the first backlog frame; without the
         # in-loop check a slow replay would hold its stream slot past the cap.
-        with patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0):
+        with patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0):
             response = self.client.get(self._stream_url(task, run), headers={"accept": "text/event-stream"})
             events = self._collect_sse_events(response)
 
@@ -12076,7 +12083,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
         data_events = [event for event in events if event["event"] is None]
         self.assertEqual([event["id"] for event in data_events], ["log-0"])
         self.assertEqual(events[-1], {"event": "end", "id": None, "data": {"type": "rotated"}})
-        self.assertEqual(views_api._backlog_inflight_bytes, 0)
+        self.assertEqual(stream_sse._backlog_inflight_bytes, 0)
 
     def test_stream_thin_tail_backlog_read_failure_emits_retryable_error(self):
         task, run = self._make_thin_tail_run_with_backlog()
@@ -12091,7 +12098,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([event["event"] for event in events], ["error"])
         self.assertEqual(events[0]["data"], {"error": "Backlog unavailable"})
-        self.assertEqual(views_api._backlog_inflight_bytes, 0)
+        self.assertEqual(stream_sse._backlog_inflight_bytes, 0)
 
     def test_stream_thin_tail_expired_redis_cursor_replays_backlog_before_drained_end(self):
         task = self.create_task()
@@ -12126,7 +12133,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([event["event"] for event in events], ["error"])
         self.assertEqual(events[0]["data"], {"error": "Backlog busy"})
-        self.assertEqual(views_api._backlog_inflight_bytes, 0)
+        self.assertEqual(stream_sse._backlog_inflight_bytes, 0)
 
     @override_settings(TASK_RUN_STREAM_BACKLOG_MAX_BYTES=1)
     def test_stream_thin_tail_oversized_backlog_degrades_to_live_window(self):
@@ -12150,7 +12157,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
 
         with (
             patch.object(TaskRunRedisStream, "exists", new=AsyncMock(return_value=False)),
-            patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_WAIT_TIMEOUT_SECONDS", 0.2),
+            patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_WAIT_TIMEOUT_SECONDS", 0.2),
         ):
             response = self.client.get(self._stream_url(task, run), headers={"accept": "text/event-stream"})
             events = self._collect_sse_events(response)
@@ -12184,7 +12191,7 @@ class TestTaskRunStreamAPI(BaseTaskAPITest):
         with (
             patch.object(TaskRunRedisStream, "read_stream_entries", fake_read),
             patch.object(TaskRunRedisStream, "get_latest_stream_id", AsyncMock(return_value="5-5")) as mock_latest,
-            patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_WAIT_TIMEOUT_SECONDS", 0.2),
+            patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_WAIT_TIMEOUT_SECONDS", 0.2),
         ):
             response = self.client.get(self._stream_url(task, run) + "?start=latest")
             events = self._collect_sse_events(response)
@@ -12265,7 +12272,7 @@ class TestTaskRunStreamKeepaliveAPI(BaseTaskAPITest):
         with (
             patch.object(TaskRunRedisStream, "exists", new=AsyncMock(side_effect=[False, True])),
             patch.object(TaskRunRedisStream, "read_stream_entries", new=fake_read_stream_entries),
-            patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_KEEPALIVE_INTERVAL_SECONDS", 0),
+            patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_KEEPALIVE_INTERVAL_SECONDS", 0),
         ):
             response = cast(
                 StreamingHttpResponse,
@@ -12392,8 +12399,8 @@ class TestTaskRunStreamConnectionCapAPI(BaseTaskAPITest):
             # exercises the rotation path without sleeping through real time. The
             # keepalive case proves the check runs on idle yields too: if it only
             # ran after real events, an idle stream would never rotate.
-            patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0),
-            patch("products.tasks.backend.presentation.views.api.observe_stream_connection_closed", observe_closed),
+            patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0),
+            patch("products.tasks.backend.logic.stream.sse.observe_stream_connection_closed", observe_closed),
         ):
             response = cast(
                 StreamingHttpResponse,
@@ -12421,7 +12428,7 @@ class TestTaskRunStreamConnectionCapAPI(BaseTaskAPITest):
 
         # A cap of 0 rotates the first connection after its first yield, leaving
         # the two console events for the resumed connection to pick up.
-        with patch("products.tasks.backend.presentation.views.api.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0):
+        with patch("products.tasks.backend.logic.stream.sse.TASK_RUN_STREAM_CONNECTION_MAX_SECONDS", 0):
             first_response = cast(
                 StreamingHttpResponse,
                 self.client.get(self._stream_url(task, run), headers={"accept": "text/event-stream"}),

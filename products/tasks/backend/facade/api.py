@@ -58,7 +58,7 @@ from posthog.models.comment.comment import CANVAS_COMMENT_SCOPES
 from posthog.models.integration import Integration
 from posthog.models.integration.codex import CodexAccessGrant, CodexAuthError, CodexReauthRequired, CodexUserIntegration
 from posthog.models.oauth import OAuthAccessToken, OAuthRefreshToken
-from posthog.temporal.oauth import CONTEXT_LAYER_INTERNAL_SCOPE
+from posthog.temporal.oauth import CONTEXT_LAYER_INTERNAL_SCOPE, PosthogMcpScopes
 from posthog.utils import absolute_uri
 
 from products.cdp.backend.facade import api as cdp_facade
@@ -117,6 +117,7 @@ from products.tasks.backend.logic.services.network_policy import (
     normalize_requested_domains,
 )
 from products.tasks.backend.logic.services.sandbox import get_sandbox_class_for_sandbox_id, is_public_sandbox_repo
+from products.tasks.backend.logic.services.sandbox_config import SANDBOX_SIZE_STATE_KEY
 from products.tasks.backend.logic.services.space_setup import (
     SPACE_SETUP_FEED_EVENT,
     SPACE_SETUP_MODEL,
@@ -2687,6 +2688,11 @@ _PROTECTED_RUN_STATE_KEYS = frozenset(
         DEV_STACK_PREVIEW_STATE_KEY,
         "sandbox_cpu_cores",
         "sandbox_memory_gb",
+        # The selected size keeps a run off a backend that ignores resource overrides, and the
+        # burstable switch decides whether the usage record states the full shape. A PATCHable
+        # value would let a task controller change what a sized run is billed for.
+        SANDBOX_SIZE_STATE_KEY,
+        "burstable_sandbox_resources_enabled",
         "sandbox_ttl_seconds",
         "inactivity_timeout_seconds",
         "systemPrompt",
@@ -6090,6 +6096,8 @@ def _trigger_task_processing_workflow(
     initial_message: str | None = None,
     initial_artifact_ids: list[str] | None = None,
     raise_on_error: bool = False,
+    create_pr: bool = True,
+    posthog_mcp_scopes: PosthogMcpScopes | None = None,
 ) -> str | None:
     from products.tasks.backend.logic.services.workflow_dispatch import (  # noqa: PLC0415
         WorkflowDispatchOptions,
@@ -6104,7 +6112,8 @@ def _trigger_task_processing_workflow(
     # SIGNAL_REPORT: implementation runs log their work on the report (notes, code references)
     # via the task:write artefact tools.
     run_source = parse_run_state(run.state).run_source
-    posthog_mcp_scopes = mcp_scopes_for_run_source(run_source)
+    if posthog_mcp_scopes is None:
+        posthog_mcp_scopes = mcp_scopes_for_run_source(run_source)
     try:
         logger.info("Attempting to trigger task processing workflow for task %s, run %s", task.id, run.id)
         message = None
@@ -6119,6 +6128,7 @@ def _trigger_task_processing_workflow(
             run,
             options=WorkflowDispatchOptions(
                 user_id=user_id,
+                create_pr=create_pr,
                 posthog_mcp_scopes=posthog_mcp_scopes,
                 initial_message=message,
             ),
@@ -8813,6 +8823,42 @@ def run_task(
     ``pipeline_rerun`` is reserved for a server-requested Signals research rerun. It creates a
     fresh run and stamps the protected implementation stage from the verified report-task link.
     """
+    task = _visible_task_qs(team_id, user_id, for_control=True).filter(id=task_id).first()
+    if task is None:
+        return None
+    return _run_resolved_task(
+        task,
+        team_id,
+        user_id,
+        validated_data=validated_data,
+        warm_retry_token=warm_retry_token,
+        pipeline_rerun=pipeline_rerun,
+        free_trial_enabled=free_trial_enabled,
+    )
+
+
+def _run_resolved_task(
+    task: Task,
+    team_id: int,
+    user_id: int | None,
+    *,
+    validated_data: dict,
+    warm_retry_token: str | None = None,
+    pipeline_rerun: bool = False,
+    free_trial_enabled: bool | None = None,
+    server_run_state: Mapping[str, object] | None = None,
+    create_pr: bool = True,
+    posthog_mcp_scopes: PosthogMcpScopes | None = None,
+) -> contracts.TaskRunResult | None:
+    """``run_task`` for a task the caller already resolved and authorized.
+
+    For tasks-internal callers only: it takes an ORM ``Task`` and does no visibility check.
+    ``server_run_state`` is merged last into the new run's state, so it can carry protected
+    keys that ``validated_data`` cannot. A run that names a sandbox size there is never handed
+    a warm sandbox, because a warm sandbox was provisioned with the default burstable shape.
+    ``create_pr`` and ``posthog_mcp_scopes`` go to the workflow start. A missing scope value
+    keeps the scopes that the run source implies.
+    """
     from products.signals.backend.task_run_artefacts import (  # noqa: PLC0415 — cross-product read kept off the api import path
         enforce_report_implementation_rerun_cap,
         is_report_implementation_task,
@@ -8834,9 +8880,6 @@ def run_task(
         parse_run_state,
     )
 
-    task = _visible_task_qs(team_id, user_id, for_control=True).filter(id=task_id).first()
-    if task is None:
-        return None
     # Another product may need to finish something before this task runs, for example a chat that
     # is copied into the task a few seconds behind each turn.
     refusal = task_run_start_refusal(str(task.id), team_id, user_id)
@@ -8965,6 +9008,7 @@ def run_task(
         or scheduled_at is not None
         or run_source == RunSource.AGENT
         or validated_data.get("client_platform") == "mobile"
+        or SANDBOX_SIZE_STATE_KEY in (server_run_state or {})
         else _idling_warm_run_for_task(task)
     )
     # A warm sandbox was started before the plan choice, so it holds no run-scoped subscription token.
@@ -9324,6 +9368,8 @@ def run_task(
             "create_pr": True,
             "posthog_mcp_scopes": mcp_scopes_for_run_source(run_source),
         }
+    if server_run_state:
+        extra_state.update(server_run_state)
     try:
         with transaction.atomic():
             task_run = task.create_run(
@@ -9389,7 +9435,14 @@ def run_task(
             raise_on_error=False,
         )
     else:
-        run_error = _trigger_task_processing_workflow(task, task_run, user_id, raise_on_error=False)
+        run_error = _trigger_task_processing_workflow(
+            task,
+            task_run,
+            user_id,
+            raise_on_error=False,
+            create_pr=create_pr,
+            posthog_mcp_scopes=posthog_mcp_scopes,
+        )
 
     try:
         if run_error is None:

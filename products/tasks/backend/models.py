@@ -3,12 +3,12 @@ import re
 import copy
 import json
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional, Self
 
 from django.db.models.signals import post_delete, post_save, pre_delete
-from django.dispatch import receiver
+from django.dispatch import Signal, receiver
 from django.utils.functional import Promise
 
 from pydantic import BaseModel, JsonValue
@@ -333,6 +333,8 @@ PR_READY_EMAIL_PR_URL_STATE_KEY = "pr_ready_email_pr_url"
 
 class TaskClientProvenance(models.TextChoices):
     POSTHOG_DESKTOP = "posthog_desktop", "PostHog Desktop"
+    # A billable Cloud Agents API run. Stamped by the Cloud Agents create path only.
+    CLOUD_AGENTS = "cloud_agents", "Cloud Agents"
 
 
 def task_origin_product_choices() -> list[tuple[str, str | Promise]]:
@@ -404,6 +406,9 @@ class Task(Taggable, DeletedMetaFields, models.Model):
         # Business knowledge sandbox questions. Reserved: only the sandbox endpoint creates
         # these, and they stay internal so the normal task APIs never list them.
         BUSINESS_KNOWLEDGE = "business_knowledge", "Business Knowledge"
+        # The Cloud Agents public API. Reserved: only that product's facade creates these, and
+        # they stay internal so the normal task lists never show them.
+        CLOUD_AGENTS = "cloud_agents", "Cloud Agents"
 
     # nosemgrep: prefer-uuid7-django-pk -- TODO: migrate to uuid7 or clarify intent
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -2381,6 +2386,14 @@ class LoopFire(TeamScopedRootMixin):
         return f"Fire {self.fire_key} on loop {self.loop_id}"
 
 
+# Sent with `task_run=` and `previous_status=` after a `TaskRun.save()` that changes the run's
+# status. Defined here so the model can send it; other products connect through the facade.
+task_run_status_changed = Signal()
+
+# Stands for "the status column was deferred", so the status this row had is not known.
+_STATUS_NOT_LOADED = object()
+
+
 class TaskRun(models.Model):
     class Status(models.TextChoices):
         NOT_STARTED = "not_started", "Not Started"
@@ -2570,12 +2583,54 @@ class TaskRun(models.Model):
     def __str__(self):
         return f"Run for {self.task.title} - {self.get_status_display()}"
 
+    # The status this row has in the database, as this instance last read or wrote it. None
+    # before the first insert.
+    _persisted_status: object = None
+
     def save(self, *args, **kwargs):
         # Mirror the parent task's origin_product onto the run once, at creation, so the
         # monitoring gauges can group by it locally.
         if self._state.adding and not self.origin_product and self.task_id:
             self.origin_product = self.task.origin_product
+        update_fields = kwargs.get("update_fields")
+        writes_status = update_fields is None or "status" in update_fields
         super().save(*args, **kwargs)
+        if writes_status:
+            self._send_status_changed()
+
+    @classmethod
+    def from_db(cls, db: str | None, field_names: Collection[str], values: Collection[Any]) -> Self:
+        instance = super().from_db(db, field_names, values)
+        instance._persisted_status = instance.status if "status" in field_names else _STATUS_NOT_LOADED
+        return instance
+
+    def refresh_from_db(
+        self,
+        using: str | None = None,
+        fields: Iterable[str] | None = None,
+        from_queryset: models.QuerySet[Self] | None = None,
+    ) -> None:
+        super().refresh_from_db(using=using, fields=fields, from_queryset=from_queryset)
+        if fields is None or "status" in fields:
+            self._persisted_status = self.status
+
+    def _send_status_changed(self) -> None:
+        """Send `task_run_status_changed` when this save changed the status.
+
+        Receivers run inside the transaction of the writer, so a receiver that has side
+        effects must defer them to the commit. A status the instance never loaded is sent
+        as `previous_status=None`, because a missed terminal status costs more than an
+        unknown previous one. `QuerySet.update()` does not come through here.
+        """
+        previous_status = self._persisted_status
+        self._persisted_status = self.status
+        if previous_status == self.status:
+            return
+        task_run_status_changed.send_robust(
+            sender=TaskRun,
+            task_run=self,
+            previous_status=previous_status if isinstance(previous_status, str) else None,
+        )
 
     @property
     def task_summary(self) -> str | None:

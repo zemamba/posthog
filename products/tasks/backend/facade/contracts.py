@@ -824,6 +824,21 @@ class CreatedTaskDTO:
 
 
 @dataclass(frozen=True)
+class CloudAgentTaskDTO:
+    """Outcome of creating a Cloud Agents task.
+
+    ``created`` is False when the request replayed an already-used ``origin_key`` and the ids
+    belong to the task that the first request created. ``run`` is then that task's latest run.
+    It is ``None`` only for a replayed task whose runs were all deleted.
+    """
+
+    task_id: UUID
+    team_id: int
+    run: TaskRunDTO | None
+    created: bool
+
+
+@dataclass(frozen=True)
 class WorkflowLastRunDTO:
     """The newest task a workflow created, as its last run.
 

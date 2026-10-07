@@ -114,15 +114,21 @@ class SandboxProvisionError(ProcessTaskTransientError):
     pass
 
 
+# A failed run stores one of these as its error message and nothing else that names the
+# cause, so readers that classify a run end match on them.
+ORGANIZATION_DEACTIVATED_ERROR_MESSAGE = "Your organization has been deactivated."
+COMPUTE_USAGE_LIMIT_ERROR_MESSAGE = "Your organization reached its PostHog Desktop usage limit."
+
+
 class ComputeBillingLimitError(ProcessTaskError, ComputeBillingLimitExceeded):
     def __init__(self, context: dict[str, Any], reason: str = "posthog_code_billing_limit_exceeded"):
         from products.tasks.backend.logic.services.compute_quota import ORGANIZATION_DEACTIVATED_DENIAL_CODE
 
         self.reason = reason
         message = (
-            "Your organization has been deactivated."
+            ORGANIZATION_DEACTIVATED_ERROR_MESSAGE
             if reason == ORGANIZATION_DEACTIVATED_DENIAL_CODE
-            else "Your organization reached its PostHog Desktop usage limit."
+            else COMPUTE_USAGE_LIMIT_ERROR_MESSAGE
         )
         super().__init__(
             message,

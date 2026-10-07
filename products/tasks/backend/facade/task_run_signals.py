@@ -4,7 +4,11 @@ from uuid import UUID
 from django.db.models.signals import post_save
 from django.dispatch import Signal
 
-from products.tasks.backend.models import Task, TaskRun
+from products.tasks.backend.models import (
+    Task,
+    TaskRun,
+    task_run_status_changed as task_run_status_changed,
+)
 
 # Re-exported here so a startup receiver can read it without importing the request facade.
 TaskOriginProduct = Task.OriginProduct
@@ -23,6 +27,14 @@ def connect_task_run_turn_completed(receiver: Callable[..., None], *, dispatch_u
     """``receiver`` gets ``task_run=`` each time an interactive run finishes a turn. A receiver
     that raises is logged and never fails the report."""
     task_run_turn_completed.connect(receiver, sender=TaskRun, dispatch_uid=dispatch_uid)
+
+
+def connect_task_run_status_changed(receiver: Callable[..., None], *, dispatch_uid: str) -> None:
+    """``receiver`` gets ``task_run=`` (the saved instance) and ``previous_status=`` each time a
+    ``TaskRun.save()`` changes the run's status. ``previous_status`` is ``None`` on the first
+    insert. The receiver runs inside the transaction of the writer, so it must defer side
+    effects to the commit. A bulk ``QuerySet.update()`` of the status sends nothing."""
+    task_run_status_changed.connect(receiver, sender=TaskRun, dispatch_uid=dispatch_uid)
 
 
 # A guard gets (task_id, team_id, user_id) before a run starts and returns a message to refuse it with, or None.

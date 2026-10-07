@@ -20,7 +20,7 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import Enum
 from pathlib import Path
 from types import TracebackType
@@ -49,6 +49,7 @@ from products.tasks.backend.logic.services.sandbox_config import (
     DEV_STACK_MEMORY_GB,
     SANDBOX_TTL_SECONDS,
     VM_SANDBOX_CPU_CORES,
+    SandboxResources,
 )
 
 if TYPE_CHECKING:
@@ -194,15 +195,6 @@ class ExecutionStream(Protocol):
     def iter_stdout(self) -> Iterable[str]: ...
 
     def wait(self) -> ExecutionResult: ...
-
-
-@dataclass(frozen=True)
-class SandboxResources:
-    """Optional compute overrides for a task's sandbox. Unset fields keep the
-    `SandboxConfig` defaults — callers pass only what they want to change."""
-
-    cpu_cores: float | None = None
-    memory_gb: float | None = None
 
 
 class SandboxConfig(BaseModel):
@@ -1143,6 +1135,7 @@ __all__ = [
     "AgentServerResult",
     "Sandbox",
     "SandboxConfig",
+    "SandboxResources",
     "SandboxStatus",
     "SandboxTemplate",
     "ExecutionResult",

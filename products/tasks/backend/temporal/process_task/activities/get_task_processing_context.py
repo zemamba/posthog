@@ -72,6 +72,7 @@ from products.tasks.backend.logic.services.sandbox_config import (
     MAX_SANDBOX_CPU_CORES,
     MAX_SANDBOX_MEMORY_GB,
     MAX_SANDBOX_TTL_SECONDS,
+    is_non_default_sandbox_size,
 )
 from products.tasks.backend.logic.services.store_skills import resolve_store_skills
 from products.tasks.backend.models import SandboxCustomImage, SandboxEnvironment, Task, TaskRun
@@ -1044,6 +1045,12 @@ def _resolve_sandbox_backend(
     # A "modal" override is a kill switch and always wins — forcing Modal is never unsafe.
     if override == "modal":
         log_with_activity_context("sandbox_backend_state_override", run_id=run_id, sandbox_backend="modal")
+        return "modal"
+
+    # Hogland ignores per-run CPU and memory overrides, so a sized run would get the golden
+    # shape there while its usage record states the selected size.
+    if is_non_default_sandbox_size(state):
+        log_with_activity_context("sandbox_backend_sized_run", run_id=run_id, sandbox_backend="modal")
         return "modal"
 
     # Hard gates: a "hogland" result (override OR flag) is only allowed when hogland is

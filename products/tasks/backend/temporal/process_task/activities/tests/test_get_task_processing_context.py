@@ -1928,6 +1928,21 @@ class TestResolveSandboxBackend:
         # force-off test).
         assert self._resolve_with_flag(True, **overrides) == "modal"
 
+    @pytest.mark.parametrize(
+        "state,expected",
+        [
+            ({"sandbox_size": "8x32"}, "modal"),
+            ({"sandbox_size": "8x32", "sandbox_backend": "hogland"}, "modal"),
+            ({"sandbox_size": "not-a-size"}, "modal"),
+            ({"sandbox_size": "4x16"}, "hogland"),
+            ({}, "hogland"),
+        ],
+        ids=["non_default_size", "non_default_size_with_hogland_pin", "unknown_size", "default_size", "no_size"],
+    )
+    @override_settings(**_HOGLAND_SETTINGS)
+    def test_only_a_non_default_sandbox_size_keeps_a_run_off_hogland(self, state, expected):
+        assert self._resolve_with_flag(True, state=state) == expected
+
     @override_settings(**_HOGLAND_SETTINGS, CLOUD_DEPLOYMENT="EU")
     def test_eu_stays_on_modal(self):
         assert self._resolve_with_flag(True) == "modal"
