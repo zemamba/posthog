@@ -5051,7 +5051,9 @@ class BIValue(BaseModel):
     )
     aggregation: BIAggregation
     customExpression: str | None = None
+    display: ChartSettingsDisplay | None = None
     field: BIField
+    formatting: ChartSettingsFormatting | None = None
     label: str | None = None
     tableCalculation: BITableCalculation | None = None
 
@@ -27273,6 +27275,10 @@ class DashboardFilter(BaseModel):
     interval: IntervalType | None = Field(
         default=None,
         description=("Time granularity forced onto every insight that supports one. Absent/null = inherit."),
+    )
+    metricFilters: list[MetricsQueryFilter] | None = Field(
+        default=None,
+        description=("Metric label matchers ANDed into every metrics tile. Other tiles ignore them."),
     )
     properties: list[AnyPropertyFilterDiscriminated] | None = None
 
