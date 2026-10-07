@@ -28,7 +28,6 @@ from ..logic.analytics import capture_event
 from ..logic.webhooks import (
     delivery as delivery_logic,
     endpoints as endpoints_logic,
-    signing,
 )
 from .contracts import (
     CallerIdentity,
@@ -231,10 +230,6 @@ def enqueue_run_event(team_id: int, run_id: UUID, event_type: WebhookEvent, payl
 
 def list_recent_webhook_deliveries(team_id: int) -> list[WebhookDeliveryDTO]:
     return delivery_logic.list_recent_deliveries(team_id)
-
-
-def verify_webhook_signature(secret: str, timestamp: int | str, body: bytes, signature: str) -> bool:
-    return signing.verify(secret, timestamp, body, signature)
 
 
 # --- Limits ---

@@ -14,7 +14,7 @@ from celery import shared_task
 from posthog.models.scoping import with_team_scope
 from posthog.scoping_audit import skip_team_scope_audit
 
-from ..logic.webhooks.attempts import attempt_delivery, delete_expired_deliveries
+from ..logic.webhooks.attempts import attempt_delivery, delete_expired_deliveries, due_deliveries
 
 logger = structlog.get_logger(__name__)
 
@@ -27,6 +27,13 @@ def deliver_webhook(delivery_id: str, team_id: int) -> None:
         # A new task and not `self.retry`, because the retry state is in the delivery row. A lost
         # task then leaves a row that shows the next attempt time.
         deliver_webhook.apply_async(args=[delivery_id, team_id], countdown=countdown)
+
+
+@shared_task(ignore_result=True)
+@skip_team_scope_audit  # The retry sweep finds due deliveries across all projects.
+def retry_due_webhook_deliveries() -> None:
+    for team_id, delivery_id in due_deliveries():
+        deliver_webhook.delay(str(delivery_id), team_id)
 
 
 @shared_task(ignore_result=True)

@@ -246,6 +246,11 @@ class CloudAgentsWebhookDelivery(TeamScopedRootMixin):
         default_manager_name = "all_teams"
         indexes = [
             models.Index(fields=["team", "-created_at"], name="cloud_agents_delivery_created"),
+            models.Index(
+                fields=["next_attempt_at"],
+                condition=models.Q(status=WebhookDeliveryStatus.PENDING.value),
+                name="cloud_agents_delivery_due",
+            ),
         ]
 
     def __str__(self) -> str:
