@@ -34,7 +34,7 @@ class _Response:
 
 class _HubspotSearchServer:
     def __init__(self, rows_per_window: list[int], fail_from_request: int) -> None:
-        self.rows = [
+        self.rows: list[dict[str, Any]] = [
             {"id": f"{window}-{index}", "modified": _START_MS + 1 + window * (hubspot.WINDOW_SIZE_MS + 1) + index + 1}
             for window, count in enumerate(rows_per_window)
             for index in range(count)

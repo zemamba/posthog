@@ -211,7 +211,6 @@ honeybadger/honeybadger.py::_get_project_rows
 honeycomb/honeycomb.py::_iter_board_views
 honeycomb/honeycomb.py::_iter_fan_out
 hubspot/hubspot.py::get_rows
-hubspot/hubspot.py::get_rows_via_search
 hubspot/hubspot.py::get_rows_via_search._process_results
 hyperspell/hyperspell.py::_get_list_rows
 hyperspell/hyperspell.py::get_rows
