@@ -5,6 +5,7 @@
 category: Cloud agents
 feature: cloud_agents
 url_prefix: /cloud-agents
+ui_apps: {}
 tools:
     cloud-agents-catalog:
         operation: cloud_agents_catalog_retrieve
@@ -35,8 +36,8 @@ tools:
         title: Estimate cloud agent compute cost
         description: >
             Estimate the compute cost of one sandbox size for a number of minutes. It starts nothing and costs nothing.
-            The estimate covers compute only. Model usage is not included, and a run is billed for the seconds it
-            really uses. Use cloud-agents-catalog to see the sizes.
+            The estimate covers compute only. Model usage is not included, and a run is billed for the seconds it really
+            uses. Use cloud-agents-catalog to see the sizes.
         feature_flag: cloud-agents
         feature_flag_behavior: enable
     cloud-agents-profile-create:
@@ -48,7 +49,7 @@ tools:
             readOnly: false
             destructive: false
             idempotent: false
-        enrich_url: 'profiles/{id}'
+        enrich_url: profiles/{id}
         title: Create cloud agent profile
         description: >
             Create a profile: a named set of run defaults such as repository, branch, model, size, inference mode,
@@ -61,6 +62,10 @@ tools:
             - max_cost_usd
         feature_flag: cloud-agents
         feature_flag_behavior: enable
+    cloud-agents-profile-delete:
+        operation: cloud_agents_profiles_destroy
+        enabled: false
+        disabled_reason: Deleting a shared profile changes what later runs of other people use, so a person does it.
     cloud-agents-profile-get:
         operation: cloud_agents_profiles_retrieve
         enabled: true
@@ -70,7 +75,7 @@ tools:
             readOnly: true
             destructive: false
             idempotent: true
-        enrich_url: 'profiles/{id}'
+        enrich_url: profiles/{id}
         title: Get cloud agent profile
         description: >
             Get one profile by ID, with all the run defaults it sets. A null field sets no default. Use
@@ -89,12 +94,14 @@ tools:
             readOnly: true
             destructive: false
             idempotent: true
+        enrich_url: profiles/{id}
         list: true
-        enrich_url: 'profiles/{id}'
         title: List cloud agent profiles
         description: >
-            List the profiles of the project. A profile is a named set of run defaults. Use it to find a profile to
-            pass as `profile` to cloud-agents-run-create, by ID or by name.
+            List the profiles of the project. A profile is a named set of run defaults. Use it to find a profile to pass
+            as `profile` to cloud-agents-run-create, by ID or by name.
+        feature_flag: cloud-agents
+        feature_flag_behavior: enable
         response:
             exclude:
                 - instructions
@@ -102,8 +109,10 @@ tools:
                 - max_duration_minutes
                 - max_cost_usd
                 - created_by
-        feature_flag: cloud-agents
-        feature_flag_behavior: enable
+    cloud-agents-profile-update:
+        operation: cloud_agents_profiles_partial_update
+        enabled: false
+        disabled_reason: Changing a shared profile changes what later runs of other people use, so a person does it.
     cloud-agents-run-cancel:
         operation: cloud_agents_runs_cancel_create
         enabled: true
@@ -117,11 +126,13 @@ tools:
         description: >
             Ask a run to stop. The agent stops in the middle of its work, and compute billing ends when the sandbox
             stops. The run can stay `running` for a short time, so read it again with cloud-agents-run-get until the
-            status is `cancelled`. A run that already stopped is returned unchanged. A cancelled run can continue
-            later with cloud-agents-run-message.
+            status is `cancelled`. A run that already stopped is returned unchanged. A cancelled run can continue later
+            with cloud-agents-run-message.
         param_overrides:
             id:
                 description: ID of the run to cancel (a UUID).
+        feature_flag: cloud-agents
+        feature_flag_behavior: enable
         response:
             include:
                 - id
@@ -131,8 +142,6 @@ tools:
                 - completed_at
                 - result
                 - cost
-        feature_flag: cloud-agents
-        feature_flag_behavior: enable
     cloud-agents-run-create:
         operation: cloud_agents_runs_create
         enabled: true
@@ -142,7 +151,7 @@ tools:
             readOnly: false
             destructive: false
             idempotent: false
-        enrich_url: 'runs/{id}'
+        enrich_url: runs/{id}
         title: Start cloud agent run
         description: >
             Start a cloud agent run: a cloud sandbox runs a coding agent on your prompt in a GitHub repository and, by
@@ -154,6 +163,10 @@ tools:
             `failed` or `cancelled`. This tool cannot send an idempotency key, so every call starts a new run. Do not
             call it again after a timeout or an unclear error: first check cloud-agents-run-list for the run. A 429
             error means the project is at its concurrency, rate or usage limit, so wait before you try again.
+        exclude_params:
+            - pr_mode
+            - max_duration_minutes
+            - max_cost_usd
         param_overrides:
             prompt:
                 description: >
@@ -164,12 +177,10 @@ tools:
                     Sandbox size, as `<vCPU>x<memory in GiB>`. A larger size costs more per second. Leave it out to use
                     the default of the profile or the project. See cloud-agents-catalog for prices.
             model:
-                description: >
+                description: |
                     Model ID from cloud-agents-catalog. Leave it out to use the default of the profile or the project.
-        exclude_params:
-            - pr_mode
-            - max_duration_minutes
-            - max_cost_usd
+        feature_flag: cloud-agents
+        feature_flag_behavior: enable
         response:
             include:
                 - id
@@ -183,8 +194,6 @@ tools:
                 - config.inference
                 - config.create_pr
                 - tags
-        feature_flag: cloud-agents
-        feature_flag_behavior: enable
     cloud-agents-run-events:
         operation: cloud_agents_runs_events_retrieve
         enabled: true
@@ -201,12 +210,12 @@ tools:
             results. Use it to see what the agent did or why a run failed. The response can be very large for a long
             run, so use cloud-agents-run-get when you need only the status, the result or the cost. `truncated` is true
             when the log was too large to return in full.
-        param_overrides:
-            id:
-                description: ID of the run (a UUID).
         exclude_params:
             - start
             - format
+        param_overrides:
+            id:
+                description: ID of the run (a UUID).
         feature_flag: cloud-agents
         feature_flag_behavior: enable
     cloud-agents-run-get:
@@ -218,7 +227,7 @@ tools:
             readOnly: true
             destructive: false
             idempotent: true
-        enrich_url: 'runs/{id}'
+        enrich_url: runs/{id}
         title: Get cloud agent run
         description: >
             Get one run by ID: its status, stop reason, error, configuration, pull request URLs, summary and cost. Use
@@ -240,13 +249,15 @@ tools:
             readOnly: true
             destructive: false
             idempotent: true
+        enrich_url: runs/{id}
         list: true
-        enrich_url: 'runs/{id}'
         title: List cloud agent runs
         description: >
             List the runs of the project, newest first. Filter by `status`, `profile_id`, `repository`, `tag`, or a
             creation time range. Each row is a short form of the run. Use cloud-agents-run-get for the configuration,
             the agent sessions and the full cost of one run.
+        feature_flag: cloud-agents
+        feature_flag_behavior: enable
         response:
             include:
                 - id
@@ -263,8 +274,6 @@ tools:
                 - cost.total_usd
                 - cost.final
                 - tags
-        feature_flag: cloud-agents
-        feature_flag_behavior: enable
     cloud-agents-run-message:
         operation: cloud_agents_runs_messages_create
         enabled: true
@@ -278,13 +287,15 @@ tools:
         description: >
             Send a follow-up message to a run. A running agent gets the message in its current session. A run that
             stopped starts a new agent session with the message, which starts a billed sandbox again and moves the run
-            back to `queued`. `resumed` in the response says which of the two happened. Use it to ask for changes to
-            the pull request or to continue a failed, timed out or cancelled run in the same repository state. A run
-            that uses the subscription of the user who started it accepts messages from that user only. Each call
-            sends one more message, so do not repeat a call that may have succeeded.
+            back to `queued`. `resumed` in the response says which of the two happened. Use it to ask for changes to the
+            pull request or to continue a failed, timed out or cancelled run in the same repository state. A run that
+            uses the subscription of the user who started it accepts messages from that user only. Each call sends one
+            more message, so do not repeat a call that may have succeeded.
         param_overrides:
             id:
                 description: ID of the run to send the message to (a UUID).
+        feature_flag: cloud-agents
+        feature_flag_behavior: enable
         response:
             include:
                 - resumed
@@ -292,8 +303,6 @@ tools:
                 - run.status
                 - run.stop_reason
                 - run.agent_sessions
-        feature_flag: cloud-agents
-        feature_flag_behavior: enable
     cloud-agents-run-usage:
         operation: cloud_agents_runs_usage_retrieve
         enabled: true
@@ -305,14 +314,18 @@ tools:
             idempotent: true
         title: Get cloud agent run usage
         description: >
-            Get the cost of one run up to now, with each sandbox that the run used: its size, start and end time,
-            billed seconds and compute cost. `waived` is true for a sandbox that PostHog did not bill. Use it to explain
-            the cost of a run. cloud-agents-run-get already has the cost totals.
+            Get the cost of one run up to now, with each sandbox that the run used: its size, start and end time, billed
+            seconds and compute cost. `waived` is true for a sandbox that PostHog did not bill. Use it to explain the
+            cost of a run. cloud-agents-run-get already has the cost totals.
         param_overrides:
             id:
                 description: ID of the run (a UUID).
         feature_flag: cloud-agents
         feature_flag_behavior: enable
+    cloud-agents-settings-update:
+        operation: cloud_agents_settings_partial_update
+        enabled: false
+        disabled_reason: Project defaults apply to every run of the project, so a person changes them.
     cloud-agents-usage-summary:
         operation: cloud_agents_usage_retrieve
         enabled: true
@@ -324,24 +337,11 @@ tools:
             idempotent: true
         title: Get cloud agents usage summary
         description: >
-            Get cost and usage totals for the runs created in a date range, with one bucket for each UTC day or for
-            each profile. The default range is the last 30 days and the longest range is 366 days. Use it for spend
-            questions across many runs. Use cloud-agents-run-usage for one run.
+            Get cost and usage totals for the runs created in a date range, with one bucket for each UTC day or for each
+            profile. The default range is the last 30 days and the longest range is 366 days. Use it for spend questions
+            across many runs. Use cloud-agents-run-usage for one run.
         feature_flag: cloud-agents
         feature_flag_behavior: enable
-    # Project configuration and webhook secrets stay with a person in the app or the REST API.
-    cloud-agents-profile-delete:
-        operation: cloud_agents_profiles_destroy
-        enabled: false
-        disabled_reason: Deleting a shared profile changes what later runs of other people use, so a person does it.
-    cloud-agents-profile-update:
-        operation: cloud_agents_profiles_partial_update
-        enabled: false
-        disabled_reason: Changing a shared profile changes what later runs of other people use, so a person does it.
-    cloud-agents-settings-update:
-        operation: cloud_agents_settings_partial_update
-        enabled: false
-        disabled_reason: Project defaults apply to every run of the project, so a person changes them.
     cloud-agents-webhook-endpoint-create:
         operation: cloud_agents_webhook_endpoints_create
         enabled: false
