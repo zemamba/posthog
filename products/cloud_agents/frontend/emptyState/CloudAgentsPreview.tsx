@@ -62,7 +62,7 @@ export function CloudAgentsPreview(): JSX.Element {
                         <dt>Compute</dt>
                         <dd>$0.07</dd>
                         <dt>Model usage</dt>
-                        <dd>Your provider</dd>
+                        <dd>Your subscription</dd>
                         <dt>Total so far</dt>
                         <dd className="CloudAgentsPreview__total">$0.07</dd>
                     </dl>

@@ -54,7 +54,7 @@ export function PriceEstimator(): JSX.Element {
             <p className="m-0 text-secondary text-xs">
                 Compute is billed per second on the selected size, so a run that ends early costs less. Model usage is
                 not in this estimate: it is billed separately in AI credits, or by your provider when you bring your own
-                key or subscription.
+                subscription.
             </p>
         </LemonCard>
     )

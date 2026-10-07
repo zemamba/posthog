@@ -24,7 +24,7 @@ export const cloudAgentsEmptyState: SceneProductEmptyState = {
         text: {
             'needs-setup': {
                 headline: 'Send a prompt, get a pull request',
-                lead: 'Give a coding agent a prompt and a repository. It works in its own cloud sandbox and opens a pull request when it is done. You pay for the time the sandbox runs, billed per second, and you can see what each run costs. Bring your own model provider key, or let PostHog provide the model.',
+                lead: 'Give a coding agent a prompt and a repository. It works in its own cloud sandbox and opens a pull request when it is done. You pay for the time the sandbox runs, billed per second, and you can see what each run costs. Bring your own ChatGPT or Claude subscription, or let PostHog provide the model.',
             },
         },
         PrimaryAction: StartFirstRunButton,

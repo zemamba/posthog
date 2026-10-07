@@ -5,7 +5,7 @@ export function EmptyStateApiExample(): JSX.Element {
     return (
         <div className="flex flex-col gap-2 min-w-0">
             <p className="m-0 text-secondary text-sm">
-                Or start a run from your own code. Create a personal API key with the cloud agents scope, then send:
+                Or start a run from your own code. Create a personal API key, then send:
             </p>
             <CurlSnippet
                 surface="empty_state"

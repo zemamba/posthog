@@ -22,6 +22,7 @@ Use `eu.posthog.com` for EU Cloud.
 ## Quickstart
 
 1. Create a [personal API key](/docs/api#authentication) with the `cloud_agent:write` scope. Read-only calls need `cloud_agent:read`.
+   While Cloud agents is in limited availability, the key settings page does not list this scope. Create the key with the personal API keys API, or use a key with all access.
 2. Connect the GitHub integration to your PostHog project and give it access to the repository. The agent uses it to clone the repository and to open the pull request.
 3. Start a run:
 
