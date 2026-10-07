@@ -8,3 +8,8 @@ from celery.schedules import crontab
 
 # Once a day, at a quiet hour.
 DELETE_OLD_WEBHOOK_DELIVERIES_CRONTAB = crontab(hour="4", minute="20")
+
+# A run that the status signal of Tasks did not reach is repaired within this time.
+RECONCILE_RUNS_CRONTAB = crontab(minute="*/5")
+# A project over its usage limit loses its active billed runs within this time.
+STOP_RUNS_OVER_QUOTA_CRONTAB = crontab(minute="*/5")

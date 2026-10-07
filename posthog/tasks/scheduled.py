@@ -85,6 +85,14 @@ from products.approvals.backend.tasks import (
     validate_pending_change_requests,
 )
 from products.canvas.backend.facade.tasks import cleanup_canvas_builds, sweep_canvas_builds
+from products.cloud_agents.backend.facade.tasks import (
+    DELETE_OLD_WEBHOOK_DELIVERIES_CRONTAB,
+    RECONCILE_RUNS_CRONTAB,
+    STOP_RUNS_OVER_QUOTA_CRONTAB,
+    delete_old_webhook_deliveries,
+    reconcile_cloud_agent_runs,
+    stop_cloud_agent_runs_over_quota,
+)
 from products.conversations.backend.tasks.email import flush_pending_email_replies
 from products.conversations.backend.tasks.maintenance import wake_snoozed_tickets
 from products.conversations.backend.tasks.slack import sweep_delivery_parts, sweep_inbound_events
@@ -1144,6 +1152,22 @@ def setup_periodic_tasks(sender: Celery, **kwargs: Any) -> None:
         crontab(hour="4", minute="10"),
         cleanup_deleted_streamlit_app_zips.s(),
         name="cleanup deleted streamlit app zips",
+    )
+
+    sender.add_periodic_task(
+        RECONCILE_RUNS_CRONTAB,
+        reconcile_cloud_agent_runs.s(),
+        name="reconcile cloud agent runs",
+    )
+    sender.add_periodic_task(
+        STOP_RUNS_OVER_QUOTA_CRONTAB,
+        stop_cloud_agent_runs_over_quota.s(),
+        name="stop cloud agent runs over quota",
+    )
+    sender.add_periodic_task(
+        DELETE_OLD_WEBHOOK_DELIVERIES_CRONTAB,
+        delete_old_webhook_deliveries.s(),
+        name="delete old cloud agents webhook deliveries",
     )
 
     # Stop streamlit sandboxes left idle past their inactivity window.

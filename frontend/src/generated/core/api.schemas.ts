@@ -5441,6 +5441,90 @@ export interface UserGitHubLinkStartResponseApi {
     connect_flow: string
 }
 
+/**
+ * * `anthropic_api_key` - Anthropic API key
+ * * `openai_api_key` - OpenAI API key
+ * * `claude_subscription` - Claude subscription
+ */
+export type InferenceCredentialKindEnumApi =
+    (typeof InferenceCredentialKindEnumApi)[keyof typeof InferenceCredentialKindEnumApi]
+
+export const InferenceCredentialKindEnumApi = {
+    AnthropicApiKey: 'anthropic_api_key',
+    OpenaiApiKey: 'openai_api_key',
+    ClaudeSubscription: 'claude_subscription',
+} as const
+
+/**
+ * * `anthropic` - Anthropic
+ * * `openai` - OpenAI
+ */
+export type InferenceProviderEnumApi = (typeof InferenceProviderEnumApi)[keyof typeof InferenceProviderEnumApi]
+
+export const InferenceProviderEnumApi = {
+    Anthropic: 'anthropic',
+    Openai: 'openai',
+} as const
+
+/**
+ * * `api_key` - API key
+ * * `subscription` - Subscription
+ */
+export type InferenceCredentialTypeEnumApi =
+    (typeof InferenceCredentialTypeEnumApi)[keyof typeof InferenceCredentialTypeEnumApi]
+
+export const InferenceCredentialTypeEnumApi = {
+    ApiKey: 'api_key',
+    Subscription: 'subscription',
+} as const
+
+export interface UserInferenceCredentialApi {
+    /** The kind of the stored credential.
+     *
+     * * `anthropic_api_key` - Anthropic API key
+     * * `openai_api_key` - OpenAI API key
+     * * `claude_subscription` - Claude subscription */
+    kind: InferenceCredentialKindEnumApi
+    /** The inference provider that the credential belongs to.
+     *
+     * * `anthropic` - Anthropic
+     * * `openai` - OpenAI */
+    provider: InferenceProviderEnumApi
+    /** `api_key` for a provider API key, `subscription` for a Claude subscription token.
+     *
+     * * `api_key` - API key
+     * * `subscription` - Subscription */
+    credential_type: InferenceCredentialTypeEnumApi
+    /** The last 4 characters of the secret, so the user can tell which credential is stored. */
+    key_suffix: string
+    /** When this credential was stored. */
+    created_at: string
+    /**
+     * When a cloud agent run last used this credential. Null when no run has used it.
+     * @nullable
+     */
+    last_used_at: string | null
+}
+
+export interface UserInferenceCredentialListResponseApi {
+    /** The inference credentials the user has stored, at most one of each kind. */
+    results: UserInferenceCredentialApi[]
+}
+
+export interface UserInferenceCredentialConnectRequestApi {
+    /** Which credential to store. `anthropic_api_key` and `openai_api_key` are API keys from the provider console. `claude_subscription` is the token that `claude setup-token` prints. A user has at most one credential of each kind, so a new one replaces the stored one.
+     *
+     * * `anthropic_api_key` - Anthropic API key
+     * * `openai_api_key` - OpenAI API key
+     * * `claude_subscription` - Claude subscription */
+    kind: InferenceCredentialKindEnumApi
+    /**
+     * The API key or subscription token. PostHog checks an API key with the provider, then stores the secret encrypted. No response returns it.
+     * @maxLength 1024
+     */
+    secret: string
+}
+
 export interface UserSlackLinkableWorkspaceItemApi {
     /** PostHog team/project id owning the Slack workspace install. */
     posthog_team_id: number

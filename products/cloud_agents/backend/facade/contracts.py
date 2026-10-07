@@ -18,12 +18,13 @@ from posthog.dataclasses import frozen
 from .enums import (
     BillingMode,
     CallerKind,
+    CloudAgentRunStatus,
     InferenceBilling,
     InferenceMode,
     PrMode,
-    RunStatus,
     SizeName,
     StopReason,
+    UsageGroupBy,
     WebhookDeliveryStatus,
     WebhookEvent,
     size_shape,
@@ -43,14 +44,17 @@ class CallerIdentity:
 
 @frozen
 class SizeSpec:
+    """A sandbox size and its public price for one hour."""
+
     name: SizeName
     vcpu: int
     memory_gib: int
+    price_per_hour_usd: Decimal
 
     @classmethod
-    def from_name(cls, name: SizeName) -> SizeSpec:
+    def from_name(cls, name: SizeName, *, price_per_hour_usd: Decimal) -> SizeSpec:
         vcpu, memory_gib = size_shape(name)
-        return cls(name=name, vcpu=vcpu, memory_gib=memory_gib)
+        return cls(name=name, vcpu=vcpu, memory_gib=memory_gib, price_per_hour_usd=price_per_hour_usd)
 
 
 @frozen
@@ -196,7 +200,7 @@ class ResolvedRunConfig:
 class AgentSessionDTO:
     index: int
     task_run_id: UUID
-    status: RunStatus
+    status: CloudAgentRunStatus
     started_at: datetime | None
     ended_at: datetime | None
 
@@ -223,7 +227,7 @@ class RunCostDTO:
 @frozen
 class RunDTO:
     id: UUID
-    status: RunStatus
+    status: CloudAgentRunStatus
     stop_reason: StopReason | None
     error: str | None
     created_at: datetime
@@ -236,6 +240,7 @@ class RunDTO:
     profile_id: UUID | None
     profile_name: str | None
     config: ResolvedRunConfig
+    size: SizeSpec
     result: RunResultDTO
     cost: RunCostDTO
     agent_sessions: list[AgentSessionDTO]
@@ -244,6 +249,128 @@ class RunDTO:
     created_by_id: int | None
     created_by_email: str | None
     caller_kind: CallerKind
+
+
+@frozen
+class MessageResult:
+    """`resumed` is True when the message started a new agent session, and False when a live session got it."""
+
+    resumed: bool
+    run: RunDTO
+
+
+@frozen
+class RunListFilters:
+    status: CloudAgentRunStatus | None = None
+    profile_id: UUID | None = None
+    repository: str | None = None
+    tag: str | None = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+
+
+@frozen
+class SandboxSessionUsageDTO:
+    """One sandbox of a run and its compute charge. A waived session has a zero charge."""
+
+    vcpu: Decimal
+    memory_gib: Decimal
+    started_at: datetime
+    ended_at: datetime | None
+    seconds: int
+    cost_usd: Decimal
+    waived: bool
+
+
+@frozen
+class RunUsageDTO:
+    run_id: UUID
+    cost: RunCostDTO
+    sessions: list[SandboxSessionUsageDTO]
+
+
+@frozen
+class RunEventsDTO:
+    """`truncated` is True when the log is too large. `events` then holds the earliest sessions that fit."""
+
+    events: list[dict[str, Any]]
+    truncated: bool
+
+
+@frozen
+class RunEventStream:
+    """One client connection to the live events of a run. `source` is an opaque handle for the stream body."""
+
+    run: RunDTO
+    source: object
+
+
+@frozen
+class ModelDTO:
+    id: str
+    name: str
+    runtime_adapter: str
+    is_default: bool
+
+
+@frozen
+class RateCardDTO:
+    vcpu_hour_usd: Decimal
+    memory_gib_hour_usd: Decimal
+    version: str
+
+
+@frozen
+class LimitsDTO:
+    max_concurrent_runs: int
+    create_rate_per_hour: int
+
+
+@frozen
+class CatalogDTO:
+    sizes: list[SizeSpec]
+    models: list[ModelDTO]
+    inference_modes: list[InferenceMode]
+    rates: RateCardDTO
+    limits: LimitsDTO
+
+
+@frozen
+class EstimateDTO:
+    size: SizeName
+    minutes: int
+    price_per_hour_usd: Decimal
+    estimate_usd: Decimal
+
+
+@frozen
+class UsageTotalsDTO:
+    """Costs are sums over the runs that have a cost. A run on the customer's own credential adds no inference cost."""
+
+    runs: int
+    compute_usd: Decimal
+    inference_usd: Decimal
+    total_usd: Decimal
+    vcpu_seconds: Decimal
+    gib_seconds: Decimal
+
+
+@frozen
+class UsageBucketDTO:
+    """`key` is a date for `group_by=day`, and a profile id or None for `group_by=profile`."""
+
+    key: str | None
+    label: str | None
+    usage: UsageTotalsDTO
+
+
+@frozen
+class UsageSummaryDTO:
+    date_from: datetime
+    date_to: datetime
+    group_by: UsageGroupBy
+    totals: UsageTotalsDTO
+    buckets: list[UsageBucketDTO]
 
 
 @frozen
@@ -328,14 +455,17 @@ class WebhookEndpointNotFound(CloudAgentsError):
     default_message = "This webhook endpoint does not exist in this project."
 
 
-class RepositoryRequired(CloudAgentsError):
+class RepositoryRequired(InvalidInput):
     code = "repository_required"
     default_message = "Set a repository on the run, on its profile, or in the project settings."
+
+    def __init__(self) -> None:
+        super().__init__(attr="repository")
 
 
 class IdempotencyKeyReused(CloudAgentsError):
     code = "idempotency_key_reused"
-    status_code = 409
+    status_code = 422
     default_message = "This idempotency key was used with a different request. Use a new key."
 
 
@@ -355,6 +485,37 @@ class UsageLimited(CloudAgentsError):
     code = "usage_limited"
     status_code = 429
     default_message = "This project reached its usage limit. Raise the limit in billing settings, then try again."
+
+    def __init__(self, message: str | None = None, *, retry_after: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class OrganizationDeactivated(CloudAgentsError):
+    code = "organization_deactivated"
+    status_code = 403
+    default_message = "This organization is deactivated, so it cannot run cloud agents. Contact support."
+
+
+class CredentialOwnerRequired(CloudAgentsError):
+    code = "credential_owner_required"
+    status_code = 403
+    default_message = (
+        "This run uses the model credential of the user who started it. Only that user can send it a message."
+    )
+
+
+class RunNotReady(CloudAgentsError):
+    code = "run_not_ready"
+    status_code = 409
+    default_message = "This run is still starting. Try again in a few seconds."
+
+
+class RunCancelUnavailable(CloudAgentsError):
+    code = "cancel_unavailable"
+    status_code = 503
+    default_message = "The run could not be cancelled now. Try again in a few seconds."
+    retry_after: ClassVar[int] = 5
 
 
 class ConcurrencyLimited(CloudAgentsError):

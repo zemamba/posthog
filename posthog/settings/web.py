@@ -630,6 +630,11 @@ SPECTACULAR_SETTINGS = {
             "SlackSummaryCadenceEnum": ["daily", "weekly", "monthly"],
             # signals' report-metric role; AutoresearchModel.Role also sits on a field named `role`.
             "RoleEnum": ["primary", "supporting"],
+            # signals' report chart size; cloud_agents' sandbox size also sits on a field named `size`.
+            "SizeEnum": ["small", "medium", "large"],
+            # ai_observability's text representation event; cloud_agents' webhook event also sits on a
+            # field named `event_type`.
+            "EventTypeEnum": ["$ai_generation", "$ai_span", "$ai_embedding", "$ai_trace"],
             # replay_vision alert destinations: the create body and the alert's listed destinations share this set.
             "VisionAlertDestinationTypeEnum": ["slack", "webhook"],
             # The API-only pin kind uses StrEnum; name its component without a Django Choices class.

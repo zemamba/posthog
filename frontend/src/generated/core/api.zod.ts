@@ -1616,6 +1616,29 @@ export const UsersIntegrationsGithubStartCreateBody = /* @__PURE__ */ zod.object
 })
 
 /**
+ * Store the user's own Anthropic API key, OpenAI API key or Claude subscription token for cloud agent runs. PostHog checks an API key with the provider before it stores the key. The secret is stored encrypted and replaces any stored credential of the same kind. No response carries a secret.
+ * @summary Store an inference credential
+ */
+export const usersIntegrationsInferenceCredentialsCreateBodySecretMax = 1024
+
+export const UsersIntegrationsInferenceCredentialsCreateBody = /* @__PURE__ */ zod.object({
+    kind: zod
+        .enum(['anthropic_api_key', 'openai_api_key', 'claude_subscription'])
+        .describe(
+            '\* `anthropic_api_key` - Anthropic API key\n\* `openai_api_key` - OpenAI API key\n\* `claude_subscription` - Claude subscription'
+        )
+        .describe(
+            'Which credential to store. `anthropic_api_key` and `openai_api_key` are API keys from the provider console. `claude_subscription` is the token that `claude setup-token` prints. A user has at most one credential of each kind, so a new one replaces the stored one.\n\n\* `anthropic_api_key` - Anthropic API key\n\* `openai_api_key` - OpenAI API key\n\* `claude_subscription` - Claude subscription'
+        ),
+    secret: zod
+        .string()
+        .max(usersIntegrationsInferenceCredentialsCreateBodySecretMax)
+        .describe(
+            'The API key or subscription token. PostHog checks an API key with the provider, then stores the secret encrypted. No response returns it.'
+        ),
+})
+
+/**
  * Mint a Sign-in-with-Slack invite URL initiated from settings, without
  * Slack-DM context. The returned URL takes the user through PostHog login
  * (already satisfied here), then to Slack OAuth, then back to our callback

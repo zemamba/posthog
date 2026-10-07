@@ -114,6 +114,9 @@ import type {
     UserGitHubLinkStartResponseApi,
     UserGitHubPrepareCallbackRequestApi,
     UserGithubLoginApi,
+    UserInferenceCredentialApi,
+    UserInferenceCredentialConnectRequestApi,
+    UserInferenceCredentialListResponseApi,
     UserPushTokenItemApi,
     UserPushTokenRegisterRequestApi,
     UserPushTokenUnregisterRequestApi,
@@ -3275,6 +3278,70 @@ export const usersIntegrationsGithubStartCreate = async (
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...options?.headers },
         body: JSON.stringify(userGitHubLinkStartRequestApi),
+    })
+}
+
+export const getUsersIntegrationsInferenceCredentialsRetrieveUrl = (uuid: string) => {
+    return `/api/users/${uuid}/integrations/inference_credentials/`
+}
+
+/**
+ * The Anthropic API key, OpenAI API key and Claude subscription token the user stored for cloud agent runs. Each item shows the last 4 characters of the secret. No response carries a secret.
+ * @summary List the user's stored inference credentials
+ */
+export const usersIntegrationsInferenceCredentialsRetrieve = async (
+    uuid: string,
+    options?: RequestInit
+): Promise<UserInferenceCredentialListResponseApi> => {
+    return apiMutator<UserInferenceCredentialListResponseApi>(
+        getUsersIntegrationsInferenceCredentialsRetrieveUrl(uuid),
+        {
+            ...options,
+            method: 'GET',
+        }
+    )
+}
+
+export const getUsersIntegrationsInferenceCredentialsCreateUrl = (uuid: string) => {
+    return `/api/users/${uuid}/integrations/inference_credentials/`
+}
+
+/**
+ * Store the user's own Anthropic API key, OpenAI API key or Claude subscription token for cloud agent runs. PostHog checks an API key with the provider before it stores the key. The secret is stored encrypted and replaces any stored credential of the same kind. No response carries a secret.
+ * @summary Store an inference credential
+ */
+export const usersIntegrationsInferenceCredentialsCreate = async (
+    uuid: string,
+    userInferenceCredentialConnectRequestApi: UserInferenceCredentialConnectRequestApi,
+    options?: RequestInit
+): Promise<UserInferenceCredentialApi> => {
+    return apiMutator<UserInferenceCredentialApi>(getUsersIntegrationsInferenceCredentialsCreateUrl(uuid), {
+        ...options,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(userInferenceCredentialConnectRequestApi),
+    })
+}
+
+export const getUsersIntegrationsInferenceCredentialsDestroyUrl = (
+    uuid: string,
+    kind: 'anthropic_api_key' | 'claude_subscription' | 'openai_api_key'
+) => {
+    return `/api/users/${uuid}/integrations/inference_credentials/${kind}/`
+}
+
+/**
+ * Deletes the stored credential of the given kind. Idempotent.
+ * @summary Delete a stored inference credential
+ */
+export const usersIntegrationsInferenceCredentialsDestroy = async (
+    uuid: string,
+    kind: 'anthropic_api_key' | 'claude_subscription' | 'openai_api_key',
+    options?: RequestInit
+): Promise<void> => {
+    return apiMutator<void>(getUsersIntegrationsInferenceCredentialsDestroyUrl(uuid, kind), {
+        ...options,
+        method: 'DELETE',
     })
 }
 

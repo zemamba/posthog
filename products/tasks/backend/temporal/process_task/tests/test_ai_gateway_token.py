@@ -22,6 +22,7 @@ from posthog.security.outbound_proxy import internal_requests
 from products.signals.backend.scout_harness.suggestions import SUGGESTIONS_AI_STAGE
 from products.tasks.backend import model_catalog
 from products.tasks.backend.constants import RESERVED_SANDBOX_ENVIRONMENT_VARIABLE_KEYS
+from products.tasks.backend.exceptions import BilledInferenceUnavailableError
 from products.tasks.backend.facade.billing import get_task_run_cost
 from products.tasks.backend.facade.gateway import mint_private_gateway_token, revoke_private_gateway_token
 from products.tasks.backend.logic.services.desktop_gateway_token import valid_caps
@@ -681,6 +682,59 @@ class TestProvisioningBoundaries:
             )
         assert env.get("AI_GATEWAY_PRODUCT") == expected_product
         assert ("AI_GATEWAY_TOKEN" in env) is (expected_product is not None)
+
+    @pytest.mark.parametrize(
+        "origin_product,client_provenance,env,fatal",
+        [
+            # A billed run with no billed token must not start on the unbilled fallback.
+            ("cloud_agents", "cloud_agents", {"AI_GATEWAY_URL": "url", "AI_GATEWAY_PRODUCTS": "x"}, True),
+            ("cloud_agents", "cloud_agents", {}, True),
+            ("cloud_agents", "cloud_agents", RuntimeError("billing is down"), True),
+            (
+                "cloud_agents",
+                "cloud_agents",
+                {"AI_GATEWAY_TOKEN": "phe", "AI_GATEWAY_PRODUCT": "background_agents"},
+                True,
+            ),
+            ("cloud_agents", "cloud_agents", {"AI_GATEWAY_TOKEN": "phe", "AI_GATEWAY_PRODUCT": "cloud_agents"}, False),
+            # PostHog's own Cloud Agents work is not billed, so it keeps the fallback.
+            ("cloud_agents", None, {}, False),
+            ("cloud_agents", None, RuntimeError("billing is down"), False),
+            ("user_created", "cloud_agents", {}, False),
+            ("user_created", "posthog_desktop", RuntimeError("billing is down"), False),
+            ("signals_scout", None, {}, False),
+        ],
+    )
+    def test_only_a_billed_cloud_agents_run_fails_without_a_billed_token(
+        self, origin_product, client_provenance, env, fatal
+    ):
+        ctx = self._ctx()
+        ctx.origin_product = origin_product
+        ctx.state = {}
+        task = self._task()
+        task.client_provenance = client_provenance
+        routing = {"side_effect": env} if isinstance(env, Exception) else {"return_value": dict(env)}
+        with (
+            patch.object(utils, "ai_gateway_env_vars", **routing),
+            patch.object(utils, "record_gateway_routing") as record,
+            patch.object(utils, "_record_pinned_gateway_product", return_value=True),
+        ):
+            if fatal:
+                with pytest.raises(BilledInferenceUnavailableError) as raised:
+                    utils.run_gateway_env_vars(ctx, task)
+                assert raised.value.non_retryable is True
+                record.assert_not_called()
+            else:
+                assert utils.run_gateway_env_vars(ctx, task) == ({} if isinstance(env, Exception) else env)
+
+    def test_billed_cloud_agents_run_on_its_own_credential_needs_no_token(self, mint_settings):
+        ctx = self._ctx()
+        ctx.origin_product = "cloud_agents"
+        ctx.claude_model_access = "own-key"
+        task = self._task()
+        task.client_provenance = "cloud_agents"
+        with patch.object(utils, "record_gateway_routing"):
+            assert utils.run_gateway_env_vars(ctx, task) == {}
 
     def test_non_slack_origin_skips_the_prior_run_lookup(self, mint_settings):
         from products.tasks.backend.temporal.process_task import utils

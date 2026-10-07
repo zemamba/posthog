@@ -12,7 +12,7 @@ models.TextChoices, for an enum that backs model or serializer choices.
 from posthog.enums import LabeledStrEnum
 
 
-class RunStatus(LabeledStrEnum):
+class CloudAgentRunStatus(LabeledStrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -69,6 +69,11 @@ class SizeName(LabeledStrEnum):
     S_8X16 = "8x16", "8 vCPU, 16 GiB"
     S_8X32 = "8x32", "8 vCPU, 32 GiB"
     S_16X64 = "16x64", "16 vCPU, 64 GiB"
+
+
+class UsageGroupBy(LabeledStrEnum):
+    DAY = "day"
+    PROFILE = "profile"
 
 
 class WebhookEvent(LabeledStrEnum):

@@ -16,10 +16,10 @@ from posthog.models.utils import uuid7
 from .facade.enums import (
     BillingMode,
     CallerKind,
+    CloudAgentRunStatus,
     InferenceBilling,
     InferenceMode,
     PrMode,
-    RunStatus,
     SizeName,
     StopReason,
     WebhookDeliveryStatus,
@@ -115,7 +115,9 @@ class CloudAgentRun(TeamScopedRootMixin):
     # profile or to the project settings does not change a run that already started.
     config = models.JSONField(default=dict)
 
-    status = models.CharField(max_length=16, choices=RunStatus.choices, default=RunStatus.QUEUED.value)
+    status = models.CharField(
+        max_length=16, choices=CloudAgentRunStatus.choices, default=CloudAgentRunStatus.QUEUED.value
+    )
     stop_reason = models.CharField(max_length=32, choices=StopReason.choices, null=True, blank=True)
     error = models.TextField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)

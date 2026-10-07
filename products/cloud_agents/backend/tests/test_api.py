@@ -16,7 +16,7 @@ from products.cloud_agents.backend.models import (
     CloudAgentsWebhookEndpoint,
     TeamCloudAgentsConfig,
 )
-from products.cloud_agents.backend.tests.base import CloudAgentsFlagMixin
+from products.cloud_agents.backend.tests.base import CloudAgentsFlagMixin, TasksFakeMixin
 
 # name, method, path below cloud_agents/, is a write, body
 ROUTES: list[tuple[str, str, str, bool, dict[str, Any] | None]] = [
@@ -36,21 +36,34 @@ ROUTES: list[tuple[str, str, str, bool, dict[str, Any] | None]] = [
     ("endpoints_secret", "post", "webhook_endpoints/secret/", True, None),
     ("endpoints_rotate_secret", "post", "webhook_endpoints/rotate_secret/", True, None),
     ("endpoints_deliveries", "get", "webhook_endpoints/deliveries/", False, None),
+    ("runs_list", "get", "runs/", False, None),
+    ("runs_create", "post", "runs/", True, {"prompt": "Fix it", "repository": "acme/app"}),
+    ("runs_retrieve", "get", "runs/{run}/", False, None),
+    ("runs_messages", "post", "runs/{run}/messages/", True, {"content": "Also fix the lint"}),
+    ("runs_cancel", "post", "runs/{run}/cancel/", True, None),
+    ("runs_usage", "get", "runs/{run}/usage/", False, None),
+    ("runs_events", "get", "runs/{run}/events/?format=json", False, None),
+    ("catalog", "get", "catalog/", False, None),
+    ("estimate", "get", "estimate/?size=4x16&minutes=15", False, None),
+    ("usage", "get", "usage/", False, None),
 ]
 DETAIL_ROUTES = [route for route in ROUTES if "{" in route[2]]
 WRITE_ROUTES = [route for route in ROUTES if route[3]]
 READ_ROUTES = [route for route in ROUTES if not route[3]]
 
 
-class CloudAgentsAPITestCase(CloudAgentsFlagMixin, APIBaseTest):
+class CloudAgentsAPITestCase(TasksFakeMixin, CloudAgentsFlagMixin, APIBaseTest):
     def setUp(self) -> None:
         super().setUp()
         with team_scope(self.team.id):
             self.profile = CloudAgentProfile.objects.create(team=self.team, name="Backend", created_by=self.user)
             self.endpoint = CloudAgentsWebhookEndpoint.objects.create(team=self.team, url="https://example.com/hook")
+        self.run_row = self.make_run(task_status="in_progress")
 
     def call(self, method: str, path: str, body: dict[str, Any] | None = None, **extra: Any) -> Any:
-        url = f"{self.base_url()}/{path}".format(profile=self.profile.id, endpoint=self.endpoint.id)
+        url = f"{self.base_url()}/{path}".format(
+            profile=self.profile.id, endpoint=self.endpoint.id, run=self.run_row.id
+        )
         return getattr(self.client, method)(url, data=body, format="json", **extra)
 
 
@@ -95,11 +108,14 @@ class TestAccess(CloudAgentsAPITestCase):
         with team_scope(other_team.id):
             self.profile = CloudAgentProfile.objects.create(team=other_team, name="Theirs")
             self.endpoint = CloudAgentsWebhookEndpoint.objects.create(team=other_team, url="https://example.com/x")
+        self.run_row = self.make_run(team=other_team, task_status="in_progress")
 
         assert self.call(method, path, body).status_code == status.HTTP_404_NOT_FOUND
         with team_scope(other_team.id):
             assert CloudAgentProfile.objects.get(id=self.profile.id).deleted is False
             assert CloudAgentsWebhookEndpoint.objects.filter(id=self.endpoint.id, enabled=True).exists()
+        self.mocks["runs.signal_task_run_user_message"].assert_not_called()
+        self.mocks["runs.cancel_task_run"].assert_not_called()
 
     @parameterized.expand(
         [
@@ -124,7 +140,7 @@ class TestAccess(CloudAgentsAPITestCase):
             paged_ids.extend(row["id"] for row in page["results"])
         assert paged_ids == [row["id"] for row in everything["results"]]
 
-    @parameterized.expand([("profiles/not-a-uuid/",), ("webhook_endpoints/not-a-uuid/",)])
+    @parameterized.expand([("profiles/not-a-uuid/",), ("webhook_endpoints/not-a-uuid/",), ("runs/not-a-uuid/",)])
     def test_malformed_id_is_not_found(self, path: str) -> None:
         assert self.call("get", path).status_code == status.HTTP_404_NOT_FOUND
 
