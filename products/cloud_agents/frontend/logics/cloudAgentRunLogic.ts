@@ -130,8 +130,8 @@ export interface cloudAgentRunLogicMeta {
     __keaTypeGenInternalSelectorTypes: {
         isActive: (run: CloudAgentRunApi | null) => boolean
         timelineRows: (runEvents: CloudAgentRunEventsApi | null) => TimelineRow[]
-        visibleTimelineRows: (timelineRows: TimelineRow[], timelineLimit: 100) => TimelineRow[]
-        hiddenTimelineRowCount: (timelineRows: TimelineRow[], timelineLimit: 100) => number
+        visibleTimelineRows: (timelineRows: TimelineRow[], timelineLimit: number) => TimelineRow[]
+        hiddenTimelineRowCount: (timelineRows: TimelineRow[], timelineLimit: number) => number
         eventsTruncated: (runEvents: CloudAgentRunEventsApi | null) => boolean
     }
 }

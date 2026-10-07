@@ -694,26 +694,26 @@ Errors use the standard PostHog error body.
 }
 ```
 
-| Code                         | Status | Meaning                                                                                             |
-| ---------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| `invalid_input`              | 400    | A field is not valid. `attr` names the field.                                                       |
-| `repository_required`        | 400    | No repository on the run, its profile, or the project settings.                                     |
-| `invalid_webhook_url`        | 400    | The webhook URL is not a public HTTPS address.                                                      |
-| `too_many_webhook_endpoints` | 400    | The project already has 5 webhook endpoints.                                                        |
-| `permission_denied`          | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.                |
-| `organization_deactivated`   | 403    | The organization is deactivated. Contact support.                                                   |
-| `credential_owner_required`  | 403    | The run uses the subscription of the user who started it. Only that user can send it a message.     |
-| `run_not_found`              | 404    | The run does not exist in this project.                                                             |
-| `profile_not_found`          | 404    | The profile does not exist in this project.                                                         |
-| `webhook_endpoint_not_found` | 404    | The webhook endpoint does not exist in this project.                                                |
-| `run_not_ready`              | 409    | The run is still starting. Try again in a few seconds.                                              |
-| `run_stopping`               | 409    | The run is stopping. Wait until it stops, then try again.                                           |
-| `run_not_resumable`          | 409    | The run cannot be resumed. Start a new run.                                                         |
-| `idempotency_key_reused`     | 422    | The idempotency key was used with a different request. Use a new key.                               |
-| `concurrency_limited`        | 429    | The project is at its limit of active runs. Wait until a run stops.                                 |
-| `create_rate_limited`        | 429    | The project starts runs too quickly. Wait for `Retry-After`.                                        |
-| `usage_limited`              | 429    | The project reached its usage limit. Raise the limit in billing settings.                           |
-| `cancel_unavailable`         | 503    | The run could not be cancelled now. Try again in a few seconds.                                     |
+| Code                         | Status | Meaning                                                                                         |
+| ---------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `invalid_input`              | 400    | A field is not valid. `attr` names the field.                                                   |
+| `repository_required`        | 400    | No repository on the run, its profile, or the project settings.                                 |
+| `invalid_webhook_url`        | 400    | The webhook URL is not a public HTTPS address.                                                  |
+| `too_many_webhook_endpoints` | 400    | The project already has 5 webhook endpoints.                                                    |
+| `permission_denied`          | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.            |
+| `organization_deactivated`   | 403    | The organization is deactivated. Contact support.                                               |
+| `credential_owner_required`  | 403    | The run uses the subscription of the user who started it. Only that user can send it a message. |
+| `run_not_found`              | 404    | The run does not exist in this project.                                                         |
+| `profile_not_found`          | 404    | The profile does not exist in this project.                                                     |
+| `webhook_endpoint_not_found` | 404    | The webhook endpoint does not exist in this project.                                            |
+| `run_not_ready`              | 409    | The run is still starting. Try again in a few seconds.                                          |
+| `run_stopping`               | 409    | The run is stopping. Wait until it stops, then try again.                                       |
+| `run_not_resumable`          | 409    | The run cannot be resumed. Start a new run.                                                     |
+| `idempotency_key_reused`     | 422    | The idempotency key was used with a different request. Use a new key.                           |
+| `concurrency_limited`        | 429    | The project is at its limit of active runs. Wait until a run stops.                             |
+| `create_rate_limited`        | 429    | The project starts runs too quickly. Wait for `Retry-After`.                                    |
+| `usage_limited`              | 429    | The project reached its usage limit. Raise the limit in billing settings.                       |
+| `cancel_unavailable`         | 503    | The run could not be cancelled now. Try again in a few seconds.                                 |
 
 ## MCP tools
 

@@ -364,6 +364,36 @@
         "params": [],
         "scope": "global"
     },
+    "cloudAgentProfile": {
+        "template": "/cloud-agents/profiles/{id}",
+        "params": ["id"],
+        "scope": "project"
+    },
+    "cloudAgentProfiles": {
+        "template": "/cloud-agents/profiles",
+        "params": [],
+        "scope": "project"
+    },
+    "cloudAgentRun": {
+        "template": "/cloud-agents/runs/{id}",
+        "params": ["id"],
+        "scope": "project"
+    },
+    "cloudAgents": {
+        "template": "/cloud-agents",
+        "params": [],
+        "scope": "project"
+    },
+    "cloudAgentsSettings": {
+        "template": "/cloud-agents/settings",
+        "params": [],
+        "scope": "project"
+    },
+    "cloudAgentsUsage": {
+        "template": "/cloud-agents/usage",
+        "params": [],
+        "scope": "project"
+    },
     "codeCanvasLink": {
         "template": "/code/canvas/{channelId}/{dashboardId}",
         "params": ["channelId", "dashboardId"],

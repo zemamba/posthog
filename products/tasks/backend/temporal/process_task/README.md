@@ -240,10 +240,10 @@ A server-side caller, such as the Cloud Agents product, can start a run on the C
 The public Tasks API cannot select this mode.
 A caller resolves the mode with `resolve_inference` in `facade/inference.py` and passes the result to `facade/cloud_agents.py` as `inference_state`.
 
-| Run state                                                                           | Credential the run uses                 | Rollout flag                                |
-| ----------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
-| `claude_model_access: "own-subscription"` + `claude_subscription_source: "server"`  | The owner's stored Claude subscription  | `cloud-agents-claude-subscription-storage`  |
-| `claude_model_access: "own-subscription"` (source absent or `"relay"`)              | The relayed token described above       | `posthog-code-claude-own-subscription-cloud` |
+| Run state                                                                          | Credential the run uses                | Rollout flag                                 |
+| ---------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------- |
+| `claude_model_access: "own-subscription"` + `claude_subscription_source: "server"` | The owner's stored Claude subscription | `cloud-agents-claude-subscription-storage`   |
+| `claude_model_access: "own-subscription"` (source absent or `"relay"`)             | The relayed token described above      | `posthog-code-claude-own-subscription-cloud` |
 
 The owner is the user who started the run, recorded as `claude_subscription_user_id`.
 All of these keys are protected: a PATCH to the run cannot change them.

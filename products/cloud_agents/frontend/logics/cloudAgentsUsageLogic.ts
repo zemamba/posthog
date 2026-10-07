@@ -87,7 +87,7 @@ export interface cloudAgentsUsageLogicMeta {
         ) => CloudAgentSizeApi | null
         estimate: (
             estimatorSize: CloudAgentSizeApi | null,
-            estimatorMinutes: 15,
+            estimatorMinutes: number,
             rates: CloudAgentRateCardApi | null
         ) => PriceEstimate | null
     }
