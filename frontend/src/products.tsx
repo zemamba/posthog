@@ -124,6 +124,12 @@ export const productRoutes: Record<string, [string, string]> = {
     '/canvases/:id': ['CanvasDetail', 'canvasDetail'],
     '/transformations': ['Transformations', 'transformations'],
     '/event-filtering': ['EventFiltering', 'eventFiltering'],
+    '/cloud-agents': ['CloudAgents', 'cloudAgents'],
+    '/cloud-agents/profiles': ['CloudAgentProfiles', 'cloudAgentProfiles'],
+    '/cloud-agents/profiles/:id': ['CloudAgentProfile', 'cloudAgentProfile'],
+    '/cloud-agents/usage': ['CloudAgentsUsage', 'cloudAgentsUsage'],
+    '/cloud-agents/settings': ['CloudAgentsSettings', 'cloudAgentsSettings'],
+    '/cloud-agents/runs/:id': ['CloudAgentRun', 'cloudAgentRun'],
     '/feature_flags/staff/cohorts': ['CohortsStaffTools', 'cohortsStaffTools'],
     '/support/tickets': ['SupportTickets', 'supportTickets'],
     '/support/tickets/:ticketId': ['SupportTicketDetail', 'supportTicketDetail'],
@@ -453,6 +459,7 @@ export const productRedirects: Record<
         combineUrl(urls.aiObservabilityUsers(), searchParams, hashParams).url,
     '/llm-observability/playground': (_params, searchParams, hashParams) =>
         combineUrl(urls.aiObservabilityPlayground(), searchParams, hashParams).url,
+    '/cloud-agents/runs': (): string => urls.cloudAgents(),
     '/support': '/support/tickets',
     '/customer_analytics': (_params, searchParams, hashParams) => {
         const defaultTab = posthog.getFeatureFlag(FEATURE_FLAGS.CUSTOMER_ANALYTICS_CSP)
@@ -717,6 +724,45 @@ export const productConfiguration: Record<string, any> = {
         name: 'Event ingestion filtering',
         description: 'Drop events at ingestion time based on event metadata.',
         iconType: 'data_pipeline',
+    },
+    CloudAgents: {
+        name: 'Cloud agents',
+        description:
+            'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+        projectBased: true,
+        layout: 'app-container',
+        iconType: 'cloud_agent',
+    },
+    CloudAgentRun: { name: 'Cloud agent run', projectBased: true, layout: 'app-container', iconType: 'cloud_agent' },
+    CloudAgentProfiles: {
+        name: 'Cloud agent profiles',
+        description:
+            'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+        projectBased: true,
+        layout: 'app-container',
+        iconType: 'cloud_agent',
+    },
+    CloudAgentProfile: {
+        name: 'Cloud agent profile',
+        projectBased: true,
+        layout: 'app-container',
+        iconType: 'cloud_agent',
+    },
+    CloudAgentsUsage: {
+        name: 'Cloud agents usage',
+        description:
+            'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+        projectBased: true,
+        layout: 'app-container',
+        iconType: 'cloud_agent',
+    },
+    CloudAgentsSettings: {
+        name: 'Cloud agents settings',
+        description:
+            'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+        projectBased: true,
+        layout: 'app-container',
+        iconType: 'cloud_agent',
     },
     CohortsStaffTools: { instanceLevel: true, name: 'Cohorts staff tools' },
     SupportTickets: {
@@ -1355,6 +1401,12 @@ export const productUrls = {
     canvasDetail: (id: string): string => `/canvases/${id}`,
     transformations: (): string => '/transformations',
     eventFiltering: (): string => '/event-filtering',
+    cloudAgents: (): string => '/cloud-agents',
+    cloudAgentRun: (id: string): string => `/cloud-agents/runs/${id}`,
+    cloudAgentProfiles: (): string => '/cloud-agents/profiles',
+    cloudAgentProfile: (id: string | 'new'): string => `/cloud-agents/profiles/${id}`,
+    cloudAgentsUsage: (): string => '/cloud-agents/usage',
+    cloudAgentsSettings: (): string => '/cloud-agents/settings',
     cohort: (id: string | number): string => `/cohorts/${id}`,
     cohorts: (): string => '/cohorts',
     cohortCalculationHistory: (id: string | number): string => `/cohorts/${id}/calculation-history`,
@@ -2163,6 +2215,7 @@ export type ProductTreePath =
     | 'Broadcasts'
     | 'Business intelligence'
     | 'Business knowledge'
+    | 'Cloud agents'
     | 'Clusters'
     | 'Code review'
     | 'Customer analytics'
@@ -2287,6 +2340,25 @@ export const getTreeItemsProducts = (): FileSystemImport[] => [
             'BusinessKnowledgePlayground',
             'BusinessKnowledgeSettings',
             'BusinessKnowledgeSource',
+        ],
+    },
+    {
+        path: 'Cloud agents',
+        intents: [ProductKey.CLOUD_AGENTS],
+        href: urls.cloudAgents(),
+        type: 'cloud_agent',
+        category: ProductItemCategory.UNRELEASED,
+        flag: FEATURE_FLAGS.CLOUD_AGENTS,
+        iconType: 'cloud_agent',
+        iconColor: ['var(--color-product-tasks-light)', 'var(--color-product-tasks-dark)'],
+        sceneKey: 'CloudAgents',
+        sceneKeys: [
+            'CloudAgents',
+            'CloudAgentRun',
+            'CloudAgentProfiles',
+            'CloudAgentProfile',
+            'CloudAgentsUsage',
+            'CloudAgentsSettings',
         ],
     },
     {

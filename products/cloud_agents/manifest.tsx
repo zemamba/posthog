@@ -1,23 +1,103 @@
-/**
- * Product manifest for cloud_agents.
- *
- * Defines scenes, routes, URLs, and navigation for this product.
- */
-import { ProductManifest } from '../../frontend/src/types'
+import { FEATURE_FLAGS } from 'lib/constants'
+import { urls } from 'scenes/urls'
+
+import { ProductItemCategory, ProductKey } from '~/queries/schema/schema-general'
+import { ProductManifest } from '~/types'
 
 export const manifest: ProductManifest = {
-    name: 'CloudAgents',
+    name: 'Cloud agents',
+    urls: {
+        cloudAgents: (): string => '/cloud-agents',
+        cloudAgentRun: (id: string): string => `/cloud-agents/runs/${id}`,
+        cloudAgentProfiles: (): string => '/cloud-agents/profiles',
+        cloudAgentProfile: (id: string | 'new'): string => `/cloud-agents/profiles/${id}`,
+        cloudAgentsUsage: (): string => '/cloud-agents/usage',
+        cloudAgentsSettings: (): string => '/cloud-agents/settings',
+    },
     scenes: {
-        // Define scenes here
+        CloudAgents: {
+            name: 'Cloud agents',
+            description:
+                'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+            import: () => import('./frontend/scenes/CloudAgentsRunsScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
+        CloudAgentRun: {
+            name: 'Cloud agent run',
+            import: () => import('./frontend/scenes/CloudAgentRunScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
+        CloudAgentProfiles: {
+            name: 'Cloud agent profiles',
+            description:
+                'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+            import: () => import('./frontend/scenes/CloudAgentProfilesScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
+        CloudAgentProfile: {
+            name: 'Cloud agent profile',
+            import: () => import('./frontend/scenes/CloudAgentProfileScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
+        CloudAgentsUsage: {
+            name: 'Cloud agents usage',
+            description:
+                'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+            import: () => import('./frontend/scenes/CloudAgentsUsageScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
+        CloudAgentsSettings: {
+            name: 'Cloud agents settings',
+            description:
+                'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+            import: () => import('./frontend/scenes/CloudAgentsSettingsScene'),
+            projectBased: true,
+            layout: 'app-container',
+            iconType: 'cloud_agent',
+        },
     },
     routes: {
-        // Define routes here
+        '/cloud-agents': ['CloudAgents', 'cloudAgents'],
+        '/cloud-agents/profiles': ['CloudAgentProfiles', 'cloudAgentProfiles'],
+        '/cloud-agents/profiles/:id': ['CloudAgentProfile', 'cloudAgentProfile'],
+        '/cloud-agents/usage': ['CloudAgentsUsage', 'cloudAgentsUsage'],
+        '/cloud-agents/settings': ['CloudAgentsSettings', 'cloudAgentsSettings'],
+        '/cloud-agents/runs/:id': ['CloudAgentRun', 'cloudAgentRun'],
     },
-    redirects: {},
-    urls: {
-        // Define URL helpers here
+    redirects: {
+        '/cloud-agents/runs': (): string => urls.cloudAgents(),
     },
     fileSystemTypes: {},
     treeItemsNew: [],
-    treeItemsProducts: [],
+    treeItemsProducts: [
+        {
+            path: 'Cloud agents',
+            intents: [ProductKey.CLOUD_AGENTS],
+            href: urls.cloudAgents(),
+            type: 'cloud_agent',
+            category: ProductItemCategory.UNRELEASED,
+            flag: FEATURE_FLAGS.CLOUD_AGENTS,
+            iconType: 'cloud_agent',
+            iconColor: ['var(--color-product-tasks-light)', 'var(--color-product-tasks-dark)'],
+            sceneKey: 'CloudAgents',
+            sceneKeys: [
+                'CloudAgents',
+                'CloudAgentRun',
+                'CloudAgentProfiles',
+                'CloudAgentProfile',
+                'CloudAgentsUsage',
+                'CloudAgentsSettings',
+            ],
+        },
+    ],
 }
