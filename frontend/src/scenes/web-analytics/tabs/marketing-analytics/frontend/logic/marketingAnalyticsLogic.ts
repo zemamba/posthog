@@ -589,7 +589,9 @@ export interface marketingAnalyticsLogicActions {
     setInitialized: () => {
         value: true
     }
-    setIntegrationFilter: (integrationFilter: IntegrationFilter) => { integrationFilter: IntegrationFilter }
+    setIntegrationFilter: (integrationFilter: IntegrationFilter) => {
+        integrationFilter: IntegrationFilter
+    }
     setOptionsOpen: (optionsOpen: boolean) => {
         optionsOpen: boolean
     }
@@ -734,6 +736,10 @@ export interface marketingAnalyticsLogicMeta {
             validNativeSources: NativeSource[],
             loading: boolean,
             dataWarehouseTables: DatabaseSchemaDataWarehouseTable[]
+        ) => boolean
+        hasSyncedMarketingSources: (
+            validExternalTables: ExternalTable[],
+            nativeSources: ExternalDataSource[]
         ) => boolean
         hasSources: (validExternalTables: ExternalTable[], validNativeSources: NativeSource[]) => boolean
         allExternalTablesWithStatus: (
