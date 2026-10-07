@@ -3294,10 +3294,26 @@ def _foreign_key_join_entry_points(database: Database, joins: Sequence[DataWareh
         if id(joining_table) not in deferred_tables:
             continue
         entry_points.add(join.source_table_name)
+        models_alias = _models_namespace_alias(database, join.source_table_name)
+        if models_alias is not None:
+            entry_points.add(models_alias)
         # A join from `persons` is mirrored onto `events` and the person virtual table.
         if join.source_table_name == "persons":
             entry_points.add("events")
     return entry_points
+
+
+def _models_namespace_alias(database: Database, table_name: str) -> Optional[str]:
+    """The other name (`x` or `models.x`) of a model, when both names reach the same table object.
+
+    Reads the tree directly, so a missing name never builds the deferred revenue views.
+    """
+    alias = table_name.removeprefix("models.") if table_name.startswith("models.") else f"models.{table_name}"
+    try:
+        same_table = database.get_table_node(alias).get() is database.get_table_node(table_name).get()
+    except ResolutionError:
+        return None
+    return alias if same_table else None
 
 
 def _strip_external_source_prefix(source: ExternalDataSource, table_name: str) -> str:

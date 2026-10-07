@@ -3493,13 +3493,29 @@ class TestDatabase(BaseTest, QueryMatchingTest):
             sync_type_config={"schema_metadata": {"foreign_keys": foreign_keys}},
         )
 
-    def test_deferred_foreign_keys_wire_for_a_table_reached_through_a_data_warehouse_join(self):
+    @parameterized.expand(
+        [
+            ("events", "events", "events"),
+            ("model_by_stored_name", "report", "report"),
+            ("model_by_models_name", "report", "models.report"),
+            ("model_join_on_models_name_by_stored_name", "models.report", "report"),
+        ]
+    )
+    def test_deferred_foreign_keys_wire_for_a_table_reached_through_a_data_warehouse_join(
+        self, _name: str, source_table_name: str, accessed_as: str
+    ) -> None:
         self._postgres_warehouse_source_with_foreign_key(
             foreign_keys=[{"column": "team_id", "target_table": "posthog_team", "target_column": "id"}]
         )
+        DataWarehouseSavedQuery.objects.create(
+            team=self.team,
+            name="report",
+            query={"query": "SELECT event FROM events"},
+            columns={"event": "String"},
+        )
         DataWarehouseJoin.objects.create(
             team=self.team,
-            source_table_name="events",
+            source_table_name=source_table_name,
             source_table_key="event",
             joining_table_name="postgres.ph3.posthog_activitylog",
             joining_table_key="id",
@@ -3510,7 +3526,7 @@ class TestDatabase(BaseTest, QueryMatchingTest):
 
         # The join holds the warehouse table as an object, so resolving through it never calls
         # get_table on the warehouse name. Accessing the join's source table has to arm the build.
-        join_field = database.get_table("events").fields["activitylog"]
+        join_field = database.get_table(accessed_as).fields["activitylog"]
         assert isinstance(join_field, LazyJoin)
         joined = join_field.resolve_table(HogQLContext(team_id=self.team.pk, database=database))
         assert isinstance(joined.fields.get("team"), LazyJoin)
