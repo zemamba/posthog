@@ -51,10 +51,8 @@ class LangfuseSource(ResumableSource[LangfuseSourceConfig, LangfuseResumeConfig]
 
     supported_versions = SUPPORTED_VERSIONS
     default_version = DEFAULT_VERSION
-    # v1 and v2 read the legacy `/traces` and `/sessions` routes, which Langfuse Cloud serves until
-    # the sunset date. Their replacement returns observation rows, not trace or session objects, so
-    # v3 drops both tables instead of reshaping them. Sources that sync either table need a manual
-    # move to v3.
+    # The replacement for `/traces` and `/sessions` returns observation rows, not trace or session
+    # objects, so v3 drops both tables and sources that sync them need a manual move.
     deprecated_versions = (
         VersionDeprecation(version=LANGFUSE_API_VERSION_V1, sunset_at=LANGFUSE_LEGACY_SUNSET),
         VersionDeprecation(version=LANGFUSE_API_VERSION_V2, sunset_at=LANGFUSE_LEGACY_SUNSET),
@@ -155,7 +153,6 @@ Find your project API keys in your Langfuse **Project settings > API Keys**. Set
         force_refresh: bool = False,
         api_version: str | None = None,
     ) -> list[SourceSchema]:
-        # The table set differs by version, and discovery diffs run under the source pin.
         schemas = [
             SourceSchema(
                 name=endpoint,

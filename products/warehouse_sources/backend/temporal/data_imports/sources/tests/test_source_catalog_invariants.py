@@ -34,6 +34,7 @@ DESCRIPTIONS_NOT_IN_SCHEMAS = {
     "GoogleSearchConsole",
     "Langfuse",
     "Lovable",
+    "Omnisend",
     "OpenWeather",
     "Pexels",
     "ShipStation",

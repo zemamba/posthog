@@ -8,9 +8,8 @@ from products.warehouse_sources.backend.types import IncrementalField, Increment
 # Source-level vendor API version labels. Distinct from the per-endpoint URL versions baked into
 # LANGFUSE_ENDPOINTS below (Langfuse versions each resource route independently). v1 and v2 resolve
 # to the same wire: v1 keeps the pre-versioning UNVERSIONED default so already-pinned rows resolve
-# unchanged. Both still read the legacy `/traces` and `/sessions` routes, which Langfuse Cloud stops
-# serving on 2026-11-16. v3 drops those two tables: their only replacement is `/v2/observations`,
-# which the `observations` table already syncs (rows carry traceId, sessionId, and traceName).
+# unchanged. Both read the `/traces` and `/sessions` routes Langfuse Cloud stops serving on
+# 2026-11-16; v3 drops those tables, as `observations` already carries traceId and sessionId.
 LANGFUSE_API_VERSION_V1 = UNVERSIONED_API_VERSION
 LANGFUSE_API_VERSION_V2 = "v2"
 LANGFUSE_API_VERSION_V3 = "v3"

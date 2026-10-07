@@ -4,8 +4,8 @@ from posthog.test.base import TestMigrations
 
 
 class TestRepinLangfuseApiVersionV3(TestMigrations):
-    migrate_from = "0176_repin_lightspeed_retail_api_version_2026_07"
-    migrate_to = "0177_repin_langfuse_api_version_v3"
+    migrate_from = "0179_pin_omnisend_null_api_version_to_v3"
+    migrate_to = "0180_repin_langfuse_api_version_v3"
 
     def setUpBeforeMigration(self, apps: Any) -> None:
         ExternalDataSource = apps.get_model("warehouse_sources", "ExternalDataSource")
