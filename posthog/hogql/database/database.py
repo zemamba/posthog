@@ -1297,12 +1297,15 @@ class Database(BaseModel):
                 self._denied_tables.add(table_key)
         return True
 
-    def _is_warehouse_view_denied(self, saved_query: Any) -> bool:
+    def _is_warehouse_view_denied(self, saved_query: Any, stored_table_names: frozenset[str] = frozenset()) -> bool:
         """
         View counterpart of `_is_warehouse_table_denied`.
         Closes the gap where a user denied access to a warehouse table could otherwise SELECT
         through a non-materialized view that references it.
         Userless context (no UserAccessControl) fails closed - every view is denied.
+
+        `stored_table_names` are the names saved queries hold directly, denied ones included. A name
+        in that set belongs to its own row, so this denial stops at the stored name.
         """
         uac = self.user_access_control
         if uac is not None and (
@@ -1314,7 +1317,7 @@ class Database(BaseModel):
         self._denied_tables.add(saved_query.name)
         # The deny set is matched by name, so the second name must be denied as well or it reads the same rows.
         models_chain = models_namespace_chain(saved_query)
-        if models_chain is not None:
+        if models_chain is not None and ".".join(models_chain) not in stored_table_names:
             self._denied_tables.add(".".join(models_chain))
         return True
 
@@ -2407,6 +2410,11 @@ class Database(BaseModel):
             if saved_query.table_id is not None
         }
 
+        # Which name belongs to which row is settled before access control removes any of them. A row
+        # the caller cannot see still owns its stored name, so another model's derived `models.` slot
+        # cannot take that name, and a denial on the other model cannot reach it.
+        stored_table_names = frozenset(saved_query.name for saved_query in sources.saved_queries)
+
         with timings.measure("data_warehouse_saved_query", emit_span=True):
             for saved_query in sources.saved_queries:
                 with timings.measure(f"saved_query_{saved_query.name}"):
@@ -2415,7 +2423,7 @@ class Database(BaseModel):
                     if (
                         sources.is_hogql_warehouse_access_control_enabled
                         and not sources.bypass_warehouse_access_control
-                        and database._is_warehouse_view_denied(saved_query)
+                        and database._is_warehouse_view_denied(saved_query, stored_table_names)
                     ):
                         continue
                     views.add_child(
@@ -2426,7 +2434,7 @@ class Database(BaseModel):
                         table_conflict_mode="ignore",
                     )
                     models_chain = models_namespace_chain(saved_query)
-                    if models_chain is not None:
+                    if models_chain is not None and ".".join(models_chain) not in stored_table_names:
                         models_namespace_chains.append((saved_query.name.split("."), models_chain))
 
         with timings.measure("endpoint_saved_query", emit_span=True):
@@ -2440,7 +2448,7 @@ class Database(BaseModel):
                             if (
                                 sources.is_hogql_warehouse_access_control_enabled
                                 and not sources.bypass_warehouse_access_control
-                                and database._is_warehouse_view_denied(endpoint_saved_query)
+                                and database._is_warehouse_view_denied(endpoint_saved_query, stored_table_names)
                             ):
                                 continue
                             views.add_child(

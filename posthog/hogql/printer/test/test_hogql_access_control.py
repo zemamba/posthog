@@ -10,6 +10,7 @@ from posthog.schema import HogQLQuery
 from posthog.hogql import ast
 from posthog.hogql.context import HogQLContext
 from posthog.hogql.database.database import Database
+from posthog.hogql.database.models import SavedQuery
 from posthog.hogql.database.schema.system import SystemTables
 from posthog.hogql.errors import QueryError, TableAccessDeniedError
 from posthog.hogql.printer import prepare_ast_for_printing, print_prepared_ast
@@ -1181,6 +1182,44 @@ class TestWarehouseViewAccessControl(BaseTest):
         listed = {row[0] for row in response.results or []}
         assert "allowed_view" in listed
         assert not {"denied_view", "models.denied_view", "models.allowed_view"} & listed
+
+    @parameterized.expand(
+        [
+            ("stored_name_denied", "models.allowed_view", "allowed_view"),
+            ("derived_name_denied", "allowed_view", "models.allowed_view"),
+        ]
+    )
+    def test_a_stored_models_name_keeps_its_own_access(self, _name: str, denied_name: str, allowed_name: str):
+        # A model stored as `models.<x>` and a model stored as `<x>` both claim `models.<x>`. The stored
+        # row owns it, so denying either one must not change what the other name answers.
+        from products.data_modeling.backend.facade.models import DataWarehouseSavedQuery
+
+        views = {
+            view.name: view
+            for view in [
+                self.allowed_view,
+                DataWarehouseSavedQuery.objects.create(
+                    team=self.team,
+                    name="models.allowed_view",
+                    query={"kind": "HogQLQuery", "query": "SELECT 1 AS id"},
+                    columns={"id": "String"},
+                ),
+            ]
+        }
+        self._create_ac(
+            resource="warehouse_view",
+            resource_id=str(views[denied_name].id),
+            access_level="none",
+            member=self._membership(),
+        )
+
+        database = Database.create_for(team=self.team, user=self.user)
+
+        with self.assertRaises(TableAccessDeniedError):
+            database.get_table(denied_name)
+        assert database.is_table_access_denied(denied_name)
+        assert not database.is_table_access_denied(allowed_name)
+        assert cast(SavedQuery, database.get_table(allowed_name)).id == str(views[allowed_name].id)
 
     def test_denied_materialized_view_also_blocks_backing_table(self):
         # A materialized view's backing table shares the view's name. Denying the view must not leave
