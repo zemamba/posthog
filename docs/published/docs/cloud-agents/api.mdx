@@ -1,0 +1,767 @@
+---
+title: Cloud agents API
+sidebar: Docs
+showTitle: true
+---
+
+Cloud agents runs a coding agent in a cloud sandbox.
+You send a prompt and a GitHub repository, the agent works on the task, and a pull request comes back.
+You can start and follow runs from the API, from webhooks, or from the PostHog MCP server.
+
+Cloud agents is in limited availability behind a feature flag.
+Until it is enabled for your organization, every endpoint on this page returns `403`.
+
+All paths on this page are relative to your project:
+
+```text
+https://us.posthog.com/api/projects/:project_id/cloud_agents/
+```
+
+Use `eu.posthog.com` for EU Cloud.
+
+## Quickstart
+
+1. Create a [personal API key](/docs/api#authentication) with the `cloud_agent:write` scope. Read-only calls need `cloud_agent:read`.
+2. Connect the GitHub integration to your PostHog project and give it access to the repository. The agent uses it to clone the repository and to open the pull request.
+3. Start a run:
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "Idempotency-Key: fix-signup-typo-1" \
+  --data '{
+    "prompt": "Fix the typo in the signup page heading and add a test for it.",
+    "repository": "acme/web"
+  }'
+```
+
+The response has status `201` and a run with the status `queued`.
+Keep its `id`.
+
+4. Follow the run until it stops:
+
+```bash
+curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+5. When the status is `completed`, read `result.pr_url` for the pull request, `result.summary` for the agent's summary, and `cost` for what the run cost.
+
+## Start a run
+
+```text
+POST /api/projects/:project_id/cloud_agents/runs/
+```
+
+The smallest request has a `prompt` and a `repository`.
+The call returns at once.
+It does not wait for the agent.
+
+| Field          | Type             | Default                         | Description                                                                                                                                |
+| -------------- | ---------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prompt`       | string           | Required                        | The task for the agent, in plain language. Up to 64,000 characters.                                                                        |
+| `repository`   | string           | From the profile or the project | GitHub repository in the format `owner/name`. Required unless the profile or the project settings set one.                                 |
+| `profile`      | string           | The project's default profile   | ID or name of a [profile](#profiles) whose defaults the run uses.                                                                          |
+| `branch`       | string           | The repository's default branch | Base branch for the work.                                                                                                                  |
+| `model`        | string           | Selected by PostHog             | Model ID from the [catalog](#box-sizes-and-pricing).                                                                                       |
+| `size`         | string           | `4x16`                          | Sandbox size, as `<vCPU>x<memory in GiB>`. See [box sizes and pricing](#box-sizes-and-pricing).                                            |
+| `inference`    | string           | `auto`                          | Who pays for model usage: `auto`, `own_key`, `own_subscription` or `posthog`. See [inference](#inference).                                 |
+| `instructions` | string           | None                            | Instructions that the agent gets before the prompt. Up to 20,000 characters.                                                               |
+| `create_pr`    | boolean          | `true`                          | Whether the agent opens a pull request when it finishes.                                                                                   |
+| `tags`         | array of strings | `[]`                            | Up to 20 tags of up to 50 characters each. The tags of the profile are added to them.                                                      |
+| `metadata`     | object           | `{}`                            | Your own key and value pairs, returned with the run. Up to 16 pairs. Keys have up to 64 characters and values up to 512. Both are strings. |
+| `webhook_url`  | string           | From the profile                | Public HTTPS URL that gets the events of this run, in addition to the project's [webhook endpoints](#webhooks).                            |
+
+The request also accepts `pr_mode`, `max_duration_minutes` and `max_cost_usd`.
+These fields are reserved.
+They are stored and returned, but they are not enforced yet, so do not rely on them.
+
+### How defaults resolve
+
+Each field takes its value from the first level that sets it:
+
+1. The request.
+2. The profile that the request names, or the project's default profile.
+3. The project settings.
+4. The product default in the table above.
+
+Two fields combine instead of overriding.
+`instructions` are joined in the order project, profile, request, so the most specific text comes last.
+`tags` are the profile's tags followed by the request's tags, without duplicates.
+
+The project settings are at `GET` and `PATCH /api/projects/:project_id/cloud_agents/settings/`.
+They hold the same default fields as a profile, plus `default_profile`.
+
+### Idempotency
+
+Send an `Idempotency-Key` header of 1 to 100 characters to make a retry safe.
+
+- The same key with the same body returns the first run with status `200` and the header `Idempotency-Replayed: true`. No second run starts.
+- The same key with a different body returns `422` with the code `idempotency_key_reused`.
+
+Without the header, every request starts a new run.
+
+## The run object
+
+```json
+{
+  "id": "0199c1f4-6b1e-7a43-9c55-2f0c8f3a1d27",
+  "status": "completed",
+  "stop_reason": "done",
+  "error": null,
+  "created_at": "2026-10-07T09:14:02.118000Z",
+  "started_at": "2026-10-07T09:14:31.902000Z",
+  "completed_at": "2026-10-07T09:32:51.440000Z",
+  "updated_at": "2026-10-07T09:33:20.006000Z",
+  "prompt": "Fix the typo in the signup page heading and add a test for it.",
+  "repository": "acme/web",
+  "branch": null,
+  "profile": null,
+  "config": {
+    "model": "example-model-id",
+    "size": {
+      "name": "4x16",
+      "vcpu": 4,
+      "memory_gib": 16,
+      "price_per_hour_usd": "0.368"
+    },
+    "inference": "own_key",
+    "create_pr": true,
+    "pr_mode": "draft",
+    "max_duration_minutes": 60,
+    "max_cost_usd": null,
+    "instructions_applied": false
+  },
+  "result": {
+    "pr_url": "https://github.com/acme/web/pull/412",
+    "pr_urls": ["https://github.com/acme/web/pull/412"],
+    "summary": "Fixed the heading typo in SignupPage and added a render test."
+  },
+  "cost": {
+    "compute_usd": "0.1124",
+    "inference_usd": null,
+    "total_usd": "0.1124",
+    "vcpu_seconds": "4400.000",
+    "gib_seconds": "17600.000",
+    "billing_mode": "billed",
+    "inference_billing": "own_key",
+    "final": true
+  },
+  "agent_sessions": [
+    {
+      "index": 1,
+      "status": "completed",
+      "started_at": "2026-10-07T09:14:31.902000Z",
+      "ended_at": "2026-10-07T09:32:51.440000Z"
+    }
+  ],
+  "tags": [],
+  "metadata": {},
+  "created_by": {
+    "id": 42,
+    "email": "dev@example.com"
+  },
+  "caller": "api"
+}
+```
+
+The model ID in this example is a placeholder.
+Read the catalog for the real IDs.
+
+| Field                                      | Description                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                       | ID of the run.                                                                                                            |
+| `status`                                   | Where the run is. See the status table.                                                                                   |
+| `stop_reason`                              | Why the run stopped. `null` while the run is active.                                                                      |
+| `error`                                    | What went wrong and what to do next. `null` when the run has no error.                                                    |
+| `created_at`, `started_at`, `completed_at` | When the run was created, when the agent first started work, and when the run stopped.                                    |
+| `prompt`, `repository`, `branch`           | What the run started with. A `null` branch means the default branch of the repository.                                    |
+| `profile`                                  | `id` and `name` of the profile that the run used, or `null`.                                                              |
+| `config`                                   | The configuration after the defaults resolved. `config.inference` is the mode the run really uses, so it is never `auto`. |
+| `config.instructions_applied`              | Whether the agent got instructions from the request, the profile or the project settings.                                 |
+| `result.pr_url`, `result.pr_urls`          | The pull request that the agent opened last, and all pull requests that it opened.                                        |
+| `result.summary`                           | Summary of the work, written by the agent.                                                                                |
+| `cost`                                     | What the run cost. See [box sizes and pricing](#box-sizes-and-pricing).                                                   |
+| `agent_sessions`                           | The agent sessions of the run, oldest first. A message to a run that stopped starts a new session.                        |
+| `tags`, `metadata`                         | The tags of the run, including the tags of its profile, and your own key and value pairs.                                 |
+| `created_by`                               | `id` and `email` of the user who started the run.                                                                         |
+| `caller`                                   | `api` for an API client, `app` for the PostHog app, `internal` for a PostHog product.                                     |
+
+### Status values
+
+| Status      | Meaning                                           |
+| ----------- | ------------------------------------------------- |
+| `queued`    | The run waits for a sandbox.                      |
+| `running`   | An agent is at work.                              |
+| `completed` | The agent finished its work.                      |
+| `failed`    | The run stopped with an error. See `stop_reason`. |
+| `cancelled` | The run was cancelled.                            |
+
+`completed`, `failed` and `cancelled` are final until you send a new message to the run.
+
+### Stop reasons
+
+| Stop reason       | Meaning                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `done`            | The agent finished.                                                                                        |
+| `cancelled`       | Someone cancelled the run.                                                                                 |
+| `error`           | The run failed. Send a message to try again, or start a new run.                                           |
+| `timeout`         | The run reached a time limit before the agent finished. Send a message to continue.                        |
+| `usage_limit`     | The project reached its usage limit. Raise the limit in billing settings, then send a message to continue. |
+| `budget_exceeded` | Reserved for the cost limit of a run, which is not enforced yet.                                           |
+
+### List runs
+
+```text
+GET /api/projects/:project_id/cloud_agents/runs/
+```
+
+Runs come newest first, in a page with `count`, `next`, `previous` and `results`.
+Use `limit` and `offset` to page.
+Filter with `status`, `profile_id`, `repository`, `tag`, `created_after` and `created_before`.
+
+## Follow a run
+
+You can follow a run in three ways.
+[Webhooks](#webhooks) are a fourth, and they need no open connection.
+
+### Poll the run
+
+```text
+GET /api/projects/:project_id/cloud_agents/runs/:id/
+```
+
+Read the run every 15 to 30 seconds until the status is `completed`, `failed` or `cancelled`.
+
+### Read the stored events as JSON
+
+```bash
+curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/events/?format=json" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+The response is one JSON object:
+
+```json
+{
+  "events": [],
+  "truncated": false
+}
+```
+
+`events` holds the stored events of all agent sessions, oldest first.
+`truncated` is `true` when the event log is too large to return in full.
+The response then has the earliest agent sessions that fit.
+
+### Stream events
+
+Without `?format=json` and with no `Accept: application/json` header, the same endpoint is a Server-Sent Events stream of the current agent session:
+
+```bash
+curl --no-buffer "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/events/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Accept: text/event-stream"
+```
+
+The first frame is always `event: run`, with the ID, the status and the stop reason of the run when the connection opened:
+
+```text
+event: run
+data: {"id": "0199c1f4-6b1e-7a43-9c55-2f0c8f3a1d27", "status": "running", "stop_reason": null}
+```
+
+To resume after a disconnect, send the `id` of the last event that you received in the `Last-Event-ID` header.
+The stream then sends the events after it.
+Add `?start=latest` to skip the stored events and get only new ones.
+
+Each event after the first frame is one message of the agent protocol, as the agent produced it.
+Only the envelope on this page is stable: the `run` frame, the event `id` values, and the `events` and `truncated` fields of the JSON response.
+The content of an event can change when the agent changes, so do not build strict parsers on it.
+Use the run object for the status, the result and the cost.
+
+## Follow-ups, resume and cancel
+
+### Send a message
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/messages/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"content": "Also update the changelog."}'
+```
+
+The response has status `202`:
+
+```json
+{
+  "resumed": false,
+  "run": {}
+}
+```
+
+`run` is the full run object after the message.
+
+- When the agent is at work, it gets the message in its current session, and `resumed` is `false`.
+- When the run stopped, the message starts a new agent session, the run goes back to `queued`, and `resumed` is `true`. This works for a run that completed, failed, timed out or was cancelled. The new session keeps the size and the model of the run.
+
+A resume starts a sandbox, so it counts against the concurrency limit and it is billed.
+If the run is between two states, the API returns `409` with `run_stopping` or `run_not_ready`.
+Wait a few seconds and send the message again.
+
+### Cancel a run
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/cancel/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+The response has status `202` and the run, which can still be `running` for a short time.
+A run that already stopped is returned with status `200`.
+
+## Profiles
+
+A profile is a named set of run defaults.
+Create one for each kind of task, then start runs with only a prompt.
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/profiles/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "web-fixes",
+    "description": "Small fixes in the web app",
+    "repository": "acme/web",
+    "size": "4x8",
+    "instructions": "Run the linter and the unit tests before you open the pull request.",
+    "tags": ["web"]
+  }'
+```
+
+A profile accepts `name`, `description`, `repository`, `branch`, `model`, `size`, `inference`, `instructions`, `create_pr`, `tags` and `webhook_url`.
+Only `name` is required, and it is unique in the project without regard to case.
+A `null` field sets no default.
+
+Start a run from the profile, by name or by ID:
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"profile": "web-fixes", "prompt": "Fix the broken link in the footer."}'
+```
+
+Override a field for one run by sending it in the request:
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"profile": "web-fixes", "prompt": "Upgrade the build tool to the next major version.", "size": "8x32"}'
+```
+
+| Method and path        | Purpose                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `GET profiles/`        | List profiles.                                                     |
+| `POST profiles/`       | Create a profile.                                                  |
+| `GET profiles/:id/`    | Retrieve a profile.                                                |
+| `PATCH profiles/:id/`  | Change the fields in the request. A `null` value clears a default. |
+| `DELETE profiles/:id/` | Delete a profile. Runs that used it keep their configuration.      |
+
+## Box sizes and pricing
+
+Compute has two rates:
+
+- $0.040 for each vCPU-hour
+- $0.013 for each GiB-hour of memory
+
+A run is billed per second for the size you selected, for as long as its sandbox is up.
+
+| Size    | vCPU | Memory | Price per hour |
+| ------- | ---- | ------ | -------------- |
+| `1x2`   | 1    | 2 GiB  | $0.066         |
+| `2x4`   | 2    | 4 GiB  | $0.132         |
+| `2x8`   | 2    | 8 GiB  | $0.184         |
+| `4x8`   | 4    | 8 GiB  | $0.264         |
+| `4x16`  | 4    | 16 GiB | $0.368         |
+| `8x16`  | 8    | 16 GiB | $0.528         |
+| `8x32`  | 8    | 32 GiB | $0.736         |
+| `16x64` | 16   | 64 GiB | $1.472         |
+
+The catalog endpoint is the source of truth for sizes, rates, models and your project's limits:
+
+```bash
+curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/catalog/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+The size of a run is fixed for the life of the run, including later agent sessions.
+
+### Cost fields on a run
+
+| Field                                   | Description                                                                                        |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `cost.compute_usd`                      | Compute cost, as a decimal string. `null` until the first sandbox reports usage.                   |
+| `cost.inference_usd`                    | Model usage cost through PostHog. `null` when the run uses your own key or subscription.           |
+| `cost.total_usd`                        | Sum of the two. `null` until the compute cost is known.                                            |
+| `cost.vcpu_seconds`, `cost.gib_seconds` | The compute that the run used.                                                                     |
+| `cost.billing_mode`                     | `billed` when the project pays for the run, `unbilled` when it does not.                           |
+| `cost.inference_billing`                | Who pays for model usage: `posthog`, `own_key` or `own_subscription`.                              |
+| `cost.final`                            | `false` while the cost can still change. The cost can change for a short time after the run stops. |
+
+Wait for `cost.final` to be `true` before you record the cost of a run.
+
+### What is not billed
+
+A run that fails because of PostHog infrastructure is not billed for compute.
+The usage of that run shows its sandboxes with `"waived": true` and a cost of zero.
+
+### Estimate and usage
+
+Estimate the compute cost of a size for a number of minutes.
+Model usage is not included.
+
+```bash
+curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/estimate/?size=4x16&minutes=30" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+```json
+{
+  "size": "4x16",
+  "minutes": 30,
+  "price_per_hour_usd": "0.368",
+  "estimate_usd": "0.1840"
+}
+```
+
+Read the cost of one run with each sandbox that it used:
+
+```text
+GET /api/projects/:project_id/cloud_agents/runs/:id/usage/
+```
+
+```json
+{
+  "run_id": "0199c1f4-6b1e-7a43-9c55-2f0c8f3a1d27",
+  "cost": {
+    "compute_usd": "0.1124",
+    "inference_usd": null,
+    "total_usd": "0.1124",
+    "vcpu_seconds": "4400.000",
+    "gib_seconds": "17600.000",
+    "billing_mode": "billed",
+    "inference_billing": "own_key",
+    "final": true
+  },
+  "sessions": [
+    {
+      "vcpu": "4",
+      "memory_gib": "16",
+      "started_at": "2026-10-07T09:14:31.902000Z",
+      "ended_at": "2026-10-07T09:32:51.902000Z",
+      "seconds": 1100,
+      "cost_usd": "0.1124",
+      "waived": false
+    }
+  ]
+}
+```
+
+Read totals for the runs created in a date range, for each UTC day or for each profile:
+
+```bash
+curl --get "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/usage/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --data-urlencode "date_from=2026-10-01T00:00:00Z" \
+  --data-urlencode "group_by=profile"
+```
+
+`group_by` is `day` or `profile`, and the default is `day`.
+The default range is the 30 days before `date_to`, and the longest range is 366 days.
+The response has `totals` and `buckets`, each with `runs`, `compute_usd`, `inference_usd`, `total_usd`, `vcpu_seconds` and `gib_seconds`.
+
+## Inference
+
+`inference` sets who pays for the model usage of a run.
+
+| Mode               | Who pays                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `auto`             | Your own credential when you have one stored, and PostHog otherwise. This is the default. |
+| `own_key`          | Your own API key for the model provider. The provider bills you.                          |
+| `own_subscription` | Your own subscription with the model provider. The provider bills you.                    |
+| `posthog`          | PostHog. Model usage uses your AI credits.                                                |
+
+`auto` checks in this order: your API key for the provider of the model, then your subscription, then PostHog.
+The run object shows the result in `config.inference` and `cost.inference_billing`.
+
+An explicit `own_key` or `own_subscription` never falls back to PostHog billing.
+If you have no usable credential of that kind, the request fails with `400` and a message that says what to add.
+
+### Store a credential
+
+Inference credentials belong to a user, not to a project.
+The endpoints need the `user:read` scope to list and the `user:write` scope to change.
+
+```bash
+curl --request POST "https://us.posthog.com/api/users/@me/integrations/inference_credentials/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data "{\"kind\": \"anthropic_api_key\", \"secret\": \"$ANTHROPIC_API_KEY\"}"
+```
+
+`kind` is `anthropic_api_key`, `openai_api_key` or `claude_subscription`.
+PostHog checks an API key with the provider, then stores the secret encrypted.
+A user has at most one credential of each kind, so a new one replaces the stored one.
+No response returns the secret.
+The list shows only the last 4 characters.
+
+```bash
+# List your stored credentials
+curl "https://us.posthog.com/api/users/@me/integrations/inference_credentials/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+
+# Delete one
+curl --request DELETE "https://us.posthog.com/api/users/@me/integrations/inference_credentials/anthropic_api_key/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+Subscriptions are in limited availability.
+Storing a `claude_subscription` token returns `403` until it is enabled for your organization.
+
+### Who can continue a run
+
+A run on `own_key` or `own_subscription` uses the credential of the user who started it.
+Only that user can send it a message.
+Another user gets `403` with the code `credential_owner_required`.
+Other users can still read and cancel the run.
+
+### Security
+
+The agent uses your credential inside the sandbox to call the model provider.
+Code that the agent runs in the sandbox, including code from the repository, may be able to read that credential.
+Use a key that you can revoke, set a spend limit on it with your provider, and run agents only on repositories that you trust.
+
+## Webhooks
+
+PostHog can send a signed `POST` request to your server when a run changes.
+
+### Events
+
+| Event           | Sent when                                            |
+| --------------- | ---------------------------------------------------- |
+| `run.started`   | The agent starts work. A resumed run sends it again. |
+| `run.completed` | The run completes.                                   |
+| `run.failed`    | The run fails.                                       |
+| `run.cancelled` | The run is cancelled.                                |
+| `run.test`      | You send a test event.                               |
+
+### Set up an endpoint
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"url": "https://example.com/hooks/posthog", "event_types": ["run.completed", "run.failed"]}'
+```
+
+The URL must be a public HTTPS address.
+An empty `event_types` list sends all event types.
+A project can have 5 endpoints.
+A run can also name its own `webhook_url`, which gets every event of that run.
+
+| Method and path                         | Purpose                                     |
+| --------------------------------------- | ------------------------------------------- |
+| `GET webhook_endpoints/`                | List endpoints.                             |
+| `POST webhook_endpoints/`               | Create an endpoint.                         |
+| `GET webhook_endpoints/:id/`            | Retrieve an endpoint.                       |
+| `PATCH webhook_endpoints/:id/`          | Change `url`, `enabled` or `event_types`.   |
+| `DELETE webhook_endpoints/:id/`         | Delete an endpoint.                         |
+| `POST webhook_endpoints/:id/test/`      | Send a `run.test` event to the endpoint.    |
+| `POST webhook_endpoints/secret/`        | Create the signing secret of the project.   |
+| `POST webhook_endpoints/rotate_secret/` | Replace the signing secret.                 |
+| `GET webhook_endpoints/deliveries/`     | List the last 50 deliveries of the project. |
+
+### Payload
+
+```json
+{
+  "id": "0199c1f5-02aa-7d10-8e4b-6a1f0c9d2b33",
+  "type": "run.completed",
+  "created_at": "2026-10-07T09:32:52.101334+00:00",
+  "api_version": "2026-10-01",
+  "data": {
+    "run": {}
+  }
+}
+```
+
+`data.run` is the run object, in the same shape that the REST API returns.
+`id` is the event ID.
+It is the same for every attempt and for every endpoint that gets the event, so use it to drop duplicates.
+
+### Headers
+
+| Header                        | Value                                             |
+| ----------------------------- | ------------------------------------------------- |
+| `X-PostHog-Webhook-Id`        | The event ID.                                     |
+| `X-PostHog-Webhook-Event`     | The event type, for example `run.completed`.      |
+| `X-PostHog-Webhook-Timestamp` | Unix time in seconds when the request was signed. |
+| `X-PostHog-Webhook-Signature` | `v1=` followed by a hex HMAC-SHA256 digest.       |
+
+### Verify the signature
+
+Create the signing secret one time and store it:
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/secret/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+```json
+{
+  "secret": "whsec_EXAMPLE_ONLY",
+  "created": true
+}
+```
+
+The secret is in the response only when this request created it.
+If `secret` is `null`, the project already has a secret, and you must rotate it to get a new one.
+
+To verify a request:
+
+1. Take the raw request body, before any JSON parsing.
+2. Build the signed message: the `X-PostHog-Webhook-Timestamp` value, a dot, then the raw body.
+3. Compute the HMAC-SHA256 of the message with the secret, as a hex digest.
+4. Compare it with the value after `v1=` in `X-PostHog-Webhook-Signature`, with a constant-time comparison.
+5. Reject a request whose timestamp is too old for you, for example more than 5 minutes.
+
+Python:
+
+```python
+import hashlib
+import hmac
+import time
+
+
+def verify(secret: str, timestamp: str, raw_body: bytes, signature_header: str) -> bool:
+    if abs(time.time() - int(timestamp)) > 300:
+        return False
+    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header.removeprefix("v1="))
+```
+
+Node:
+
+```js
+const crypto = require('node:crypto')
+
+function verify(secret, timestamp, rawBody, signatureHeader) {
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+    return false
+  }
+  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(rawBody).digest('hex')
+  const received = signatureHeader.replace(/^v1=/, '')
+  return expected.length === received.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))
+}
+```
+
+### Retries
+
+Answer with a `2xx` status within 5 seconds.
+PostHog does not follow redirects.
+
+PostHog tries again after a connection error, a timeout, or a `408`, `425`, `429` or `5xx` response.
+It waits 10 seconds, 1 minute, 5 minutes, 30 minutes, 2 hours and 6 hours between attempts, then gives up.
+A `Retry-After` header in your response can make a wait longer, up to 6 hours.
+Any other response is final and is not retried.
+
+`GET webhook_endpoints/deliveries/` shows the status of each delivery: `pending`, `succeeded`, `failed` or `gave_up`, with the number of attempts and the last status code.
+Deliveries are kept for 30 days.
+
+### Test event
+
+`POST webhook_endpoints/:id/test/` sends a `run.test` event to one endpoint, also when the endpoint is disabled or filters event types.
+The payload has a small run with the prompt `This is a test event. No run was started.`
+The response has the `delivery_id` to look for in the deliveries list.
+
+### Rotate the secret
+
+```bash
+curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/rotate_secret/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
+
+The response has the new secret.
+The old secret stops working immediately, so update your receiver at the same time.
+
+## Limits and errors
+
+| Limit                        | Default                                            |
+| ---------------------------- | -------------------------------------------------- |
+| Active runs at the same time | 5 for each project                                 |
+| Runs started                 | 60 an hour for each project, in bursts of up to 10 |
+| Webhook endpoints            | 5 for each project                                 |
+
+`limits` in the catalog shows the values for your project.
+A resumed run counts as an active run.
+
+A request over a limit returns `429` with a `Retry-After` header in seconds.
+Wait that long, then send the request again.
+
+Errors use the standard PostHog error body.
+`code` identifies the error, `detail` says what to do, and `attr` names the field at fault when there is one:
+
+```json
+{
+  "type": "validation_error",
+  "code": "repository_required",
+  "detail": "Set a repository on the run, on its profile, or in the project settings.",
+  "attr": "repository"
+}
+```
+
+| Code                         | Status | Meaning                                                                                             |
+| ---------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| `invalid_input`              | 400    | A field is not valid. `attr` names the field.                                                       |
+| `repository_required`        | 400    | No repository on the run, its profile, or the project settings.                                     |
+| `invalid_webhook_url`        | 400    | The webhook URL is not a public HTTPS address.                                                      |
+| `too_many_webhook_endpoints` | 400    | The project already has 5 webhook endpoints.                                                        |
+| `permission_denied`          | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.                |
+| `organization_deactivated`   | 403    | The organization is deactivated. Contact support.                                                   |
+| `credential_owner_required`  | 403    | The run uses the model credential of the user who started it. Only that user can send it a message. |
+| `run_not_found`              | 404    | The run does not exist in this project.                                                             |
+| `profile_not_found`          | 404    | The profile does not exist in this project.                                                         |
+| `webhook_endpoint_not_found` | 404    | The webhook endpoint does not exist in this project.                                                |
+| `run_not_ready`              | 409    | The run is still starting. Try again in a few seconds.                                              |
+| `run_stopping`               | 409    | The run is stopping. Wait until it stops, then try again.                                           |
+| `run_not_resumable`          | 409    | The run cannot be resumed. Start a new run.                                                         |
+| `idempotency_key_reused`     | 422    | The idempotency key was used with a different request. Use a new key.                               |
+| `concurrency_limited`        | 429    | The project is at its limit of active runs. Wait until a run stops.                                 |
+| `create_rate_limited`        | 429    | The project starts runs too quickly. Wait for `Retry-After`.                                        |
+| `usage_limited`              | 429    | The project reached its usage limit. Raise the limit in billing settings.                           |
+| `cancel_unavailable`         | 503    | The run could not be cancelled now. Try again in a few seconds.                                     |
+
+## MCP tools
+
+The [PostHog MCP server](/docs/model-context-protocol) has tools for cloud agents.
+They are available when Cloud agents is enabled for your organization.
+
+| Tool                          | Scope               | What it does                                                 |
+| ----------------------------- | ------------------- | ------------------------------------------------------------ |
+| `cloud-agents-run-create`     | `cloud_agent:write` | Start a run. This starts a billed sandbox.                   |
+| `cloud-agents-run-list`       | `cloud_agent:read`  | List runs, newest first, with filters.                       |
+| `cloud-agents-run-get`        | `cloud_agent:read`  | Get one run with its status, result and cost.                |
+| `cloud-agents-run-message`    | `cloud_agent:write` | Send a follow-up message, or resume a run that stopped.      |
+| `cloud-agents-run-cancel`     | `cloud_agent:write` | Ask a run to stop.                                           |
+| `cloud-agents-run-usage`      | `cloud_agent:read`  | Get the cost of one run with each sandbox that it used.      |
+| `cloud-agents-profile-list`   | `cloud_agent:read`  | List profiles.                                               |
+| `cloud-agents-profile-get`    | `cloud_agent:read`  | Get one profile.                                             |
+| `cloud-agents-profile-create` | `cloud_agent:write` | Create a profile.                                            |
+| `cloud-agents-catalog`        | `cloud_agent:read`  | Get sizes, prices, models, inference modes and limits.       |
+| `cloud-agents-estimate`       | `cloud_agent:read`  | Estimate the compute cost of a size for a number of minutes. |
+| `cloud-agents-usage-summary`  | `cloud_agent:read`  | Get cost and usage totals for a date range.                  |
+
+`cloud-agents-run-create` cannot send an idempotency key, so each call starts a new run.
+Project settings, profile changes, webhook endpoints and webhook secrets are not available as MCP tools.
+Use the REST API for them.

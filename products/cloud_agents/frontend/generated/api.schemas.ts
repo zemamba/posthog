@@ -203,13 +203,13 @@ export interface ProfileApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable
@@ -310,13 +310,13 @@ export interface ProfileCreateApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable
@@ -404,13 +404,13 @@ export interface PatchedProfileUpdateApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable
@@ -509,7 +509,7 @@ export interface CloudAgentRunConfigApi {
     inference: InferenceModeEnumApi
     /** Whether the agent opens a pull request when it finishes. */
     create_pr: boolean
-    /** Whether the pull request opens as a draft or ready for review.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
@@ -804,13 +804,13 @@ export interface CloudAgentRunCreateApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable
@@ -963,13 +963,13 @@ export interface CloudAgentSettingsApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable
@@ -1051,13 +1051,13 @@ export interface PatchedCloudAgentSettingsUpdateApi {
      * @nullable
      */
     create_pr?: boolean | null
-    /** Whether the pull request opens as a draft or ready for review. Null uses the product default.
+    /** Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.
      *
      * * `draft` - Draft
      * * `ready` - Ready */
     pr_mode?: PrModeEnumApi | null
     /**
-     * The run stops after this many minutes, from 5 to 240. Null uses the product default.
+     * The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.
      * @minimum 5
      * @maximum 240
      * @nullable

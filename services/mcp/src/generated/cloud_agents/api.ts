@@ -1,0 +1,459 @@
+/**
+ * Auto-generated from the Django backend OpenAPI schema.
+ * MCP service uses these Zod schemas for generated tool handlers.
+ * To regenerate: hogli build:openapi
+ *
+ * PostHog API - MCP 12 enabled ops
+ * OpenAPI spec version: 1.0.0
+ */
+import * as zod from 'zod'
+
+/**
+ * The sizes, models and inference modes that a run can use, with the prices and the limits.
+ * @summary Retrieve the cloud agents catalog
+ */
+export const CloudAgentsCatalogRetrieveParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * The compute cost of a sandbox of one size for a number of minutes. Model usage is not included.
+ * @summary Estimate the compute cost of a run
+ */
+export const CloudAgentsEstimateRetrieveParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const cloudAgentsEstimateRetrieveQueryMinutesMax = 1440
+
+export const CloudAgentsEstimateRetrieveQueryParams = () => zod.object({
+    minutes: zod
+        .number()
+        .min(1)
+        .max(cloudAgentsEstimateRetrieveQueryMinutesMax)
+        .describe('How many minutes the sandbox is up.'),
+    size: zod
+        .enum(['1x2', '2x4', '2x8', '4x8', '4x16', '8x16', '8x32', '16x64'])
+        .describe(
+            'Sandbox size to price, as `<vCPU>x<memory in GiB>`.\n\n\* `1x2` - 1 vCPU, 2 GiB\n\* `2x4` - 2 vCPU, 4 GiB\n\* `2x8` - 2 vCPU, 8 GiB\n\* `4x8` - 4 vCPU, 8 GiB\n\* `4x16` - 4 vCPU, 16 GiB\n\* `8x16` - 8 vCPU, 16 GiB\n\* `8x32` - 8 vCPU, 32 GiB\n\* `16x64` - 16 vCPU, 64 GiB'
+        ),
+})
+
+/**
+ * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
+ * @summary List profiles
+ */
+export const CloudAgentsProfilesListParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const CloudAgentsProfilesListQueryParams = () => zod.object({
+    limit: zod.number().optional().describe('Number of results to return per page.'),
+    offset: zod.number().optional().describe('The initial index from which to return the results.'),
+})
+
+/**
+ * A profile is a named set of run defaults. A run names a profile to use its defaults.
+ * @summary Create a profile
+ */
+export const CloudAgentsProfilesCreateParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const cloudAgentsProfilesCreateBodyRepositoryMax = 255
+
+export const cloudAgentsProfilesCreateBodyRepositoryRegExp = new RegExp('^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$')
+export const cloudAgentsProfilesCreateBodyBranchMax = 255
+
+export const cloudAgentsProfilesCreateBodyModelMax = 100
+
+export const cloudAgentsProfilesCreateBodyInstructionsMax = 20000
+
+export const cloudAgentsProfilesCreateBodyDescriptionMax = 2000
+
+export const cloudAgentsProfilesCreateBodyTagsItemMax = 50
+
+export const cloudAgentsProfilesCreateBodyTagsMax = 20
+
+export const cloudAgentsProfilesCreateBodyWebhookUrlMax = 2000
+
+export const cloudAgentsProfilesCreateBodyNameMax = 100
+
+export const CloudAgentsProfilesCreateBody = () => zod
+    .object({
+        repository: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyRepositoryMax)
+            .regex(cloudAgentsProfilesCreateBodyRepositoryRegExp)
+            .nullish()
+            .describe('Default GitHub repository, in the format `owner\/name`. Null sets no default.'),
+        branch: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyBranchMax)
+            .nullish()
+            .describe('Default base branch. Null uses the default branch of the repository.'),
+        model: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyModelMax)
+            .nullish()
+            .describe('Default model for the agent. Null lets PostHog select the model.'),
+        size: zod
+            .union([
+                zod
+                    .enum(['1x2', '2x4', '2x8', '4x8', '4x16', '8x16', '8x32', '16x64'])
+                    .describe(
+                        '\* `1x2` - 1 vCPU, 2 GiB\n\* `2x4` - 2 vCPU, 4 GiB\n\* `2x8` - 2 vCPU, 8 GiB\n\* `4x8` - 4 vCPU, 8 GiB\n\* `4x16` - 4 vCPU, 16 GiB\n\* `8x16` - 8 vCPU, 16 GiB\n\* `8x32` - 8 vCPU, 32 GiB\n\* `16x64` - 16 vCPU, 64 GiB'
+                    ),
+                zod.null(),
+            ])
+            .optional()
+            .describe(
+                'Default sandbox size, as `<vCPU>x<memory in GiB>`. Null uses the product default.\n\n\* `1x2` - 1 vCPU, 2 GiB\n\* `2x4` - 2 vCPU, 4 GiB\n\* `2x8` - 2 vCPU, 8 GiB\n\* `4x8` - 4 vCPU, 8 GiB\n\* `4x16` - 4 vCPU, 16 GiB\n\* `8x16` - 8 vCPU, 16 GiB\n\* `8x32` - 8 vCPU, 32 GiB\n\* `16x64` - 16 vCPU, 64 GiB'
+            ),
+        inference: zod
+            .union([
+                zod
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
+                zod.null(),
+            ])
+            .optional()
+            .describe(
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+            ),
+        instructions: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyInstructionsMax)
+            .nullish()
+            .describe(
+                'Instructions that the agent gets before the prompt. Project instructions come first, then profile instructions, then the instructions of the run.'
+            ),
+        create_pr: zod
+            .boolean()
+            .nullish()
+            .describe('Whether the agent opens a pull request when it finishes. Null uses the product default.'),
+        description: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyDescriptionMax)
+            .optional()
+            .describe('What this profile is for.'),
+        tags: zod
+            .array(zod.string().max(cloudAgentsProfilesCreateBodyTagsItemMax))
+            .max(cloudAgentsProfilesCreateBodyTagsMax)
+            .optional()
+            .describe('Tags added to every run that uses this profile.'),
+        webhook_url: zod
+            .url()
+            .max(cloudAgentsProfilesCreateBodyWebhookUrlMax)
+            .nullish()
+            .describe('HTTPS URL that gets the events of every run that uses this profile. Null sends none.'),
+        name: zod
+            .string()
+            .max(cloudAgentsProfilesCreateBodyNameMax)
+            .describe('Name of the profile. It is unique in the project, without regard to case.'),
+    })
+    .describe('The run defaults that a profile and the project settings share. A null value sets no default.')
+
+/**
+ * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
+ * @summary Retrieve a profile
+ */
+export const CloudAgentsProfilesRetrieveParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * The runs of the project, newest first.
+ * @summary List runs
+ */
+export const CloudAgentsRunsListParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const cloudAgentsRunsListQueryRepositoryMax = 255
+
+export const cloudAgentsRunsListQueryRepositoryRegExp = new RegExp('^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$')
+export const cloudAgentsRunsListQueryTagMax = 50
+
+export const CloudAgentsRunsListQueryParams = () => zod.object({
+    created_after: zod.iso
+        .datetime({ offset: true })
+        .optional()
+        .describe('Return only the runs created at or after this time, in ISO 8601 format.'),
+    created_before: zod.iso
+        .datetime({ offset: true })
+        .optional()
+        .describe('Return only the runs created before this time, in ISO 8601 format.'),
+    limit: zod.number().optional().describe('Number of results to return per page.'),
+    offset: zod.number().optional().describe('The initial index from which to return the results.'),
+    profile_id: zod.string().optional().describe('Return only the runs that used this profile.'),
+    repository: zod
+        .string()
+        .min(1)
+        .max(cloudAgentsRunsListQueryRepositoryMax)
+        .regex(cloudAgentsRunsListQueryRepositoryRegExp)
+        .optional()
+        .describe('Return only the runs in this repository, in the format `owner\/name`.'),
+    status: zod
+        .enum(['queued', 'running', 'completed', 'failed', 'cancelled'])
+        .optional()
+        .describe(
+            'Return only the runs with this status.\n\n\* `queued` - Queued\n\* `running` - Running\n\* `completed` - Completed\n\* `failed` - Failed\n\* `cancelled` - Cancelled'
+        ),
+    tag: zod
+        .string()
+        .min(1)
+        .max(cloudAgentsRunsListQueryTagMax)
+        .optional()
+        .describe('Return only the runs that have this tag.'),
+})
+
+/**
+ * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run, stream its events or register a webhook to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
+ * @summary Start a run
+ */
+export const CloudAgentsRunsCreateParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const CloudAgentsRunsCreateHeader = () => zod.object({
+    'Idempotency-Key': zod
+        .string()
+        .optional()
+        .describe(
+            'A key of 1 to 100 characters that is unique for this request. A repeated request with the same key and the same body returns the first run with status 200 and the header `Idempotency-Replayed: true`. The same key with a different body gives status 422.'
+        ),
+})
+
+export const cloudAgentsRunsCreateBodyRepositoryMax = 255
+
+export const cloudAgentsRunsCreateBodyRepositoryRegExp = new RegExp('^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$')
+export const cloudAgentsRunsCreateBodyBranchMax = 255
+
+export const cloudAgentsRunsCreateBodyModelMax = 100
+
+export const cloudAgentsRunsCreateBodyInstructionsMax = 20000
+
+export const cloudAgentsRunsCreateBodyPromptMax = 64000
+
+export const cloudAgentsRunsCreateBodyProfileMax = 100
+
+export const cloudAgentsRunsCreateBodyTagsItemMax = 50
+
+export const cloudAgentsRunsCreateBodyTagsMax = 20
+
+export const cloudAgentsRunsCreateBodyMetadataMaxOne = 512
+
+export const cloudAgentsRunsCreateBodyWebhookUrlMax = 2000
+
+export const CloudAgentsRunsCreateBody = () => zod
+    .object({
+        repository: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyRepositoryMax)
+            .regex(cloudAgentsRunsCreateBodyRepositoryRegExp)
+            .nullish()
+            .describe(
+                'GitHub repository that the agent works in, in the format `owner\/name`. Required unless the profile or the project settings set a default.'
+            ),
+        branch: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyBranchMax)
+            .nullish()
+            .describe('Default base branch. Null uses the default branch of the repository.'),
+        model: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyModelMax)
+            .nullish()
+            .describe('Default model for the agent. Null lets PostHog select the model.'),
+        size: zod
+            .union([
+                zod
+                    .enum(['1x2', '2x4', '2x8', '4x8', '4x16', '8x16', '8x32', '16x64'])
+                    .describe(
+                        '\* `1x2` - 1 vCPU, 2 GiB\n\* `2x4` - 2 vCPU, 4 GiB\n\* `2x8` - 2 vCPU, 8 GiB\n\* `4x8` - 4 vCPU, 8 GiB\n\* `4x16` - 4 vCPU, 16 GiB\n\* `8x16` - 8 vCPU, 16 GiB\n\* `8x32` - 8 vCPU, 32 GiB\n\* `16x64` - 16 vCPU, 64 GiB'
+                    ),
+                zod.null(),
+            ])
+            .optional()
+            .describe(
+                'Default sandbox size, as `<vCPU>x<memory in GiB>`. Null uses the product default.\n\n\* `1x2` - 1 vCPU, 2 GiB\n\* `2x4` - 2 vCPU, 4 GiB\n\* `2x8` - 2 vCPU, 8 GiB\n\* `4x8` - 4 vCPU, 8 GiB\n\* `4x16` - 4 vCPU, 16 GiB\n\* `8x16` - 8 vCPU, 16 GiB\n\* `8x32` - 8 vCPU, 32 GiB\n\* `16x64` - 16 vCPU, 64 GiB'
+            ),
+        inference: zod
+            .union([
+                zod
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
+                zod.null(),
+            ])
+            .optional()
+            .describe(
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+            ),
+        instructions: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyInstructionsMax)
+            .nullish()
+            .describe(
+                'Instructions that the agent gets before the prompt. Project instructions come first, then profile instructions, then the instructions of the run.'
+            ),
+        create_pr: zod
+            .boolean()
+            .nullish()
+            .describe('Whether the agent opens a pull request when it finishes. Null uses the product default.'),
+        prompt: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyPromptMax)
+            .describe('The task for the agent, in plain language.'),
+        profile: zod
+            .string()
+            .max(cloudAgentsRunsCreateBodyProfileMax)
+            .nullish()
+            .describe(
+                'ID or name of the profile whose defaults the run uses. Null uses the default profile of the project, when one is set.'
+            ),
+        tags: zod
+            .array(zod.string().max(cloudAgentsRunsCreateBodyTagsItemMax))
+            .max(cloudAgentsRunsCreateBodyTagsMax)
+            .optional()
+            .describe('Tags for the run. The tags of the profile are added to them.'),
+        metadata: zod
+            .record(zod.string(), zod.string().max(cloudAgentsRunsCreateBodyMetadataMaxOne))
+            .optional()
+            .describe(
+                'Your own key and value pairs, stored with the run and returned with it. At most 16 pairs. Keys and values are strings.'
+            ),
+        webhook_url: zod
+            .url()
+            .max(cloudAgentsRunsCreateBodyWebhookUrlMax)
+            .nullish()
+            .describe(
+                'HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project.'
+            ),
+    })
+    .describe('The run defaults that a profile and the project settings share. A null value sets no default.')
+
+/**
+ * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
+ * @summary Retrieve a run
+ */
+export const CloudAgentsRunsRetrieveParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * Asks the run to stop. The response has status 202 and the run can still be `running` for a short time. A run that already stopped is returned with status 200.
+ * @summary Cancel a run
+ */
+export const CloudAgentsRunsCancelCreateParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * Sends a follow-up message. An agent that is at work gets the message in its current session. A run that stopped starts a new agent session with the message and goes back to `queued`.
+ * @summary Send a message to a run
+ */
+export const CloudAgentsRunsMessagesCreateParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const cloudAgentsRunsMessagesCreateBodyContentMax = 64000
+
+export const CloudAgentsRunsMessagesCreateBody = () => zod.object({
+    content: zod
+        .string()
+        .max(cloudAgentsRunsMessagesCreateBodyContentMax)
+        .describe('The follow-up message for the agent, in plain language.'),
+})
+
+/**
+ * The cost of the run up to now, and each sandbox that it used.
+ * @summary Retrieve the usage of a run
+ */
+export const CloudAgentsRunsUsageRetrieveParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * Cost and usage totals of the runs created in a date range, for each day or for each profile.
+ * @summary Retrieve cloud agents usage
+ */
+export const CloudAgentsUsageRetrieveParams = () => zod.object({
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const cloudAgentsUsageRetrieveQueryGroupByDefault = `day`
+
+export const CloudAgentsUsageRetrieveQueryParams = () => zod.object({
+    date_from: zod.iso
+        .datetime({ offset: true })
+        .optional()
+        .describe('Start of the range, in ISO 8601 format. The default is 30 days before `date_to`.'),
+    date_to: zod.iso
+        .datetime({ offset: true })
+        .optional()
+        .describe('End of the range, not included, in ISO 8601 format. The default is now.'),
+    group_by: zod
+        .enum(['day', 'profile'])
+        .default(cloudAgentsUsageRetrieveQueryGroupByDefault)
+        .describe(
+            '`day` gives one bucket for each UTC day. `profile` gives one bucket for each profile.\n\n\* `day` - Day\n\* `profile` - Profile'
+        ),
+})

@@ -95,14 +95,16 @@ export const CloudAgentsProfilesCreateBody = /* @__PURE__ */ zod
             .union([zod.enum(['draft', 'ready']).describe('\* `draft` - Draft\n\* `ready` - Ready'), zod.null()])
             .optional()
             .describe(
-                'Whether the pull request opens as a draft or ready for review. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
+                'Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
             ),
         max_duration_minutes: zod
             .number()
             .min(cloudAgentsProfilesCreateBodyMaxDurationMinutesMin)
             .max(cloudAgentsProfilesCreateBodyMaxDurationMinutesMax)
             .nullish()
-            .describe('The run stops after this many minutes, from 5 to 240. Null uses the product default.'),
+            .describe(
+                'The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.'
+            ),
         max_cost_usd: zod
             .stringFormat('decimal', cloudAgentsProfilesCreateBodyMaxCostUsdRegExp)
             .nullish()
@@ -215,14 +217,16 @@ export const CloudAgentsProfilesPartialUpdateBody = /* @__PURE__ */ zod
             .union([zod.enum(['draft', 'ready']).describe('\* `draft` - Draft\n\* `ready` - Ready'), zod.null()])
             .optional()
             .describe(
-                'Whether the pull request opens as a draft or ready for review. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
+                'Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
             ),
         max_duration_minutes: zod
             .number()
             .min(cloudAgentsProfilesPartialUpdateBodyMaxDurationMinutesMin)
             .max(cloudAgentsProfilesPartialUpdateBodyMaxDurationMinutesMax)
             .nullish()
-            .describe('The run stops after this many minutes, from 5 to 240. Null uses the product default.'),
+            .describe(
+                'The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.'
+            ),
         max_cost_usd: zod
             .stringFormat('decimal', cloudAgentsProfilesPartialUpdateBodyMaxCostUsdRegExp)
             .nullish()
@@ -340,14 +344,16 @@ export const CloudAgentsRunsCreateBody = /* @__PURE__ */ zod
             .union([zod.enum(['draft', 'ready']).describe('\* `draft` - Draft\n\* `ready` - Ready'), zod.null()])
             .optional()
             .describe(
-                'Whether the pull request opens as a draft or ready for review. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
+                'Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
             ),
         max_duration_minutes: zod
             .number()
             .min(cloudAgentsRunsCreateBodyMaxDurationMinutesMin)
             .max(cloudAgentsRunsCreateBodyMaxDurationMinutesMax)
             .nullish()
-            .describe('The run stops after this many minutes, from 5 to 240. Null uses the product default.'),
+            .describe(
+                'The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.'
+            ),
         max_cost_usd: zod
             .stringFormat('decimal', cloudAgentsRunsCreateBodyMaxCostUsdRegExp)
             .nullish()
@@ -474,14 +480,16 @@ export const CloudAgentsSettingsPartialUpdateBody = /* @__PURE__ */ zod
             .union([zod.enum(['draft', 'ready']).describe('\* `draft` - Draft\n\* `ready` - Ready'), zod.null()])
             .optional()
             .describe(
-                'Whether the pull request opens as a draft or ready for review. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
+                'Whether the pull request opens as a draft or ready for review. Reserved. Not enforced yet. Null uses the product default.\n\n\* `draft` - Draft\n\* `ready` - Ready'
             ),
         max_duration_minutes: zod
             .number()
             .min(cloudAgentsSettingsPartialUpdateBodyMaxDurationMinutesMin)
             .max(cloudAgentsSettingsPartialUpdateBodyMaxDurationMinutesMax)
             .nullish()
-            .describe('The run stops after this many minutes, from 5 to 240. Null uses the product default.'),
+            .describe(
+                'The run time limit in minutes, from 5 to 240. Reserved. Not enforced yet. Null uses the product default.'
+            ),
         max_cost_usd: zod
             .stringFormat('decimal', cloudAgentsSettingsPartialUpdateBodyMaxCostUsdRegExp)
             .nullish()

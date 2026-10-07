@@ -1,0 +1,48 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+        "created_after": {
+            "description": "Return only the runs created at or after this time, in ISO 8601 format.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+        },
+        "created_before": {
+            "description": "Return only the runs created before this time, in ISO 8601 format.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+        },
+        "limit": {
+            "description": "Number of results to return per page.",
+            "type": "number"
+        },
+        "offset": {
+            "description": "The initial index from which to return the results.",
+            "type": "number"
+        },
+        "profile_id": {
+            "description": "Return only the runs that used this profile.",
+            "type": "string"
+        },
+        "repository": {
+            "description": "Return only the runs in this repository, in the format `owner/name`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+            "type": "string"
+        },
+        "status": {
+            "description": "Return only the runs with this status.\n\n* `queued` - Queued\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+            "enum": ["queued", "running", "completed", "failed", "cancelled"],
+            "type": "string"
+        },
+        "tag": {
+            "description": "Return only the runs that have this tag.",
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+        }
+    },
+    "type": "object"
+}

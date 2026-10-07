@@ -1,0 +1,143 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+        "branch": {
+            "anyOf": [
+                {
+                    "maxLength": 255,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Default base branch. Null uses the default branch of the repository."
+        },
+        "create_pr": {
+            "anyOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Whether the agent opens a pull request when it finishes. Null uses the product default."
+        },
+        "inference": {
+            "anyOf": [
+                {
+                    "description": "* `auto` - Auto\n* `own_key` - Own Key\n* `own_subscription` - Own Subscription\n* `posthog` - PostHog",
+                    "enum": ["auto", "own_key", "own_subscription", "posthog"],
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n* `auto` - Auto\n* `own_key` - Own Key\n* `own_subscription` - Own Subscription\n* `posthog` - PostHog"
+        },
+        "instructions": {
+            "anyOf": [
+                {
+                    "maxLength": 20000,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Instructions that the agent gets before the prompt. Project instructions come first, then profile instructions, then the instructions of the run."
+        },
+        "metadata": {
+            "additionalProperties": {
+                "maxLength": 512,
+                "type": "string"
+            },
+            "description": "Your own key and value pairs, stored with the run and returned with it. At most 16 pairs. Keys and values are strings.",
+            "propertyNames": {
+                "type": "string"
+            },
+            "type": "object"
+        },
+        "model": {
+            "anyOf": [
+                {
+                    "maxLength": 100,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Model ID from cloud-agents-catalog. Leave it out to use the default of the profile or the project."
+        },
+        "profile": {
+            "anyOf": [
+                {
+                    "maxLength": 100,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "ID or name of the profile whose defaults the run uses. Null uses the default profile of the project, when one is set."
+        },
+        "prompt": {
+            "description": "The task for the agent, in plain language. Say what to change and how to know it is done. The agent sees only this text, the instructions, and the repository.",
+            "maxLength": 64000,
+            "type": "string"
+        },
+        "repository": {
+            "anyOf": [
+                {
+                    "maxLength": 255,
+                    "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "GitHub repository that the agent works in, in the format `owner/name`. Required unless the profile or the project settings set a default."
+        },
+        "size": {
+            "anyOf": [
+                {
+                    "description": "* `1x2` - 1 vCPU, 2 GiB\n* `2x4` - 2 vCPU, 4 GiB\n* `2x8` - 2 vCPU, 8 GiB\n* `4x8` - 4 vCPU, 8 GiB\n* `4x16` - 4 vCPU, 16 GiB\n* `8x16` - 8 vCPU, 16 GiB\n* `8x32` - 8 vCPU, 32 GiB\n* `16x64` - 16 vCPU, 64 GiB",
+                    "enum": ["1x2", "2x4", "2x8", "4x8", "4x16", "8x16", "8x32", "16x64"],
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Sandbox size, as `<vCPU>x<memory in GiB>`. A larger size costs more per second. Leave it out to use the default of the profile or the project. See cloud-agents-catalog for prices."
+        },
+        "tags": {
+            "description": "Tags for the run. The tags of the profile are added to them.",
+            "items": {
+                "maxLength": 50,
+                "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+        },
+        "webhook_url": {
+            "anyOf": [
+                {
+                    "format": "uri",
+                    "maxLength": 2000,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project."
+        }
+    },
+    "required": ["prompt"],
+    "type": "object"
+}

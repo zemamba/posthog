@@ -1,0 +1,11 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+        "id": {
+            "description": "ID of the profile (a UUID). A profile name is not accepted here.",
+            "type": "string"
+        }
+    },
+    "required": ["id"],
+    "type": "object"
+}

@@ -1,0 +1,126 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "The run defaults that a profile and the project settings share. A null value sets no default.",
+    "properties": {
+        "branch": {
+            "anyOf": [
+                {
+                    "maxLength": 255,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Default base branch. Null uses the default branch of the repository."
+        },
+        "create_pr": {
+            "anyOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Whether the agent opens a pull request when it finishes. Null uses the product default."
+        },
+        "description": {
+            "description": "What this profile is for.",
+            "maxLength": 2000,
+            "type": "string"
+        },
+        "inference": {
+            "anyOf": [
+                {
+                    "description": "* `auto` - Auto\n* `own_key` - Own Key\n* `own_subscription` - Own Subscription\n* `posthog` - PostHog",
+                    "enum": ["auto", "own_key", "own_subscription", "posthog"],
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n* `auto` - Auto\n* `own_key` - Own Key\n* `own_subscription` - Own Subscription\n* `posthog` - PostHog"
+        },
+        "instructions": {
+            "anyOf": [
+                {
+                    "maxLength": 20000,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Instructions that the agent gets before the prompt. Project instructions come first, then profile instructions, then the instructions of the run."
+        },
+        "model": {
+            "anyOf": [
+                {
+                    "maxLength": 100,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Default model for the agent. Null lets PostHog select the model."
+        },
+        "name": {
+            "description": "Name of the profile. It is unique in the project, without regard to case.",
+            "maxLength": 100,
+            "type": "string"
+        },
+        "repository": {
+            "anyOf": [
+                {
+                    "maxLength": 255,
+                    "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Default GitHub repository, in the format `owner/name`. Null sets no default."
+        },
+        "size": {
+            "anyOf": [
+                {
+                    "description": "* `1x2` - 1 vCPU, 2 GiB\n* `2x4` - 2 vCPU, 4 GiB\n* `2x8` - 2 vCPU, 8 GiB\n* `4x8` - 4 vCPU, 8 GiB\n* `4x16` - 4 vCPU, 16 GiB\n* `8x16` - 8 vCPU, 16 GiB\n* `8x32` - 8 vCPU, 32 GiB\n* `16x64` - 16 vCPU, 64 GiB",
+                    "enum": ["1x2", "2x4", "2x8", "4x8", "4x16", "8x16", "8x32", "16x64"],
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Default sandbox size, as `<vCPU>x<memory in GiB>`. Null uses the product default.\n\n* `1x2` - 1 vCPU, 2 GiB\n* `2x4` - 2 vCPU, 4 GiB\n* `2x8` - 2 vCPU, 8 GiB\n* `4x8` - 4 vCPU, 8 GiB\n* `4x16` - 4 vCPU, 16 GiB\n* `8x16` - 8 vCPU, 16 GiB\n* `8x32` - 8 vCPU, 32 GiB\n* `16x64` - 16 vCPU, 64 GiB"
+        },
+        "tags": {
+            "description": "Tags added to every run that uses this profile.",
+            "items": {
+                "maxLength": 50,
+                "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+        },
+        "webhook_url": {
+            "anyOf": [
+                {
+                    "format": "uri",
+                    "maxLength": 2000,
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "HTTPS URL that gets the events of every run that uses this profile. Null sends none."
+        }
+    },
+    "required": ["name"],
+    "type": "object"
+}
