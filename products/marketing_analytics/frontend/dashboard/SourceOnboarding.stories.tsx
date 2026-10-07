@@ -141,7 +141,8 @@ SkipDuringScan.play = async ({ canvasElement }: { canvasElement: HTMLElement }):
 function useDashboardWithoutSourcesMocks(
     suggestions: SuggestionApi[] = [],
     scanFailed = false,
-    dataReady = false
+    dataReady = false,
+    searchConsoleState?: 'ready' | 'syncing'
 ): void {
     useStorybookMocks({
         get: {
@@ -150,25 +151,48 @@ function useDashboardWithoutSourcesMocks(
             '/api/environments/:team_id/external_data_sources/': () => [
                 200,
                 {
-                    results: dataReady
+                    results: searchConsoleState
                         ? [
                               {
-                                  id: 'demo-google-ready',
-                                  source_type: 'GoogleAds',
-                                  status: 'Completed',
+                                  id: 'demo-search-console',
+                                  source_type: 'GoogleSearchConsole',
+                                  status: searchConsoleState === 'ready' ? 'Completed' : 'Running',
                                   schemas: [
-                                      MARKETING_INTEGRATION_CONFIGS.GoogleAds.campaignTableName,
-                                      MARKETING_INTEGRATION_CONFIGS.GoogleAds.statsTableName,
+                                      'search_analytics_by_query',
+                                      'search_analytics_by_page',
+                                      'search_analytics_by_query_page',
                                   ].map((name) => ({
                                       id: `demo-${name}`,
                                       name,
                                       should_sync: true,
-                                      status: 'Completed',
-                                      last_synced_at: '2026-09-16T09:00:00Z',
+                                      status: searchConsoleState === 'ready' ? 'Completed' : 'Running',
+                                      last_synced_at: searchConsoleState === 'ready' ? '2026-09-16T09:00:00Z' : null,
+                                      table:
+                                          searchConsoleState === 'ready'
+                                              ? { name: `demo_${name}`, hogql_name: `demo_${name}` }
+                                              : null,
                                   })),
                               },
                           ]
-                        : [],
+                        : dataReady
+                          ? [
+                                {
+                                    id: 'demo-google-ready',
+                                    source_type: 'GoogleAds',
+                                    status: 'Completed',
+                                    schemas: [
+                                        MARKETING_INTEGRATION_CONFIGS.GoogleAds.campaignTableName,
+                                        MARKETING_INTEGRATION_CONFIGS.GoogleAds.statsTableName,
+                                    ].map((name) => ({
+                                        id: `demo-${name}`,
+                                        name,
+                                        should_sync: true,
+                                        status: 'Completed',
+                                        last_synced_at: '2026-09-16T09:00:00Z',
+                                    })),
+                                },
+                            ]
+                          : [],
                 },
             ],
             '/api/projects/:team_id/marketing_analytics/source_validation/': () => [200, { errors_by_source: {} }],
@@ -187,6 +211,29 @@ function useDashboardWithoutSourcesMocks(
         post: {
             '/api/environments/:team_id/query/:kind/': async ({ request }) => {
                 const { query } = (await request.json()) as { query: { kind: string } }
+                if (query.kind === NodeKind.MarketingAnalyticsSearchQuery && searchConsoleState === 'ready') {
+                    return [
+                        200,
+                        {
+                            results: [
+                                {
+                                    keyword: 'example analytics',
+                                    platform: 'GoogleSearchConsole',
+                                    matchType: null,
+                                    currency: null,
+                                    clicks: 240,
+                                    impressions: 6000,
+                                    ctr: 0.04,
+                                    position: 3.2,
+                                    cost: null,
+                                    conversions: null,
+                                    cpc: null,
+                                    cpa: null,
+                                },
+                            ],
+                        },
+                    ]
+                }
                 if (query.kind === NodeKind.MarketingAnalyticsAggregatedQuery) {
                     return [
                         200,
@@ -393,3 +440,28 @@ ManualSelectionWithSearchConsole.play = async ({ canvasElement }: { canvasElemen
     await expect(canvas.findByText('Google Search Console')).resolves.toBeVisible()
     expect(canvas.getByText('Also available: organic search')).toBeVisible()
 }
+
+export function DashboardWithSearchConsoleOnly(): JSX.Element {
+    useDashboardWithoutSourcesMocks(plan.suggestions, false, false, 'ready')
+    return <MarketingAnalyticsScene />
+}
+DashboardWithSearchConsoleOnly.parameters = {
+    pageUrl: urls.marketingAnalyticsApp(),
+    featureFlags: [
+        FEATURE_FLAGS.WEB_ANALYTICS_MARKETING,
+        FEATURE_FLAGS.MARKETING_ANALYTICS_SETUP,
+        FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS,
+    ],
+}
+DashboardWithSearchConsoleOnly.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText('Connect your ad platforms')).resolves.toBeVisible()
+    await expect(canvas.findByText('Search performance')).resolves.toBeVisible()
+    expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
+}
+
+export function DashboardWithSearchConsoleSyncing(): JSX.Element {
+    useDashboardWithoutSourcesMocks([], false, false, 'syncing')
+    return <MarketingAnalyticsScene />
+}
+DashboardWithSearchConsoleSyncing.parameters = DashboardWithSearchConsoleOnly.parameters

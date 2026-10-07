@@ -11,6 +11,8 @@ export interface SourceOnboardingScanProps {
     onManual: () => void
     onContinue: () => void
     onRescan: () => void
+    rescanLoading?: boolean
+    rescanDisabledReason?: string | null
 }
 
 export function SourceOnboardingScan({
@@ -20,12 +22,16 @@ export function SourceOnboardingScan({
     onManual,
     onContinue,
     onRescan,
+    rescanLoading,
+    rescanDisabledReason,
 }: SourceOnboardingScanProps): JSX.Element {
     return (
         <SourceSetupPanel
             state={loading ? 'scanning' : failed ? 'error' : suggestions.length ? 'suggestions' : 'empty'}
             suggestions={suggestions}
             onRetry={onRescan}
+            rescanLoading={rescanLoading}
+            rescanDisabledReason={rescanDisabledReason}
             footer={
                 <>
                     <LemonButton onClick={onManual} data-attr="marketing-onboarding-add-manually">

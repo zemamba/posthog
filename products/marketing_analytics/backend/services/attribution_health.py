@@ -340,7 +340,10 @@ def _fetch_utm_groups(
     last-seen date in the future.
     """
     cache_key = f"marketing_analytics:source_scan:v1:{team.pk}:{lookback_days}"
-    if cache_scan and not refresh_scan:
+    scan_time_key = f"{cache_key}:scanned_at"
+    last_scan = cache.get(scan_time_key) if cache_scan else None
+    within_cooldown = last_scan is not None and timezone.now() - last_scan < timedelta(hours=1)
+    if cache_scan and (not refresh_scan or within_cooldown):
         cached_rows = cache.get(cache_key)
         if cached_rows is not None:
             return cast(list[_UtmRow], cached_rows)
@@ -399,6 +402,7 @@ def _fetch_utm_groups(
         )
     if cache_scan:
         cache.set(cache_key, rows, 7 * 24 * 60 * 60)
+        cache.set(scan_time_key, timezone.now(), 7 * 24 * 60 * 60)
     return rows
 
 

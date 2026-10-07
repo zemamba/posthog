@@ -23,8 +23,11 @@ export interface SourceSetupPanelProps {
         status: 'Connected' | 'Syncing' | 'Needs attention'
         detail: string
     }[]
+    compact?: boolean
     footer?: ReactNode
     onRetry?: () => void
+    rescanLoading?: boolean
+    rescanDisabledReason?: string | null
     onDismiss?: (id: string) => void
 }
 
@@ -33,7 +36,10 @@ export function SourceSetupPanel({
     suggestions = [],
     connections = [],
     footer,
+    compact = false,
     onRetry,
+    rescanLoading = false,
+    rescanDisabledReason,
     onDismiss,
 }: SourceSetupPanelProps): JSX.Element {
     const { featureFlags } = useValues(featureFlagLogic)
@@ -56,7 +62,7 @@ export function SourceSetupPanel({
             : state === 'scanning'
               ? 'Checking campaign tracking in events from the last 7 days.'
               : state === 'empty'
-                ? 'No ad platforms were detected in your recent events. Choose an integration to start importing spend data.'
+                ? 'No ad platforms were detected in events from the last 7 days. You can choose an integration manually to import spend data.'
                 : state === 'error'
                   ? 'Try checking your events again, or choose an integration manually.'
                   : state === 'waiting'
@@ -64,8 +70,13 @@ export function SourceSetupPanel({
                     : `We found campaign tracking from ${suggestions.length} ${suggestions.length === 1 ? 'platform' : 'platforms'} in your recent events.`
 
     return (
-        <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6 !p-0 overflow-hidden">
-            <div className="p-6 space-y-5">
+        <LemonCard
+            hoverEffect={false}
+            className={
+                compact ? 'w-full mt-6 !p-0 overflow-hidden' : 'max-w-3xl w-full mx-auto mt-6 !p-0 overflow-hidden'
+            }
+        >
+            <div className={compact ? 'p-4 space-y-3' : 'p-6 space-y-5'}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-secondary text-xs font-semibold">Marketing sources</span>
                     {state === 'scanning' || state === 'suggestions' ? (
@@ -79,7 +90,13 @@ export function SourceSetupPanel({
                         <p className="text-secondary mb-0 max-w-xl">{description}</p>
                     </div>
                 </div>
-                {!busy && (
+                {state === 'empty' && (
+                    <p className="text-secondary text-sm mb-0">
+                        Make sure your ad links include UTM parameters, such as utm_source and utm_medium, and that
+                        PostHog captures them.
+                    </p>
+                )}
+                {!busy && !compact && (
                     <div className="space-y-1">
                         <strong className="text-sm">Your marketing data in one place</strong>
                         <p className="text-secondary text-sm mb-0">
@@ -112,7 +129,7 @@ export function SourceSetupPanel({
                 {suggestions.length > 0 && !busy && (
                     <div className="divide-y border-t">
                         {suggestions.map((suggestion) => (
-                            <div key={suggestion.id} className="py-4">
+                            <div key={suggestion.id} className={compact ? 'py-2' : 'py-4'}>
                                 <div className="flex items-center justify-between flex-wrap gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <SourceIcon
@@ -154,30 +171,39 @@ export function SourceSetupPanel({
                                         )}
                                     </div>
                                 </div>
-                                <LemonCollapse
-                                    embedded
-                                    size="small"
-                                    className="mt-2"
-                                    panels={[
-                                        {
-                                            key: suggestion.id,
-                                            header: 'View detection details',
-                                            content: (
-                                                <p className="text-secondary text-sm mb-0">{suggestion.evidence}</p>
-                                            ),
-                                        },
-                                    ]}
-                                />
+                                {!compact && (
+                                    <LemonCollapse
+                                        embedded
+                                        size="small"
+                                        className="mt-2"
+                                        panels={[
+                                            {
+                                                key: suggestion.id,
+                                                header: 'View detection details',
+                                                content: (
+                                                    <p className="text-secondary text-sm mb-0">{suggestion.evidence}</p>
+                                                ),
+                                            },
+                                        ]}
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>
                 )}
-                {state === 'error' && onRetry && (
-                    <LemonButton type="primary" onClick={onRetry} data-attr="marketing-onboarding-rescan">
-                        Try again
+                {!busy && onRetry && (
+                    <LemonButton
+                        type="secondary"
+                        onClick={onRetry}
+                        loading={rescanLoading}
+                        disabledReason={rescanDisabledReason}
+                        data-attr="marketing-onboarding-rescan"
+                    >
+                        {state === 'error' ? 'Try again' : 'Scan again'}
                     </LemonButton>
                 )}
-                {!busy && state !== 'error' && state !== 'waiting' && (
+                {!busy && rescanDisabledReason && <p className="text-secondary text-xs mb-0">{rescanDisabledReason}</p>}
+                {!busy && !compact && state !== 'error' && state !== 'waiting' && (
                     <div className="flex items-start gap-2 text-secondary text-sm">
                         <IconInfo className="shrink-0 mt-0.5" />
                         <span>Spend data appears after the first sync finishes.</span>
@@ -190,7 +216,7 @@ export function SourceSetupPanel({
                     </div>
                 )}
             </div>
-            {!busy && <SearchConsoleSource />}
+            {!busy && !compact && <SearchConsoleSource />}
             {footer && (
                 <div className="border-t p-4 flex flex-wrap items-center justify-between gap-3 bg-bg-light">
                     {footer}

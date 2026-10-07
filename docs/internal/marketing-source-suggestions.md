@@ -78,3 +78,12 @@ When `marketing-analytics-organic-keywords` enables Search performance, setup an
 The source setup panel explains how connections centralize campaign performance and how conversion goals based on PostHog events measure conversion costs and return on ad spend.
 When Search performance is enabled, it also explains paid-keyword and organic-query analysis for optimizing search ads.
 Pending-source cards offer the source connection buttons and **Browse integrations**; they do not redirect users to Setup to review the same suggestions.
+
+Manual event scans are available from onboarding and the dashboard with **Scan again**.
+A successful scan starts a one-hour cooldown per project; the server also reuses the scan during this cooldown.
+Failed scans can be retried. Suggested connections stay visible during a refresh.
+When no platforms are detected, the panel explains how UTM parameters on ad links help PostHog identify platforms.
+
+With Search performance enabled, a connected Google Search Console source also skips onboarding.
+The current dashboard shows Search performance below a compact ad-source connection panel when no ad data is ready.
+Search Console does not unlock ad spend metrics; its sync and data readiness remain independent.

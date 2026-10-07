@@ -576,7 +576,10 @@ class TestSourceScanCache(SimpleTestCase):
             query.return_value = SimpleNamespace(results=[["facebook", 24, None, 0, 0, 0]])
             assert scan(team).total_events_with_utm == 12
             assert query.call_count == 1
-            assert scan(team, refresh=True).total_events_with_utm == 24
+            assert scan(team, refresh=True).total_events_with_utm == 12
+            assert query.call_count == 1
+            with time_machine.travel(timezone.now() + timedelta(hours=1, seconds=1)):
+                assert scan(team, refresh=True).total_events_with_utm == 24
             assert query.call_count == 2
             assert scan(other_team).total_events_with_utm == 24
             assert query.call_count == 3

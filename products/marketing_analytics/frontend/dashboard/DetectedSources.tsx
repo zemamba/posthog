@@ -12,9 +12,9 @@ import { nativeSourceDisplayLabel } from 'scenes/web-analytics/tabs/marketing-an
 import { detectedSourcesLogic } from './detectedSourcesLogic'
 import { SourceSetupPanel } from './SourceSetupPanel'
 
-export function DetectedSources(): JSX.Element | null {
-    const { visibleSuggestions, setupPlan, setupPlanLoading } = useValues(setupPlanLogic)
-    const { loadSetupPlan } = useActions(setupPlanLogic)
+export function DetectedSources({ compact = false }: { compact?: boolean }): JSX.Element | null {
+    const { visibleSuggestions, setupPlan, setupPlanLoading, sourceScanDisabledReason } = useValues(setupPlanLogic)
+    const { rescanSources } = useActions(setupPlanLogic)
     const { currentTeamId } = useValues(teamLogic)
     const { dismissedSourceIds, showIntegrations } = useValues(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
     const { dismissSource, setShowIntegrations } = useActions(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
@@ -75,6 +75,7 @@ export function DetectedSources(): JSX.Element | null {
     }
     return (
         <SourceSetupPanel
+            compact={compact}
             state={
                 connections.length
                     ? 'waiting'
@@ -88,7 +89,9 @@ export function DetectedSources(): JSX.Element | null {
             }
             suggestions={sources}
             connections={connections}
-            onRetry={() => loadSetupPlan()}
+            onRetry={rescanSources}
+            rescanLoading={setupPlanLoading}
+            rescanDisabledReason={sourceScanDisabledReason}
             onDismiss={dismissSource}
             footer={
                 <>

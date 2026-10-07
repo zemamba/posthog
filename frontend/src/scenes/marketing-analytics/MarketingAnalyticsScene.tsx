@@ -119,7 +119,10 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
         loadSources()
     }, [loadSources])
 
-    const hasConfiguredSources = nativeSources.length > 0 || validExternalTables.length > 0
+    const hasSearchConsole =
+        !!featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] &&
+        !!dataWarehouseSources?.results.some((source) => source.source_type === 'GoogleSearchConsole')
+    const hasConfiguredSources = nativeSources.length > 0 || validExternalTables.length > 0 || hasSearchConsole
 
     useEffect(() => {
         if (!isAdPerformance && !loading && hasConfiguredSources && showOnboarding) {
@@ -167,7 +170,7 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
             )}
             <LegacyOAuthReconnectBanner />
             {hasSyncedMarketingSources && <MarketingAnalyticsSourceStatusBanner />}
-            <DetectedSources />
+            <DetectedSources compact={hasSearchConsole && !hasSyncedMarketingSources} />
             {hasSources && hasSyncedMarketingSources && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
                     {marketingTiles?.map((tile, i) => (
@@ -181,10 +184,14 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
 
 const MarketingAnalyticsContent = (): JSX.Element => {
     const { featureFlags } = useValues(featureFlagLogic)
-    const { activeTab, hasSyncedMarketingSources } = useValues(marketingAnalyticsLogic)
+    const { activeTab, hasSyncedMarketingSources, dataWarehouseSources } = useValues(marketingAnalyticsLogic)
     const { setActiveTab, setSetupSection } = useActions(marketingAnalyticsLogic)
     const { integrationSettingsModal } = useValues(marketingAnalyticsSettingsLogic)
     const { closeIntegrationSettingsModal } = useActions(marketingAnalyticsSettingsLogic)
+
+    const hasSearchConsole =
+        !!featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] &&
+        !!dataWarehouseSources?.results.some((source) => source.source_type === 'GoogleSearchConsole')
 
     // The redesigned dashboard replaces the current one under the same "Dashboard" tab when its flag is
     // on, so the eventual cutover is just flipping the flag — no tab rename, no extra tab key to strand.
@@ -196,6 +203,11 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                 <>
                     {hasSyncedMarketingSources && <MarketingAnalyticsFilters tabs={<></>} />}
                     <MarketingAnalyticsDashboard />
+                    {hasSearchConsole && (
+                        <div className="mt-8">
+                            <SearchPerformanceTab showSourceSuggestions={hasSyncedMarketingSources} />
+                        </div>
+                    )}
                 </>
             )}
             {/* Both dashboards carry the campaign breakdown, whose mapping menus open this modal, so it
@@ -247,7 +259,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                               <MarketingAnalyticsDashboard />
                               {featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] && (
                                   <div className="mt-8">
-                                      <SearchPerformanceTab />
+                                      <SearchPerformanceTab showSourceSuggestions={hasSyncedMarketingSources} />
                                   </div>
                               )}
                               {integrationSettingsModal.integration && (

@@ -21,8 +21,8 @@ export function Onboarding({ completeOnboarding }: { completeOnboarding: () => v
     const { addProductIntent } = useActions(teamLogic)
     const { currentTeamId } = useValues(teamLogic)
     useValues(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
-    const { setupPlan, setupPlanLoading, visibleSuggestions } = useValues(setupPlanLogic)
-    const { loadSetupPlan } = useActions(setupPlanLogic)
+    const { setupPlan, setupPlanLoading, visibleSuggestions, sourceScanDisabledReason } = useValues(setupPlanLogic)
+    const { rescanSources } = useActions(setupPlanLogic)
     const { showManualSources } = useValues(marketingOnboardingLogic)
     const { setShowManualSources } = useActions(marketingOnboardingLogic)
     const { hasSources } = useValues(marketingAnalyticsLogic)
@@ -60,7 +60,9 @@ export function Onboarding({ completeOnboarding }: { completeOnboarding: () => v
                     )}
                     onManual={() => setShowManualSources(true)}
                     onContinue={handleComplete}
-                    onRescan={() => loadSetupPlan({ refresh: true })}
+                    onRescan={rescanSources}
+                    rescanLoading={setupPlanLoading}
+                    rescanDisabledReason={sourceScanDisabledReason}
                 />
             )}
         </div>
