@@ -17,6 +17,16 @@ import { Breadcrumb } from '~/types'
 
 import type { FeatureFlagsSet } from '../../../frontend/src/lib/logic/featureFlagLogic'
 import {
+    AgentNotes,
+    AgentSearch,
+    ExperimentLogFilter,
+    ExperimentLogGroup,
+    SearchPoint,
+    buildAgentSearch,
+    experimentLogGroups,
+    latestAgentNotes,
+} from './agentSearch'
+import {
     autoresearchModelsList,
     autoresearchPauseCreate,
     autoresearchResumeCreate,
@@ -73,6 +83,13 @@ export function pipelineTabFromUrl(value: unknown): AutoresearchPipelineTab | nu
 
 /** How often the Score now button checks a running scoring run. */
 export const SCORE_RUN_POLL_INTERVAL_MS = 5000
+
+/** How often the Agent research tab reloads training runs while one is pending or running. */
+export const TRAINING_RUN_POLL_INTERVAL_MS = 10000
+
+function isTrainingRunLive(run: AutoresearchTrainingRunApi): boolean {
+    return run.status === 'pending' || run.status === 'running'
+}
 
 /** Matches the backend cutoff: a run still running after the workflow timeout lost its worker. */
 export const SCORE_RUN_STALE_AFTER_MS = 5 * 60 * 60 * 1000
@@ -269,6 +286,8 @@ export interface autoresearchPipelineLogicValues {
     currentTeamId: number | null // teamLogic
     activeScoreRun: AutoresearchRunApi | null
     activeTab: AutoresearchPipelineTab
+    agentNotes: AgentNotes | null
+    agentSearch: AgentSearch
     artifactsByRun: Record<string, string[]>
     artifactsByRunLoading: boolean
     breadcrumbs: Breadcrumb[]
@@ -278,9 +297,13 @@ export interface autoresearchPipelineLogicValues {
     dailyVolumeLoading: boolean
     defaultTab: AutoresearchPipelineTab
     detailRequested: boolean
+    expandedLogRunIds: string[]
     expandedRunId: string | null
     lifecycleSteps: LifecycleStep[] | null
     modelByTrainingRun: Record<string, AutoresearchModelApi>
+    experimentLogFilter: ExperimentLogFilter
+    experimentLogGroups: ExperimentLogGroup[]
+    hasLiveTrainingRun: boolean
     models: AutoresearchModelApi[]
     modelsError: boolean
     modelsLoaded: boolean
@@ -534,6 +557,9 @@ export interface autoresearchPipelineLogicActions {
     pollScoreRun: () => {
         value: true
     }
+    pollTrainingRuns: () => {
+        value: true
+    }
     reportNotebookOpened: (runId: string) => {
         runId: string
     }
@@ -567,11 +593,17 @@ export interface autoresearchPipelineLogicActions {
         scoreResult: AutoresearchRunApi | null
         payload?: any
     }
+    searchPointClicked: (point: SearchPoint) => {
+        point: SearchPoint
+    }
     scoreRunFinished: (run: AutoresearchRunApi) => {
         run: AutoresearchRunApi
     }
     setActiveScoreRun: (run: AutoresearchRunApi | null) => {
         run: AutoresearchRunApi | null
+    }
+    setExperimentLogFilter: (filter: ExperimentLogFilter) => {
+        filter: ExperimentLogFilter
     }
     setActiveTab: (tab: AutoresearchPipelineTab) => {
         tab: AutoresearchPipelineTab
@@ -589,6 +621,9 @@ export interface autoresearchPipelineLogicActions {
         tab: AutoresearchPipelineTab | null
     }
     startScorePolling: () => {
+        value: true
+    }
+    startTrainingPolling: () => {
         value: true
     }
     startTraining: () => any
@@ -620,6 +655,9 @@ export interface autoresearchPipelineLogicActions {
     ) => {
         suggestionSubmitResult: AutoresearchSuggestionApi | null
         payload?: any
+    }
+    toggleLogRun: (runId: string) => {
+        runId: string
     }
     toggleRunArtifacts: (runId: string) => {
         runId: string
@@ -718,6 +756,11 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
         startScorePolling: true,
         pollScoreRun: true,
         scoreRunFinished: (run: AutoresearchRunApi) => ({ run }),
+        startTrainingPolling: true,
+        pollTrainingRuns: true,
+        setExperimentLogFilter: (filter: ExperimentLogFilter) => ({ filter }),
+        toggleLogRun: (runId: string) => ({ runId }),
+        searchPointClicked: (point: SearchPoint) => ({ point }),
     }),
     reducers({
         detailRequested: [
@@ -752,6 +795,21 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
             null as string | null,
             {
                 toggleRunArtifacts: (current, { runId }) => (current === runId ? null : runId),
+            },
+        ],
+        experimentLogFilter: [
+            'all' as ExperimentLogFilter,
+            {
+                setExperimentLogFilter: (_, { filter }) => filter,
+            },
+        ],
+        expandedLogRunIds: [
+            [] as string[],
+            {
+                toggleLogRun: (current, { runId }) =>
+                    current.includes(runId) ? current.filter((id) => id !== runId) : [...current, runId],
+                searchPointClicked: (current, { point }) =>
+                    current.includes(point.runId) ? current : [...current, point.runId],
             },
         ],
         suggestionDraft: [
@@ -1158,6 +1216,27 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
                 }))
             },
         ],
+        hasLiveTrainingRun: [
+            (s) => [s.trainingRuns],
+            (trainingRuns: AutoresearchTrainingRunApi[]): boolean => trainingRuns.some(isTrainingRunLive),
+        ],
+        agentSearch: [
+            (s) => [s.trainingRuns, s.champion],
+            (trainingRuns: AutoresearchTrainingRunApi[], champion: AutoresearchModelApi | null): AgentSearch =>
+                buildAgentSearch(trainingRuns, champion),
+        ],
+        experimentLogGroups: [
+            (s) => [s.trainingRuns, s.agentSearch, s.experimentLogFilter],
+            (
+                trainingRuns: AutoresearchTrainingRunApi[],
+                agentSearch: AgentSearch,
+                experimentLogFilter: ExperimentLogFilter
+            ): ExperimentLogGroup[] => experimentLogGroups(trainingRuns, agentSearch, experimentLogFilter),
+        ],
+        agentNotes: [
+            (s) => [s.trainingRuns],
+            (trainingRuns: AutoresearchTrainingRunApi[]): AgentNotes | null => latestAgentNotes(trainingRuns),
+        ],
         defaultTab: [
             (s) => [s.pipeline],
             (pipeline: AutoresearchPipelineApi | null): AutoresearchPipelineTab =>
@@ -1327,8 +1406,48 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
                 )
             }
         },
-        submitSuggestionSuccess: () => {
-            posthog.capture('autoresearch model suggestion sent', { pipeline_id: props.id })
+        loadTrainingRunsSuccess: ({ trainingRuns }) => {
+            if (trainingRuns.some(isTrainingRunLive)) {
+                actions.startTrainingPolling()
+            } else if (cache.disposables.registry.has('trainingPoll')) {
+                // The run finished, so the champion and the pipeline counters may have changed.
+                cache.disposables.dispose('trainingPoll')
+                actions.loadModels()
+                actions.loadPipeline()
+            }
+        },
+        startTrainingPolling: () => {
+            if (cache.disposables.registry.has('trainingPoll')) {
+                return
+            }
+            cache.disposables.add(() => {
+                const timer = window.setInterval(() => actions.pollTrainingRuns(), TRAINING_RUN_POLL_INTERVAL_MS)
+                return () => clearInterval(timer)
+            }, 'trainingPoll')
+        },
+        pollTrainingRuns: () => {
+            if (!values.trainingRunsLoading) {
+                actions.loadTrainingRuns()
+            }
+        },
+        setExperimentLogFilter: ({ filter }) => {
+            // pinned: analytics event name and properties. Renaming breaks insights built on them.
+            posthog.capture('autoresearch model experiment log filter changed', { pipeline_id: props.id, filter })
+        },
+        searchPointClicked: ({ point }) => {
+            // pinned: analytics event name and properties. Renaming breaks insights built on them.
+            posthog.capture('autoresearch model search point clicked', {
+                pipeline_id: props.id,
+                run_id: point.runId,
+                iteration_number: point.iterationNumber,
+                status: point.status,
+            })
+        },
+        submitSuggestionSuccess: ({ suggestionSubmitResult }) => {
+            posthog.capture('autoresearch model suggestion sent', {
+                pipeline_id: props.id,
+                priority: suggestionSubmitResult?.priority ?? values.suggestionPriority,
+            })
             actions.loadSuggestions()
             lemonToast.success('Suggestion sent. The agent will pick it up on its next run.')
         },
