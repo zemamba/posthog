@@ -111,7 +111,6 @@ BrowserUse fail:stall-budget
 Browserbase fail:stall-budget
 Bugherd fail:stall-budget
 Bugsnag fail:rate-limit-budget,safe-point,stall-budget
-BuildBetter fail:rate-limit-budget
 Buildkite fail:stall-budget
 Bunny fail:stall-budget
 Buttondown fail:stall-budget
