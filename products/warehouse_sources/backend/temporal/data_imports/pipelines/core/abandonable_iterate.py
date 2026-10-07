@@ -59,6 +59,10 @@ class _ThreadedSource(Generic[T]):
         self._stopped.set()
         self._requests.put(None)
 
+    async def wait_until_stopped(self) -> None:
+        if self._thread is not None:
+            await asyncio.to_thread(self._thread.join)
+
     def _serve(self) -> None:
         try:
             while True:
@@ -158,11 +162,13 @@ class AbandonableSourcePuller(Generic[T]):
         """Ask for the next item. Call it again only after the future of the last call is done."""
         return self._source.pull()
 
-    def stop(self) -> None:
-        """Stop reading the source, and do not wait for it.
+    async def stop(self, *, abandon: bool = False) -> None:
+        """Stop reading the source.
 
-        The result of a pull in progress is dropped. A sync source closes its iterator on its own
-        thread when the call in progress returns, and the thread then ends. An async source gets a
-        cancellation.
+        A sync source normally finishes its current pull before returning, preserving the worker's
+        bound on live source calls. Worker-shutdown preemption can instead abandon that pull. An
+        async source gets a cancellation.
         """
         self._source.stop()
+        if not abandon and isinstance(self._source, _ThreadedSource):
+            await self._source.wait_until_stopped()

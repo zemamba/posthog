@@ -2714,7 +2714,7 @@ export namespace Schemas {
       end_time?: string | null;
       /** If the query failed, this will be set to true. More information can be found in the error_message field. */
       error?: boolean | null;
-      /** Stable machine-readable code for the error (the DRF exception code), when known. */
+      /** Stable machine-readable code for the error, when known: the DRF exception code, or the ClickHouse error name. */
       error_code?: string | null;
       error_message?: string | null;
       expiration_time?: string | null;
@@ -10703,6 +10703,21 @@ export namespace Schemas {
       key: string;
     }
 
+    export interface BITopN {
+      /** @minimum 1 */
+      count: number;
+      fieldId: string;
+      includeOther: boolean;
+      /** @minimum 0 */
+      measureIndex: number;
+    }
+
+    export interface BITotals {
+      columns?: boolean | null;
+      rows?: boolean | null;
+      subtotals?: boolean | null;
+    }
+
     export type BIAggregation = typeof BIAggregation[keyof typeof BIAggregation];
 
 
@@ -10716,11 +10731,32 @@ export namespace Schemas {
       Custom: 'custom',
     } as const;
 
+    export type BITableCalculationType = typeof BITableCalculationType[keyof typeof BITableCalculationType];
+
+
+    export const BITableCalculationType = {
+      PercentOfTotal: 'percent_of_total',
+      RunningTotal: 'running_total',
+      Difference: 'difference',
+      PercentChange: 'percent_change',
+      MovingAverage: 'moving_average',
+      Rank: 'rank',
+    } as const;
+
+    export interface BITableCalculation {
+      /** Dimension ID to traverse. Unset chooses the date dimension; 'table' traverses all dimensions. */
+      computeUsing?: string | null;
+      type: BITableCalculationType;
+      /** Number of points, including the current point, in a trailing moving average. */
+      window?: number | null;
+    }
+
     export interface BIValue {
       aggregation: BIAggregation;
       customExpression?: string | null;
       field: BIField;
       label?: string | null;
+      tableCalculation?: BITableCalculation | null;
     }
 
     export interface BIConfig {
@@ -10736,6 +10772,8 @@ export namespace Schemas {
       /** null sorts automatically: newest date or highest value first, so top rows survive the LIMIT. */
       sort?: BISort | null;
       source?: BIDataSource | null;
+      topN?: BITopN | null;
+      totals?: BITotals | null;
       values: BIValue[];
     }
 
@@ -30969,6 +31007,7 @@ export namespace Schemas {
      * * `Ledyer` - Ledyer
      * * `Supermetrics` - Supermetrics
      * * `SQLite` - SQLite
+     * * `Modal` - Modal
      */
     export type ExternalDataSourceTypeEnum = typeof ExternalDataSourceTypeEnum[keyof typeof ExternalDataSourceTypeEnum];
 
@@ -32338,6 +32377,7 @@ export namespace Schemas {
       Ledyer: 'Ledyer',
       Supermetrics: 'Supermetrics',
       SQLite: 'SQLite',
+      Modal: 'Modal',
     } as const;
 
     /**
@@ -33720,7 +33760,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       source_type: ExternalDataSourceTypeEnum;
     }
 
@@ -36351,7 +36392,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       readonly source_type: ExternalDataSourceTypeEnum;
       /** Human-readable name to show in the picker (falls back to the source type). */
       readonly label: string;
@@ -47616,7 +47658,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       readonly source_type: ExternalDataSourceTypeEnum;
       /** 'direct' for pure live-query sources; 'warehouse' for synced sources with direct query enabled.
        *
@@ -49019,7 +49062,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       source_type: ExternalDataSourceTypeEnum;
       /** Connection credentials. Keys depend on source_type. Add a 'schemas' array to pick which tables sync; omit it and every discovered table syncs with default settings. */
       payload: ExternalDataSourceCreatePayload;
@@ -63059,6 +63103,8 @@ export namespace Schemas {
       success: boolean;
       /** Failure category for MCP analytics. */
       error_type?: MCPToolResponseErrorType;
+      /** Machine-readable name of the leaf failure for MCP analytics, such as a ClickHouse error name. */
+      error_code?: string | null;
     }
 
     /**
@@ -66566,6 +66612,11 @@ export namespace Schemas {
       readonly created_at: string;
       readonly updated_at: string;
       readonly membership_level: OrganizationMembershipLevelEnum;
+      /**
+         * When the requesting user joined this organization. Null if the user is not a member.
+         * @nullable
+         */
+      readonly membership_joined_at: string | null;
       readonly plugins_access_level: OrganizationPluginsAccessLevelEnum;
       readonly teams: readonly OrganizationTeamsItem[];
       readonly projects: readonly OrganizationProjectsItem[];
@@ -71150,6 +71201,8 @@ export namespace Schemas {
       lifts: ReportRankingLifts;
       /** Heads whose holdout AUC the training run could read. Treat scores of other heads with caution. */
       readable_heads: string[];
+      /** True when the report's title or summary was edited after the text this score read. The score describes the old text: the inbox hides its lift and the model sort treats the report as unscored. */
+      stale: boolean;
     }
 
     export interface SignalReportList {
@@ -79547,6 +79600,11 @@ export namespace Schemas {
       readonly created_at?: string;
       readonly updated_at?: string;
       readonly membership_level?: OrganizationMembershipLevelEnum;
+      /**
+         * When the requesting user joined this organization. Null if the user is not a member.
+         * @nullable
+         */
+      readonly membership_joined_at?: string | null;
       readonly plugins_access_level?: OrganizationPluginsAccessLevelEnum;
       readonly teams?: readonly PatchedOrganizationTeamsItem[];
       readonly projects?: readonly PatchedOrganizationProjectsItem[];
@@ -98990,7 +99048,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       source_type: ExternalDataSourceTypeEnum;
       /** Connection details as flat keys for the source_type — the same fields the create flow accepts (host, port, password, API key, …). Checked against a live connection before being stored. */
       payload: SourceCredentialCreatePayload;
@@ -100409,7 +100468,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       source_type: ExternalDataSourceTypeEnum;
       /** Source config as flat keys. For source_type 'Custom': 'manifest_json' (a stringified RESTAPIConfig describing client.base_url, auth, and resources) plus the credential for the manifest's declared auth type — 'auth_token' (bearer), 'auth_api_key' (api_key), or 'auth_password' (http_basic). Secrets stay in these auth_* keys, never inline in the manifest. */
       payload?: SourcePreviewRequestPayload;
@@ -101810,7 +101870,8 @@ export namespace Schemas {
        * * `GoogleBusinessProfile` - GoogleBusinessProfile
        * * `Ledyer` - Ledyer
        * * `Supermetrics` - Supermetrics
-       * * `SQLite` - SQLite */
+       * * `SQLite` - SQLite
+       * * `Modal` - Modal */
       source_type: ExternalDataSourceTypeEnum;
       /** Connection details as flat keys for the source_type (discover required fields with the wizard tool). Prefer references over raw secrets: pass {'credential_id': <id>} referencing the connection details the user stored via the connect-link page (discover ids with the stored_credentials endpoint) — they are merged in server-side and deleted once consumed. An already-connected OAuth integration can be passed via its id key instead (e.g. {'hubspot_integration_id': 123}). For source_type 'Custom' (a user-defined REST API) the keys are 'manifest_json' (a stringified RESTAPIConfig describing client.base_url, auth, and resources) plus the credential for the auth type the manifest declares — 'auth_token' (bearer), 'auth_api_key' (api_key), or 'auth_password' (http_basic); keep secrets in these auth_* keys, never inline in the manifest. A 'schemas' array is NOT required — all discovered tables are enabled automatically with sensible sync defaults. */
       payload?: SourceSetupPayload;

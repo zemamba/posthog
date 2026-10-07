@@ -100,6 +100,7 @@ class SourcePreemptor:
         """
         puller: AbandonableSourcePuller[T] = AbandonableSourcePuller(items)
         shutdown_wait = asyncio.ensure_future(self._shutdown_monitor.wait_for_worker_shutdown())
+        abandon = False
         try:
             while True:
                 pull = puller.pull()
@@ -109,9 +110,12 @@ class SourcePreemptor:
                     return
                 assert item is not None
                 yield item
+        except SourcePreemptedError:
+            abandon = True
+            raise
         finally:
             shutdown_wait.cancel()
-            puller.stop()
+            await puller.stop(abandon=abandon)
 
     async def _wait_for_item_or_preempt(
         self, pull: "asyncio.Future[PulledItem[T]]", shutdown_wait: "asyncio.Future[None]"

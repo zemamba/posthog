@@ -24,7 +24,7 @@ async def test_the_source_thread_keeps_one_copy_of_the_callers_context():
     puller = AbandonableSourcePuller(source())
     seen = [(await puller.pull())[1] for _ in range(3)]
     has_more, _ = await puller.pull()
-    puller.stop()
+    await puller.stop()
 
     assert seen == ["outer", "inner", "inner"]
     assert has_more is False
@@ -32,7 +32,7 @@ async def test_the_source_thread_keeps_one_copy_of_the_callers_context():
 
 
 @pytest.mark.asyncio
-async def test_a_stopped_sync_source_closes_on_its_own_daemon_thread_and_drops_the_item():
+async def test_stopping_a_sync_source_waits_for_its_pull_and_closes_on_the_daemon_thread():
     release = threading.Event()
     blocked = threading.Event()
     closed = threading.Event()
@@ -51,8 +51,12 @@ async def test_a_stopped_sync_source_closes_on_its_own_daemon_thread_and_drops_t
     pull = puller.pull()
     await asyncio.to_thread(blocked.wait, 5)
 
-    puller.stop()
+    stopping = asyncio.create_task(puller.stop())
+    await asyncio.sleep(0)
+    assert not stopping.done()
+
     release.set()
+    await stopping
 
     assert await asyncio.to_thread(closed.wait, 5)
     await asyncio.to_thread(thread[0].join, 5)
@@ -79,7 +83,7 @@ async def test_a_stopped_async_source_gets_a_cancellation():
     pull = puller.pull()
     await started.wait()
 
-    puller.stop()
+    await puller.stop()
     await asyncio.wait({pull})
 
     assert outcome == ["cancelled"]
