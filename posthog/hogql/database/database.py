@@ -2641,7 +2641,10 @@ class Database(BaseModel):
         def define_mappings(
             root_node: TableNode,
             get_table: Callable[[Any], Union[DataWarehouseTable, DataWarehouseSavedQuery]],
+            join_fallback_name: str | None = None,
         ) -> TableNode:
+            """`join_fallback_name` is the other name the same model answers to, tried after the
+            modifier's own name when a join is looked up. A join is configured against one name."""
             table: Table | None = None
 
             if root_node.has_child([warehouse_modifier.table_name]):
@@ -2722,12 +2725,15 @@ class Database(BaseModel):
             # the table has no `person_id`, derive it from the events join if one exists, else fall
             # back to the configured distinct_id_field.
             if "person_id" not in table.fields.keys():
+                join_names = [warehouse_modifier.table_name]
+                if join_fallback_name is not None and join_fallback_name != warehouse_modifier.table_name:
+                    join_names.append(join_fallback_name)
                 events_join = next(
                     (
                         join
+                        for join_name in join_names
                         for join in sources.data_warehouse_joins
-                        if join.source_table_name == warehouse_modifier.table_name
-                        and join.joining_table_name == "events"
+                        if join.source_table_name == join_name and join.joining_table_name == "events"
                     ),
                     None,
                 )
@@ -2798,7 +2804,11 @@ class Database(BaseModel):
                         # Apply mappings to every matching namespace. A saved query and a warehouse table can share a
                         # name, and the final database may resolve that name to the table even if a view exists too.
                         views = define_mappings(views, _saved_query_model_for)
-                        models_namespace = define_mappings(models_namespace, _models_alias_saved_query_model_for)
+                        models_namespace = define_mappings(
+                            models_namespace,
+                            _models_alias_saved_query_model_for,
+                            join_fallback_name=warehouse_modifier.table_name.removeprefix("models."),
+                        )
                         warehouse_tables = define_mappings(warehouse_tables, _warehouse_table_model_for)
                         self_managed_warehouse_tables = define_mappings(
                             self_managed_warehouse_tables, _self_managed_table_model_for
