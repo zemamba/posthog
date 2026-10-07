@@ -3,7 +3,7 @@
  * MCP service uses these Zod schemas for generated tool handlers.
  * To regenerate: hogli build:openapi
  *
- * PostHog API - MCP 12 enabled ops
+ * PostHog API - MCP 13 enabled ops
  * OpenAPI spec version: 1.0.0
  */
 import * as zod from 'zod'
@@ -389,6 +389,41 @@ export const CloudAgentsRunsCancelCreateParams = () => zod.object({
         .string()
         .describe(
             "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+/**
+ * By default, the response is one JSON object with the stored events of all agent sessions. To follow a live run, send `Accept: text/event-stream`. The response is then a Server-Sent Events stream of the current agent session. Its first frame is `event: run` with the ID, the status and the stop reason of the run. `Last-Event-ID` and `start=latest` apply to the stream only. To resume after a disconnect, send the `id` of the last event in the `Last-Event-ID` header.
+ *
+ * **SDK consumers**: a generated fetch wrapper buffers the stream. Use the JSON default through it, and read the stream with a streaming `fetch` or an `EventSource` client.
+ * @summary Read the events of a run
+ */
+export const CloudAgentsRunsEventsRetrieveParams = () => zod.object({
+    id: zod.string(),
+    project_id: zod
+        .string()
+        .describe(
+            "Project ID of the project you're trying to access. To find the ID of the project, make a call to \/api\/projects\/."
+        ),
+})
+
+export const CloudAgentsRunsEventsRetrieveQueryParams = () => zod.object({
+    format: zod
+        .enum(['json'])
+        .optional()
+        .describe('`json` returns the stored events as one JSON object. This is the default.'),
+    start: zod
+        .enum(['latest'])
+        .optional()
+        .describe('Applies to the stream only: `latest` skips the stored events and sends only new events.'),
+})
+
+export const CloudAgentsRunsEventsRetrieveHeader = () => zod.object({
+    'Last-Event-ID': zod
+        .string()
+        .optional()
+        .describe(
+            'Applies to the stream only: the `id` of the last event that you received. The stream sends the events after it.'
         ),
 })
 

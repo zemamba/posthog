@@ -2732,6 +2732,22 @@
         "feature_flag": "cloud-agents",
         "feature_flag_behavior": "enable"
     },
+    "cloud-agents-run-events": {
+        "description": "Get the stored events of a run as JSON, oldest first, across all its agent sessions. Each event is one message of the agent protocol with the time it was recorded: prompts, agent text, tool calls and their results. Use it to see what the agent did or why a run failed. The response can be very large for a long run, so use cloud-agents-run-get when you need only the status, the result or the cost. `truncated` is true when the log was too large to return in full.",
+        "category": "Cloud agents",
+        "feature": "cloud_agents",
+        "summary": "Get cloud agent run events",
+        "title": "Get cloud agent run events",
+        "required_scopes": ["cloud_agent:read"],
+        "annotations": {
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": true,
+            "readOnlyHint": true
+        },
+        "feature_flag": "cloud-agents",
+        "feature_flag_behavior": "enable"
+    },
     "cloud-agents-run-get": {
         "description": "Get one run by ID: its status, stop reason, error, configuration, pull request URLs, summary and cost. Use it to poll a run after cloud-agents-run-create. `queued` and `running` are active. `completed`, `failed` and `cancelled` mean the run stopped, and `stop_reason` says why. `result.pr_url` is the pull request and `result.summary` is the agent's own summary. `cost.final` is false while the cost can still change. Poll every 15 to 30 seconds, not faster.",
         "category": "Cloud agents",

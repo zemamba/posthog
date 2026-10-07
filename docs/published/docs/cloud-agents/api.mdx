@@ -236,8 +236,12 @@ Read the run every 15 to 30 seconds until the status is `completed`, `failed` or
 
 ### Read the stored events as JSON
 
+The events endpoint returns JSON by default.
+A request with no `Accept` header, `Accept: */*` or `Accept: application/json` gets the stored events.
+You can also add `?format=json`.
+
 ```bash
-curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/events/?format=json" \
+curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/events/" \
   --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
 ```
 
@@ -256,7 +260,7 @@ The response then has the earliest agent sessions that fit.
 
 ### Stream events
 
-Without `?format=json` and with no `Accept: application/json` header, the same endpoint is a Server-Sent Events stream of the current agent session:
+To follow a live run, send `Accept: text/event-stream`. The same endpoint is then a Server-Sent Events stream of the current agent session:
 
 ```bash
 curl --no-buffer "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/runs/$RUN_ID/events/" \
@@ -271,6 +275,7 @@ event: run
 data: {"id": "0199c1f4-6b1e-7a43-9c55-2f0c8f3a1d27", "status": "running", "stop_reason": null}
 ```
 
+`Last-Event-ID` and `?start=latest` apply to the stream only.
 To resume after a disconnect, send the `id` of the last event that you received in the `Last-Event-ID` header.
 The stream then sends the events after it.
 Add `?start=latest` to skip the stored events and get only new ones.
@@ -752,6 +757,7 @@ They are available when Cloud agents is enabled for your organization.
 | `cloud-agents-run-create`     | `cloud_agent:write` | Start a run. This starts a billed sandbox.                   |
 | `cloud-agents-run-list`       | `cloud_agent:read`  | List runs, newest first, with filters.                       |
 | `cloud-agents-run-get`        | `cloud_agent:read`  | Get one run with its status, result and cost.                |
+| `cloud-agents-run-events`     | `cloud_agent:read`  | Get the stored events of one run as JSON.                    |
 | `cloud-agents-run-message`    | `cloud_agent:write` | Send a follow-up message, or resume a run that stopped.      |
 | `cloud-agents-run-cancel`     | `cloud_agent:write` | Ask a run to stop.                                           |
 | `cloud-agents-run-usage`      | `cloud_agent:read`  | Get the cost of one run with each sandbox that it used.      |

@@ -283,6 +283,29 @@ const cloudAgentsRunCreate = (): ToolBase<
     },
 })
 
+const CloudAgentsRunEventsSchema = () => {
+    const CloudAgentsRunsEventsRetrieveParams = orvalSchemas.CloudAgentsRunsEventsRetrieveParams()
+    return CloudAgentsRunsEventsRetrieveParams.omit({ project_id: true }).extend({
+        id: CloudAgentsRunsEventsRetrieveParams.shape['id'].describe('ID of the run (a UUID).'),
+    })
+}
+
+const cloudAgentsRunEvents = (): ToolBase<
+    ReturnType<typeof CloudAgentsRunEventsSchema>,
+    Schemas.CloudAgentRunEvents
+> => ({
+    name: 'cloud-agents-run-events',
+    schema: CloudAgentsRunEventsSchema(),
+    handler: async (context: Context, params: z.infer<ReturnType<typeof CloudAgentsRunEventsSchema>>) => {
+        const projectId = await context.stateManager.getProjectId()
+        const result = await context.api.request<Schemas.CloudAgentRunEvents>({
+            method: 'GET',
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/cloud_agents/runs/${encodeURIComponent(String(params.id))}/events/`,
+        })
+        return result
+    },
+})
+
 const CloudAgentsRunGetSchema = () => {
     const CloudAgentsRunsRetrieveParams = orvalSchemas.CloudAgentsRunsRetrieveParams()
     return CloudAgentsRunsRetrieveParams.omit({ project_id: true }).extend({
@@ -460,6 +483,7 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'cloud-agents-profile-list': cloudAgentsProfileList,
     'cloud-agents-run-cancel': cloudAgentsRunCancel,
     'cloud-agents-run-create': cloudAgentsRunCreate,
+    'cloud-agents-run-events': cloudAgentsRunEvents,
     'cloud-agents-run-get': cloudAgentsRunGet,
     'cloud-agents-run-list': cloudAgentsRunList,
     'cloud-agents-run-message': cloudAgentsRunMessage,

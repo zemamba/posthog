@@ -218,13 +218,13 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
     @extend_schema(
         summary="Read the events of a run",
         description=(
-            "With `Accept: text/event-stream`, which is the default, the response is a Server-Sent Events "
+            "By default, the response is one JSON object with the stored events of all agent sessions. "
+            "To follow a live run, send `Accept: text/event-stream`. The response is then a Server-Sent Events "
             "stream of the current agent session. Its first frame is `event: run` with the ID, the status and "
-            "the stop reason of the run. To resume after a disconnect, send the `id` of the last event in the "
-            "`Last-Event-ID` header. With `Accept: application/json` or `?format=json`, the response is one "
-            "JSON object with the stored events of all agent sessions.\n\n"
-            "**SDK consumers**: a generated fetch wrapper buffers the stream. Request JSON through it, and "
-            "read the stream with a streaming `fetch` or an `EventSource` client."
+            "the stop reason of the run. `Last-Event-ID` and `start=latest` apply to the stream only. To resume "
+            "after a disconnect, send the `id` of the last event in the `Last-Event-ID` header.\n\n"
+            "**SDK consumers**: a generated fetch wrapper buffers the stream. Use the JSON default through it, "
+            "and read the stream with a streaming `fetch` or an `EventSource` client."
         ),
         parameters=[
             OpenApiParameter(
@@ -233,7 +233,7 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
                 enum=["json"],
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="`json` returns the stored events as one JSON object, whatever the `Accept` header is.",
+                description="`json` returns the stored events as one JSON object. This is the default.",
             ),
             OpenApiParameter(
                 name="start",
@@ -241,7 +241,7 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
                 enum=["latest"],
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="For the event stream: `latest` skips the stored events and sends only new events.",
+                description="Applies to the stream only: `latest` skips the stored events and sends only new events.",
             ),
             OpenApiParameter(
                 name="Last-Event-ID",
@@ -249,7 +249,7 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
                 location=OpenApiParameter.HEADER,
                 required=False,
                 description=(
-                    "For the event stream: the `id` of the last event that you received. The stream sends "
+                    "Applies to the stream only: the `id` of the last event that you received. The stream sends "
                     "the events after it."
                 ),
             ),
@@ -259,7 +259,7 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
             (200, "text/event-stream"): OpenApiTypes.STR,
         },
     )
-    @action(methods=["GET"], detail=True, renderer_classes=[RunEventStreamRenderer, SafeJSONRenderer])
+    @action(methods=["GET"], detail=True, renderer_classes=[SafeJSONRenderer, RunEventStreamRenderer])
     def events(self, request: Request, pk: str, **kwargs: Any) -> HttpResponseBase:
         run_id = _run_id(pk)
         if isinstance(request.accepted_renderer, SafeJSONRenderer):

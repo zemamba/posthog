@@ -116729,11 +116729,11 @@ export namespace Schemas {
 
     export type CloudAgentsRunsEventsRetrieveParams = {
     /**
-     * `json` returns the stored events as one JSON object, whatever the `Accept` header is.
+     * `json` returns the stored events as one JSON object. This is the default.
      */
     format?: CloudAgentsRunsEventsRetrieveFormat;
     /**
-     * For the event stream: `latest` skips the stored events and sends only new events.
+     * Applies to the stream only: `latest` skips the stored events and sends only new events.
      */
     start?: CloudAgentsRunsEventsRetrieveStart;
     };

@@ -312,9 +312,9 @@ export const getCloudAgentsRunsEventsRetrieveUrl = (
 }
 
 /**
- * With `Accept: text/event-stream`, which is the default, the response is a Server-Sent Events stream of the current agent session. Its first frame is `event: run` with the ID, the status and the stop reason of the run. To resume after a disconnect, send the `id` of the last event in the `Last-Event-ID` header. With `Accept: application/json` or `?format=json`, the response is one JSON object with the stored events of all agent sessions.
+ * By default, the response is one JSON object with the stored events of all agent sessions. To follow a live run, send `Accept: text/event-stream`. The response is then a Server-Sent Events stream of the current agent session. Its first frame is `event: run` with the ID, the status and the stop reason of the run. `Last-Event-ID` and `start=latest` apply to the stream only. To resume after a disconnect, send the `id` of the last event in the `Last-Event-ID` header.
  *
- * **SDK consumers**: a generated fetch wrapper buffers the stream. Request JSON through it, and read the stream with a streaming `fetch` or an `EventSource` client.
+ * **SDK consumers**: a generated fetch wrapper buffers the stream. Use the JSON default through it, and read the stream with a streaming `fetch` or an `EventSource` client.
  * @summary Read the events of a run
  */
 export const cloudAgentsRunsEventsRetrieve = async (

@@ -187,11 +187,7 @@ tools:
         feature_flag_behavior: enable
     cloud-agents-run-events:
         operation: cloud_agents_runs_events_retrieve
-        enabled: false
-        disabled_reason: >
-            The endpoint answers a request that has no Accept header with a live event stream, and a generated tool
-            can send neither that header nor the `format` query parameter, so the call would not return. Enable it when
-            the tool can request JSON.
+        enabled: true
         scopes:
             - cloud_agent:read
         annotations:
@@ -210,6 +206,7 @@ tools:
                 description: ID of the run (a UUID).
         exclude_params:
             - start
+            - format
         feature_flag: cloud-agents
         feature_flag_behavior: enable
     cloud-agents-run-get:

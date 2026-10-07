@@ -490,13 +490,31 @@ class TestReadRuns(RunsAPITestCase):
         history = dict(zip([run.current_task_run_id, second.id], history_by_session))
         self.mocks["runs.read_task_run_history"].side_effect = lambda run_id, *args, **kwargs: history[run_id]
 
-        response = self.client.get(self.runs_url(f"{run.id}/events/?format=json"))
+        response = self.client.get(self.runs_url(f"{run.id}/events/"))
 
         assert response.status_code == status.HTTP_200_OK, response.content
         assert response.json() == {"events": events, "truncated": truncated}
         # The newest session is read first, because its history holds the sessions before it.
         assert self.mocks["runs.read_task_run_history"].call_args_list[0].args[0] == second.id
         assert self.mocks["runs.read_task_run_history"].call_count == reads
+
+    @parameterized.expand(
+        [
+            ("no_accept_header", "", {}),
+            ("accept_any", "", {"HTTP_ACCEPT": "*/*"}),
+            ("accept_json", "", {"HTTP_ACCEPT": "application/json"}),
+            ("format_json", "?format=json", {}),
+        ]
+    )
+    def test_events_default_to_json(self, _name: str, query: str, headers: dict[str, str]) -> None:
+        run = self.make_run(task_status="completed")
+        self.mocks["runs.read_task_run_history"].return_value = [{"n": 1}]
+
+        response = self.client.get(self.runs_url(f"{run.id}/events/{query}"), **headers)
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert response["Content-Type"].startswith("application/json")
+        assert response.json() == {"events": [{"n": 1}], "truncated": False}
 
     def test_events_stream_sends_the_run_frame_then_the_tasks_stream(self) -> None:
         run = self.make_run(task_status="in_progress", status="running")

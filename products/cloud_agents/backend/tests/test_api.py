@@ -42,7 +42,7 @@ ROUTES: list[tuple[str, str, str, bool, dict[str, Any] | None]] = [
     ("runs_messages", "post", "runs/{run}/messages/", True, {"content": "Also fix the lint"}),
     ("runs_cancel", "post", "runs/{run}/cancel/", True, None),
     ("runs_usage", "get", "runs/{run}/usage/", False, None),
-    ("runs_events", "get", "runs/{run}/events/?format=json", False, None),
+    ("runs_events", "get", "runs/{run}/events/", False, None),
     ("catalog", "get", "catalog/", False, None),
     ("estimate", "get", "estimate/?size=4x16&minutes=15", False, None),
     ("usage", "get", "usage/", False, None),
