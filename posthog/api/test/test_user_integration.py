@@ -1830,3 +1830,230 @@ class TestUserIntegrationCodexEndpoints(APIBaseTest):
             == status.HTTP_403_FORBIDDEN
         )
         assert UserIntegration.objects.filter(user=self.user, kind="codex").exists()
+
+
+INFERENCE_CREDENTIALS_URL = "/api/users/@me/integrations/inference_credentials/"
+FAKE_ANTHROPIC_KEY = "sk-ant-api03-not-a-real-key-0001"
+FAKE_OPENAI_KEY = "sk-proj-not-a-real-key-000000002"
+FAKE_CLAUDE_TOKEN = "sk-ant-oat01-not-a-real-token-0003"
+
+
+class TestUserIntegrationInferenceCredentialEndpoints(APIBaseTest):
+    def setUp(self) -> None:
+        super().setUp()
+        flag = patch(
+            "posthog.models.integration.inference_credentials.posthoganalytics.feature_enabled", return_value=True
+        )
+        self.flag_enabled = flag.start()
+        self.addCleanup(flag.stop)
+        cache.clear()
+
+    def _sandbox_client(self) -> APIClient:
+        application = OAuthApplication.objects.create(
+            name="Task sandbox",
+            client_id=ARRAY_APP_CLIENT_ID_DEV,
+            client_type=OAuthApplication.CLIENT_PUBLIC,
+            authorization_grant_type=OAuthApplication.GRANT_AUTHORIZATION_CODE,
+            algorithm="RS256",
+            redirect_uris="https://example.com/callback",
+            organization=self.organization,
+            user=self.user,
+        )
+        token = OAuthAccessToken.objects.create(
+            user=self.user,
+            application=application,
+            token=f"pha_sandbox_{uuid.uuid4().hex}",
+            expires=timezone.now() + timedelta(hours=1),
+            scope="user:read user:write",
+            sandbox_task_id=uuid.uuid4(),
+        )
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.token}")
+        return client
+
+    def _provider_response(self, status_code: int) -> requests.Response:
+        response = requests.Response()
+        response.status_code = status_code
+        response._content = b"{}"
+        return response
+
+    def _connect(self, kind: str, secret: str, *, client: APIClient | None = None) -> Any:
+        with patch("requests.request", return_value=self._provider_response(200)):
+            return (client or self.client).post(
+                INFERENCE_CREDENTIALS_URL, {"kind": kind, "secret": secret}, format="json"
+            )
+
+    def _stored_secret(self, kind: str, user: User | None = None) -> str | None:
+        row = UserIntegration.objects.filter(user=user or self.user, kind=kind).first()
+        return row.sensitive_config["secret"] if row is not None else None
+
+    def test_connect_then_list_shows_the_suffix_and_never_the_secret(self):
+        response = self._connect("anthropic_api_key", FAKE_ANTHROPIC_KEY)
+
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        expected_keys = {"kind", "provider", "credential_type", "key_suffix", "created_at", "last_used_at"}
+        assert set(response.json()) == expected_keys
+        assert self._connect("openai_api_key", FAKE_OPENAI_KEY).status_code == status.HTTP_201_CREATED
+
+        listed = self.client.get(INFERENCE_CREDENTIALS_URL)
+
+        assert listed.status_code == status.HTTP_200_OK
+        results = listed.json()["results"]
+        assert [(item["kind"], item["provider"], item["credential_type"], item["key_suffix"]) for item in results] == [
+            ("anthropic_api_key", "anthropic", "api_key", "0001"),
+            ("openai_api_key", "openai", "api_key", "0002"),
+        ]
+        assert all(set(item) == expected_keys for item in results)
+        integration_id = UserIntegration.objects.get(user=self.user, kind="anthropic_api_key").integration_id
+        for body in (response.content.decode(), listed.content.decode()):
+            assert FAKE_ANTHROPIC_KEY not in body
+            assert FAKE_OPENAI_KEY not in body
+            assert integration_id not in body
+        assert self._stored_secret("anthropic_api_key") == FAKE_ANTHROPIC_KEY
+
+    def test_connect_twice_keeps_one_credential_per_kind(self):
+        self._connect("openai_api_key", "sk-proj-not-a-real-key-first-one")
+        self._connect("openai_api_key", FAKE_OPENAI_KEY)
+
+        assert UserIntegration.objects.filter(user=self.user, kind="openai_api_key").count() == 1
+        assert self._stored_secret("openai_api_key") == FAKE_OPENAI_KEY
+        assert [item["key_suffix"] for item in self.client.get(INFERENCE_CREDENTIALS_URL).json()["results"]] == ["0002"]
+
+    @parameterized.expand(
+        [
+            ("rejected_by_provider", 401, None, status.HTTP_400_BAD_REQUEST),
+            ("refused_by_provider", 403, None, status.HTTP_400_BAD_REQUEST),
+            ("provider_error", 500, None, status.HTTP_502_BAD_GATEWAY),
+            ("provider_unreachable", None, requests.ConnectionError("refused"), status.HTTP_502_BAD_GATEWAY),
+            ("provider_timeout", None, requests.Timeout("slow"), status.HTTP_502_BAD_GATEWAY),
+        ]
+    )
+    def test_connect_stores_nothing_when_the_provider_does_not_confirm_the_key(
+        self, _name, provider_status, error, expected_status
+    ):
+        outcome = error if error is not None else self._provider_response(provider_status)
+
+        with patch("requests.request", side_effect=[outcome]):
+            response = self.client.post(
+                INFERENCE_CREDENTIALS_URL, {"kind": "openai_api_key", "secret": FAKE_OPENAI_KEY}, format="json"
+            )
+
+        assert response.status_code == expected_status, response.content
+        assert FAKE_OPENAI_KEY not in response.content.decode()
+        assert not UserIntegration.objects.filter(user=self.user, kind="openai_api_key").exists()
+
+    @parameterized.expand(
+        [
+            ("subscription_token_as_anthropic_key", "anthropic_api_key", FAKE_CLAUDE_TOKEN),
+            ("anthropic_key_as_subscription", "claude_subscription", FAKE_ANTHROPIC_KEY),
+            ("anthropic_key_as_openai_key", "openai_api_key", FAKE_ANTHROPIC_KEY),
+            ("unknown_kind", "gemini_api_key", FAKE_OPENAI_KEY),
+        ]
+    )
+    def test_connect_rejects_a_secret_that_does_not_fit_its_kind(self, _name, kind, secret):
+        with patch("requests.request") as request:
+            response = self.client.post(INFERENCE_CREDENTIALS_URL, {"kind": kind, "secret": secret}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        assert secret not in response.content.decode()
+        request.assert_not_called()
+        assert not UserIntegration.objects.filter(user=self.user).exists()
+
+    @parameterized.expand([("flag_off", False, None), ("flag_check_failed", None, RuntimeError("down"))])
+    def test_subscription_token_is_refused_without_the_flag(self, _name, enabled, error):
+        self.flag_enabled.return_value = enabled
+        self.flag_enabled.side_effect = error
+
+        response = self._connect("claude_subscription", FAKE_CLAUDE_TOKEN)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN, response.content
+        assert not UserIntegration.objects.filter(user=self.user, kind="claude_subscription").exists()
+        assert self._connect("anthropic_api_key", FAKE_ANTHROPIC_KEY).status_code == status.HTTP_201_CREATED
+
+    def test_subscription_token_is_stored_without_a_provider_call_when_the_flag_is_on(self):
+        with patch("requests.request") as request:
+            response = self.client.post(
+                INFERENCE_CREDENTIALS_URL, {"kind": "claude_subscription", "secret": FAKE_CLAUDE_TOKEN}, format="json"
+            )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        request.assert_not_called()
+        assert response.json()["credential_type"] == "subscription"
+        assert self._stored_secret("claude_subscription") == FAKE_CLAUDE_TOKEN
+
+    def test_delete_removes_only_the_named_kind_and_is_idempotent(self):
+        self._connect("anthropic_api_key", FAKE_ANTHROPIC_KEY)
+        self._connect("openai_api_key", FAKE_OPENAI_KEY)
+
+        for _ in range(2):
+            response = self.client.delete(f"{INFERENCE_CREDENTIALS_URL}anthropic_api_key/")
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        assert self._stored_secret("anthropic_api_key") is None
+        assert self._stored_secret("openai_api_key") == FAKE_OPENAI_KEY
+        assert self.client.delete(f"{INFERENCE_CREDENTIALS_URL}gemini_api_key/").status_code == (
+            status.HTTP_404_NOT_FOUND
+        )
+
+    @parameterized.expand(
+        [
+            ("list", "get", INFERENCE_CREDENTIALS_URL),
+            ("connect", "post", INFERENCE_CREDENTIALS_URL),
+            ("delete", "delete", f"{INFERENCE_CREDENTIALS_URL}openai_api_key/"),
+        ]
+    )
+    def test_sandbox_token_cannot_read_or_change_credentials(self, _name, method, url):
+        self._connect("openai_api_key", FAKE_OPENAI_KEY)
+
+        with patch("requests.request") as request:
+            response = getattr(self._sandbox_client(), method)(
+                url, {"kind": "openai_api_key", "secret": "sk-proj-not-a-real-key-attacker1"}, format="json"
+            )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN, response.content
+        assert "key_suffix" not in response.content.decode()
+        request.assert_not_called()
+        assert self._stored_secret("openai_api_key") == FAKE_OPENAI_KEY
+
+    @parameterized.expand([("member", False), ("staff", True)])
+    def test_another_user_cannot_read_replace_or_delete_the_credential(self, _name, is_staff):
+        self._connect("openai_api_key", FAKE_OPENAI_KEY)
+        other = User.objects.create_and_join(self.organization, "other@example.com", None)
+        other.is_staff = is_staff
+        other.save()
+        self.client.force_login(other)
+        owner_url = f"/api/users/{self.user.uuid}/integrations/inference_credentials/"
+
+        assert self.client.get(INFERENCE_CREDENTIALS_URL).json() == {"results": []}
+        assert self.client.get(owner_url).status_code == status.HTTP_403_FORBIDDEN
+        assert self.client.delete(f"{owner_url}openai_api_key/").status_code == status.HTTP_403_FORBIDDEN
+        with patch("requests.request", return_value=self._provider_response(200)):
+            replaced = self.client.post(
+                owner_url, {"kind": "openai_api_key", "secret": "sk-proj-not-a-real-key-attacker1"}, format="json"
+            )
+        assert replaced.status_code == status.HTTP_403_FORBIDDEN
+        assert self.client.delete(f"{INFERENCE_CREDENTIALS_URL}openai_api_key/").status_code == (
+            status.HTTP_204_NO_CONTENT
+        )
+        assert self._stored_secret("openai_api_key") == FAKE_OPENAI_KEY
+
+    @parameterized.expand(
+        [
+            ("write_scope", ["user:write"], status.HTTP_201_CREATED, status.HTTP_200_OK, status.HTTP_204_NO_CONTENT),
+            ("read_scope", ["user:read"], status.HTTP_403_FORBIDDEN, status.HTTP_200_OK, status.HTTP_403_FORBIDDEN),
+            (
+                "unrelated_scope",
+                ["insight:read"],
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_403_FORBIDDEN,
+            ),
+        ]
+    )
+    def test_personal_api_key_needs_the_user_scope(self, _name, scopes, connect_status, list_status, delete_status):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.create_personal_api_key_with_scopes(scopes)}")
+
+        assert self._connect("openai_api_key", FAKE_OPENAI_KEY, client=client).status_code == connect_status
+        assert client.get(INFERENCE_CREDENTIALS_URL).status_code == list_status
+        assert client.delete(f"{INFERENCE_CREDENTIALS_URL}openai_api_key/").status_code == delete_status

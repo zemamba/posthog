@@ -451,6 +451,12 @@ class CodexConnectUserThrottle(UserRateThrottle):
     rate = "10/hour"
 
 
+# Each save of an API key sends one request to the provider, so an unbounded caller could use the route to test keys.
+class InferenceCredentialConnectUserThrottle(UserRateThrottle):
+    scope = "inference_credential_connect_user"
+    rate = "30/hour"
+
+
 # Each internal feedback post lands in a shared Slack channel, so cap it per user.
 class InternalFeedbackUserThrottle(UserRateThrottle):
     scope = "internal_feedback_user"
