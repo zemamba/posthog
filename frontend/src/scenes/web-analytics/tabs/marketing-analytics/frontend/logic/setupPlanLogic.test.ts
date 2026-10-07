@@ -389,7 +389,7 @@ describe('setupPlanLogic', () => {
         await expectLogic(logic, () => logic.actions.loadSetupPlan()).toFinishAllListeners()
         await expectLogic(logic, () => logic.actions.loadSetupPlan({ refresh: true })).toFinishAllListeners()
 
-        expect(urls[0]).not.toContain('refresh')
+        expect(new URL(urls[0]).searchParams.get('refresh')).toBe('false')
         expect(urls[1]).toContain('refresh=true')
     })
 

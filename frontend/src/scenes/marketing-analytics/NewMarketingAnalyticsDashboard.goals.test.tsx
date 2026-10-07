@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import {
     marketingAnalyticsLogic,
     MarketingAnalyticsTab,
@@ -57,6 +58,8 @@ describe('Dashboard goal suggestions', () => {
             },
         })
         initKeaTests()
+        const unmountOnboarding = marketingOnboardingLogic.mount()
+        marketingOnboardingLogic.actions.completeOnboarding()
         localStorage.removeItem('marketing-goal-suggestions-expanded')
         const unmountMarketing = marketingAnalyticsLogic.mount()
         const unmountSetup = setupPlanLogic.mount()
@@ -92,6 +95,8 @@ describe('Dashboard goal suggestions', () => {
             cleanup()
             setupPlanLogic.actions.restoreAllDismissed()
             localStorage.removeItem('marketing-goal-suggestions-expanded')
+            unmountOnboarding()
+            localStorage.removeItem('marketing-analytics-onboarding-completed')
             unmountSetup()
             unmountMarketing()
         }

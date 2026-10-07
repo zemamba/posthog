@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
+import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import {
     marketingAnalyticsLogic,
     MarketingAnalyticsTab,
@@ -49,6 +50,8 @@ it('reuses source suggestions, remembers collapse and opens their review in Setu
         },
     })
     initKeaTests()
+    const unmountOnboarding = marketingOnboardingLogic.mount()
+    marketingOnboardingLogic.actions.completeOnboarding()
     localStorage.removeItem('marketing-source-suggestions-expanded')
     const unmountMarketing = marketingAnalyticsLogic.mount()
     const unmountSetup = setupPlanLogic.mount()
@@ -59,7 +62,9 @@ it('reuses source suggestions, remembers collapse and opens their review in Setu
             screen.getByText('Suggested ad sources (1)').closest('[aria-expanded]')?.getAttribute('aria-expanded')
         ).toBe('false')
         fireEvent.click(screen.getByText('Suggested ad sources (1)'))
-        await screen.findByText('Connect Google Ads')
+        await within(screen.getByText('Suggested ad sources (1)').closest('.LemonCollapse')!).findByText(
+            'Connect Google Ads'
+        )
         fireEvent.click(screen.getByText('Suggested ad sources (1)'))
         expect(localStorage.getItem('marketing-source-suggestions-expanded')).toBe('false')
         view.unmount()
@@ -68,16 +73,20 @@ it('reuses source suggestions, remembers collapse and opens their review in Setu
             screen.getByText('Suggested ad sources (1)').closest('[aria-expanded]')?.getAttribute('aria-expanded')
         ).toBe('false')
         fireEvent.click(screen.getByText('Suggested ad sources (1)'))
-        fireEvent.click(screen.getByText('Connect', { exact: true }))
+        fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
         await waitFor(() => expect(marketingAnalyticsLogic.values.activeTab).toBe(MarketingAnalyticsTab.SETUP))
         expect(marketingAnalyticsLogic.values.setupSection).toBe(SetupSection.SOURCES)
         expect(setupPlanLogic.values.reviewingSuggestion?.id).toBe('connect_source:GoogleAds')
-        fireEvent.click(screen.getByText('Dismiss'))
+        fireEvent.click(
+            within(screen.getByText('Suggested ad sources (1)').closest('.LemonCollapse')!).getByText('Dismiss')
+        )
         await waitFor(() => expect(screen.queryByText('Suggested ad sources (1)')).toBeNull())
     } finally {
         cleanup()
         setupPlanLogic.actions.restoreAllDismissed()
         localStorage.removeItem('marketing-source-suggestions-expanded')
+        unmountOnboarding()
+        localStorage.removeItem('marketing-analytics-onboarding-completed')
         unmountSetup()
         unmountMarketing()
     }
