@@ -4,7 +4,6 @@ import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/
 import {
     marketingAnalyticsLogic,
     MarketingAnalyticsTab,
-    SetupSection,
 } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import { setupPlanLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
@@ -12,6 +11,8 @@ import { useMocks } from '~/mocks/jest'
 import { initKeaTests } from '~/test/init'
 
 import { NewMarketingAnalyticsDashboard } from 'products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard'
+
+jest.mock('products/data_warehouse/frontend/shared/components/SourceIcon', () => ({ SourceIcon: () => null }))
 
 jest.mock('~/queries/Query/Query', () => ({ Query: () => null }))
 jest.mock('scenes/web-analytics/tabs/marketing-analytics/frontend/components/AttributionTab/AttributionTable', () => ({
@@ -21,7 +22,7 @@ jest.mock('scenes/web-analytics/tabs/marketing-analytics/frontend/components/Att
     AttributionTab: () => null,
 }))
 
-it('keeps suggestions visible without data and opens their review in Setup', async () => {
+it('keeps suggestions visible and browses integrations in place', async () => {
     useMocks({
         get: {
             '/api/projects/:team_id/marketing_analytics/setup_plan': () => [
@@ -62,9 +63,13 @@ it('keeps suggestions visible without data and opens their review in Setup', asy
         view.unmount()
         render(<NewMarketingAnalyticsDashboard />)
         expect(screen.getByText('Google Ads')).not.toBeNull()
-        fireEvent.click(screen.getByText('Review in setup'))
-        await waitFor(() => expect(marketingAnalyticsLogic.values.activeTab).toBe(MarketingAnalyticsTab.SETUP))
-        expect(marketingAnalyticsLogic.values.setupSection).toBe(SetupSection.SOURCES)
+        fireEvent.click(screen.getByText('Browse integrations'))
+        await screen.findByText('Connect your marketing sources')
+        expect(screen.queryByText('Google Search Console')).toBeNull()
+        expect(marketingAnalyticsLogic.values.activeTab).toBe(MarketingAnalyticsTab.DASHBOARD)
+        fireEvent.click(screen.getByText('Back to suggestions'))
+        expect(screen.getByText('Google Ads')).not.toBeNull()
+        expect(screen.queryByText('Review in setup')).toBeNull()
         fireEvent.click(screen.getByText('Dismiss'))
         await waitFor(() => expect(screen.queryByText('Google Ads')).toBeNull())
     } finally {

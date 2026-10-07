@@ -1,12 +1,17 @@
+import { useValues } from 'kea'
 import type { ReactNode } from 'react'
 
 import { IconCheckCircle, IconInfo } from '@posthog/icons'
 import { LemonButton, LemonCard, LemonCollapse, LemonTag, Spinner } from '@posthog/lemon-ui'
 
+import { FEATURE_FLAGS } from 'lib/constants'
+import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { urls } from 'scenes/urls'
 import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
+
+import { SearchConsoleSource } from './SearchConsoleSource'
 
 export interface SourceSetupPanelProps {
     state: 'checking' | 'scanning' | 'suggestions' | 'empty' | 'error' | 'waiting'
@@ -31,6 +36,7 @@ export function SourceSetupPanel({
     onRetry,
     onDismiss,
 }: SourceSetupPanelProps): JSX.Element {
+    const { featureFlags } = useValues(featureFlagLogic)
     const busy = state === 'checking' || state === 'scanning'
     const title =
         state === 'checking'
@@ -58,7 +64,7 @@ export function SourceSetupPanel({
                     : `We found campaign tracking from ${suggestions.length} ${suggestions.length === 1 ? 'platform' : 'platforms'} in your recent events.`
 
     return (
-        <LemonCard hoverEffect={false} className="max-w-3xl w-full mt-6 !p-0 overflow-hidden">
+        <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6 !p-0 overflow-hidden">
             <div className="p-6 space-y-5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-secondary text-xs font-semibold">Marketing sources</span>
@@ -73,6 +79,20 @@ export function SourceSetupPanel({
                         <p className="text-secondary mb-0 max-w-xl">{description}</p>
                     </div>
                 </div>
+                {!busy && (
+                    <div className="space-y-1">
+                        <strong className="text-sm">Your marketing data in one place</strong>
+                        <p className="text-secondary text-sm mb-0">
+                            Compare campaign performance across your marketing sources. Use PostHog events as conversion
+                            goals to measure conversion costs and ROAS.
+                        </p>
+                        {featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] && (
+                            <p className="text-secondary text-sm mb-0">
+                                Compare paid keywords and organic search queries to optimize your search ads.
+                            </p>
+                        )}
+                    </div>
+                )}
                 {connections.length > 0 && (
                     <div className="divide-y border-t">
                         {connections.map((connection) => (
@@ -170,6 +190,7 @@ export function SourceSetupPanel({
                     </div>
                 )}
             </div>
+            {!busy && <SearchConsoleSource />}
             {footer && (
                 <div className="border-t p-4 flex flex-wrap items-center justify-between gap-3 bg-bg-light">
                     {footer}

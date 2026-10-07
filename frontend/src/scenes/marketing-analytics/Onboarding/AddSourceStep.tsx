@@ -11,6 +11,7 @@ import { urls } from 'scenes/urls'
 import { ProductIntentContext, ProductKey } from '~/queries/schema/schema-general'
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
+import { SearchConsoleSource } from 'products/marketing_analytics/frontend/dashboard/SearchConsoleSource'
 
 import { marketingAnalyticsLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import {
@@ -94,7 +95,7 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
     const totalConnected = validNativeSources.length + validExternalTables.length
 
     return (
-        <LemonCard hoverEffect={false} className="max-w-3xl mt-6">
+        <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6">
             <div className="space-y-3">
                 {onBack && (
                     <LemonButton type="tertiary" onClick={onBack}>
@@ -173,6 +174,8 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
                         </div>
                     </div>
                 )}
+
+                <SearchConsoleSource search={manualSourceSearch} />
 
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 border-t border-primary">

@@ -7,8 +7,9 @@ type DetectedSourcesProps = { teamId: number }
 
 export const detectedSourcesLogic = kea<
     MakeLogicType<
-        { notificationDismissed: boolean; dismissedSourceIds: string[] },
+        { notificationDismissed: boolean; dismissedSourceIds: string[]; showIntegrations: boolean },
         {
+            setShowIntegrations: (show: boolean) => { show: boolean }
             dismiss: () => { value: true }
             expand: () => { value: true }
             dismissSource: (id: string) => { id: string }
@@ -19,8 +20,14 @@ export const detectedSourcesLogic = kea<
     props({} as DetectedSourcesProps),
     key((props) => props.teamId),
     path((key) => ['products', 'marketingAnalytics', 'detectedSources', key]),
-    actions({ dismiss: true, expand: true, dismissSource: (id: string) => ({ id }) }),
+    actions({
+        setShowIntegrations: (show: boolean) => ({ show }),
+        dismiss: true,
+        expand: true,
+        dismissSource: (id: string) => ({ id }),
+    }),
     reducers(({ props }) => ({
+        showIntegrations: [false, { setShowIntegrations: (_, { show }) => show }],
         dismissedSourceIds: [
             [] as string[],
             { persist: true, prefix: `${props.teamId}__` },

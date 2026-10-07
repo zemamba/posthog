@@ -70,3 +70,11 @@ Detected platforms show concise evidence with expandable details.
 Configured connections show their first-sync status beside pending platforms.
 The manual catalog supports search and returning to suggestions.
 The current dashboard shows metric filters only once marketing data is available; beta feedback is available in the scene header.
+
+Source setup panels are centered within the scene.
+**Browse integrations** opens the searchable catalog in place; **Back to suggestions** restores the pending connections without another scan.
+When `marketing-analytics-organic-keywords` enables Search performance, setup and the manual catalog show Google Search Console as an optional organic-search connection, separate from detected ad platforms.
+
+The source setup panel explains how connections centralize campaign performance and how conversion goals based on PostHog events measure conversion costs and return on ad spend.
+When Search performance is enabled, it also explains paid-keyword and organic-query analysis for optimizing search ads.
+Pending-source cards offer the source connection buttons and **Browse integrations**; they do not redirect users to Setup to review the same suggestions.

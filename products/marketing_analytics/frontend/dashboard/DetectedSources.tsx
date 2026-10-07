@@ -2,11 +2,10 @@ import { useActions, useValues } from 'kea'
 
 import { LemonButton } from '@posthog/lemon-ui'
 
+import { AddSourceStep } from 'scenes/marketing-analytics/Onboarding/AddSourceStep'
+import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import { teamLogic } from 'scenes/teamLogic'
-import {
-    SetupSection,
-    marketingAnalyticsLogic,
-} from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
+import { marketingAnalyticsLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import { setupPlanLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 import { nativeSourceDisplayLabel } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/utils'
 
@@ -17,11 +16,11 @@ export function DetectedSources(): JSX.Element | null {
     const { visibleSuggestions, setupPlan, setupPlanLoading } = useValues(setupPlanLogic)
     const { loadSetupPlan } = useActions(setupPlanLogic)
     const { currentTeamId } = useValues(teamLogic)
-    const { dismissedSourceIds } = useValues(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
-    const { dismissSource } = useActions(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
+    const { dismissedSourceIds, showIntegrations } = useValues(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
+    const { dismissSource, setShowIntegrations } = useActions(detectedSourcesLogic({ teamId: currentTeamId ?? 0 }))
     const { allAvailableSourcesWithStatus, nativeSources, hasSyncedMarketingSources, loading } =
         useValues(marketingAnalyticsLogic)
-    const { openSetup } = useActions(marketingAnalyticsLogic)
+    const { setManualSourceSearch } = useActions(marketingOnboardingLogic)
     const sources = visibleSuggestions.filter(
         (suggestion) =>
             suggestion.kind === 'connect_source' &&
@@ -46,7 +45,19 @@ export function DetectedSources(): JSX.Element | null {
                   ? 'The import failed. Open setup to check this connection.'
                   : 'Waiting for the first sync to finish.',
     }))
-    const openSources = (): void => openSetup(SetupSection.SOURCES, 'dashboard_source_suggestions')
+    const openIntegrations = (): void => {
+        setManualSourceSearch('')
+        setShowIntegrations(true)
+    }
+    if (showIntegrations) {
+        return (
+            <AddSourceStep
+                hasSources={connections.length > 0 || hasSyncedMarketingSources}
+                onContinue={() => setShowIntegrations(false)}
+                onBack={() => setShowIntegrations(false)}
+            />
+        )
+    }
     if (hasSyncedMarketingSources && !sources.length) {
         return null
     }
@@ -56,8 +67,8 @@ export function DetectedSources(): JSX.Element | null {
                 <span className="text-secondary text-sm">
                     {sources.length} suggested {sources.length === 1 ? 'connection' : 'connections'}
                 </span>
-                <LemonButton size="small" onClick={openSources}>
-                    Review in setup
+                <LemonButton size="small" onClick={openIntegrations}>
+                    Browse integrations
                 </LemonButton>
             </div>
         )
@@ -83,16 +94,11 @@ export function DetectedSources(): JSX.Element | null {
                 <>
                     <LemonButton
                         type={sources.length || connections.length ? 'secondary' : 'primary'}
-                        onClick={openSources}
+                        onClick={openIntegrations}
                         data-attr="marketing-dashboard-connect-source"
                     >
                         Browse integrations
                     </LemonButton>
-                    {sources.length > 0 && (
-                        <LemonButton type="tertiary" onClick={openSources}>
-                            Review in setup
-                        </LemonButton>
-                    )}
                 </>
             }
         />

@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react'
 
 import { LemonButton } from '@posthog/lemon-ui'
 
+import { FEATURE_FLAGS } from 'lib/constants'
+
 import { mswDecorator } from '~/mocks/browser'
 
 import { SourceSetupPanel } from './SourceSetupPanel'
@@ -18,6 +20,7 @@ const meta: Meta<typeof SourceSetupPanel> = {
                     {
                         GoogleAds: { iconPath: '/static/services/google-ads.png' },
                         MetaAds: { iconPath: '/static/services/meta-ads.png' },
+                        GoogleSearchConsole: { iconPath: '/static/services/google-search-console.svg' },
                     },
                 ],
             },
@@ -101,4 +104,9 @@ export const Narrow: Story = {
             </div>
         ),
     ],
+}
+
+export const DetectedPlatformsWithSearchConsole: Story = {
+    args: DetectedPlatforms.args,
+    parameters: { featureFlags: [FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] },
 }

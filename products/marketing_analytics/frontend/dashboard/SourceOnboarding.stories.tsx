@@ -75,6 +75,7 @@ const meta: Meta = {
                     {
                         GoogleAds: { iconPath: '/static/services/google-ads.png' },
                         MetaAds: { iconPath: '/static/services/meta-ads.png' },
+                        GoogleSearchConsole: { iconPath: '/static/services/google-search-console.svg' },
                         LinkedinAds: { iconPath: '/static/services/linkedin.png' },
                         TikTokAds: { iconPath: '/static/services/tiktok.png' },
                         RedditAds: { iconPath: '/static/services/reddit.png' },
@@ -379,4 +380,16 @@ AdPerformanceDataAvailable.play = async ({ canvasElement }: { canvasElement: HTM
     await expect(canvas.findByText('1 suggested connection')).resolves.toBeVisible()
     await expect(canvas.findByText('Total clicks')).resolves.toBeVisible()
     expect(canvas.queryByText('Checking your connections')).not.toBeInTheDocument()
+}
+
+export function ManualSelectionWithSearchConsole(): JSX.Element {
+    return <AddSourceStep onContinue={() => {}} onBack={() => {}} hasSources={false} />
+}
+ManualSelectionWithSearchConsole.parameters = {
+    featureFlags: [FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS, FEATURE_FLAGS.MARKETING_ANALYTICS_SETUP],
+}
+ManualSelectionWithSearchConsole.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText('Google Search Console')).resolves.toBeVisible()
+    expect(canvas.getByText('Also available: organic search')).toBeVisible()
 }
