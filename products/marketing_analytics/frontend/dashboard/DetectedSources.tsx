@@ -17,6 +17,7 @@ import { detectedSourcesLogic } from './detectedSourcesLogic'
 
 export function DetectedSources(): JSX.Element | null {
     const { visibleSuggestions, setupPlan, setupPlanLoading } = useValues(setupPlanLogic)
+    const { loadSetupPlan } = useActions(setupPlanLogic)
     const { currentTeamId } = useValues(teamLogic)
     const logic = detectedSourcesLogic({ teamId: currentTeamId ?? 0 })
     const { notificationDismissed, dismissedSourceIds } = useValues(logic)
@@ -31,7 +32,7 @@ export function DetectedSources(): JSX.Element | null {
             !allAvailableSourcesWithStatus.some((source) => source.source_type === suggestion.apply?.kind) &&
             !dismissedSourceIds.includes(suggestion.id)
     )
-    if (setupPlanLoading) {
+    if (setupPlanLoading && !setupPlan) {
         return (
             <LemonBanner type="info">
                 <span className="flex items-center gap-2">
@@ -43,26 +44,57 @@ export function DetectedSources(): JSX.Element | null {
     }
     if (!setupPlan && !loading) {
         return (
-            <LemonBanner type="warning">
-                Could not scan events. Open setup to choose a source or scan again.
-            </LemonBanner>
+            <LemonCard hoverEffect={false} className="mt-4">
+                <div className="max-w-2xl py-6">
+                    <h2>Connect your ad platforms</h2>
+                    <p className="text-secondary">
+                        We could not check your events for marketing sources. Try again or choose a source manually.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        <LemonButton
+                            type="primary"
+                            onClick={() => openSetup(SetupSection.SOURCES, 'dashboard_source_suggestions')}
+                            data-attr="marketing-dashboard-connect-source"
+                        >
+                            Connect a source
+                        </LemonButton>
+                        <LemonButton
+                            onClick={() => loadSetupPlan()}
+                            loading={setupPlanLoading}
+                            data-attr="marketing-dashboard-retry-scan"
+                        >
+                            Try again
+                        </LemonButton>
+                    </div>
+                </div>
+            </LemonCard>
         )
     }
-    if (!loading && !sources.length && !allAvailableSourcesWithStatus.length && !nativeSources.length) {
+    if (setupPlan && !sources.length && !allAvailableSourcesWithStatus.length && !nativeSources.length) {
         return (
-            <LemonBanner
-                type="info"
-                action={{
-                    children: 'Connect a source',
-                    onClick: () => openSetup(SetupSection.SOURCES, 'dashboard_source_suggestions'),
-                }}
-            >
-                Connect a marketing source to see spend and ad performance. Data will appear after the first sync
-                finishes.
-            </LemonBanner>
+            <LemonCard hoverEffect={false} className="mt-4">
+                <div className="max-w-2xl py-6">
+                    <h2>Connect your ad platforms</h2>
+                    <p className="text-secondary">
+                        Connect a marketing source to see spend and ad performance. Data will appear after the first
+                        sync finishes.
+                    </p>
+                    <p className="text-secondary">
+                        No ad platforms were detected in your events from the last 7 days. Choose a source to connect in
+                        setup.
+                    </p>
+                    <LemonButton
+                        type="primary"
+                        onClick={() => openSetup(SetupSection.SOURCES, 'dashboard_source_suggestions')}
+                        data-attr="marketing-dashboard-connect-source"
+                    >
+                        Connect a source
+                    </LemonButton>
+                </div>
+            </LemonCard>
         )
     }
-    if (loading || !sources.length) {
+    if (!sources.length) {
         return null
     }
     return (

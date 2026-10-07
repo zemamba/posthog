@@ -61,3 +61,6 @@ The scan message states its seven-day detection window.
 
 On the current dashboard, spend and ad performance tiles stay hidden until a source supplies data.
 The connection notice or detected-source suggestions explain what needs to be connected.
+
+Source health refreshes on window focus without replacing the resolved dashboard or cached event suggestions with a loading screen.
+The initial source check uses a compact loading state; projects without sources show a connection card instead of empty metric placeholders.

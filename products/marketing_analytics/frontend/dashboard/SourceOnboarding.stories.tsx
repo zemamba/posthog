@@ -9,6 +9,7 @@ import { AddSourceStep } from 'scenes/marketing-analytics/Onboarding/AddSourceSt
 import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import { Onboarding } from 'scenes/marketing-analytics/Onboarding/Onboarding'
 import { urls } from 'scenes/urls'
+import { marketingAnalyticsLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
 import { mswDecorator, useStorybookMocks } from '~/mocks/browser'
@@ -136,10 +137,11 @@ SkipDuringScan.play = async ({ canvasElement }: { canvasElement: HTMLElement }):
     expect(canvas.queryByText('Scanning events from the last 7 days')).not.toBeInTheDocument()
 }
 
-function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = []): void {
+function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = [], scanFailed = false): void {
     useStorybookMocks({
         get: {
-            '/api/projects/:team_id/marketing_analytics/setup_plan/': () => [200, { ...plan, suggestions }],
+            '/api/projects/:team_id/marketing_analytics/setup_plan/': () =>
+                scanFailed ? [500, { detail: 'Could not scan events.' }] : [200, { ...plan, suggestions }],
             '/api/environments/:team_id/external_data_sources/': () => [200, { results: [] }],
             '/api/projects/:team_id/marketing_analytics/source_validation/': () => [200, { errors_by_source: {} }],
             '/api/projects/:team_id/marketing_analytics/utm_audit/': () => [
@@ -240,7 +242,8 @@ AdPerformanceWithoutSources.parameters = {
 }
 AdPerformanceWithoutSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText(/Connect a marketing source to see spend and ad performance/)).resolves.toBeVisible()
+    await expect(canvas.findByText('Connect your ad platforms')).resolves.toBeVisible()
+    expect(canvas.getByText(/No ad platforms were detected/)).toBeVisible()
     expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
     expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
 }
@@ -255,5 +258,22 @@ AdPerformanceWithDetectedSources.parameters = AdPerformanceWithoutSources.parame
 AdPerformanceWithDetectedSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
     await expect(canvas.findByText('We detected these ad sources (2)')).resolves.toBeVisible()
+    marketingAnalyticsLogic.actions.loadSources()
+    expect(canvas.getByText('We detected these ad sources (2)')).toBeVisible()
+    expect(canvas.queryByText('Checking your marketing sources')).not.toBeInTheDocument()
     expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
+}
+
+export function AdPerformanceScanFailed(): JSX.Element {
+    useDashboardWithoutSourcesMocks([], true)
+    const { completeOnboarding } = useActions(marketingOnboardingLogic)
+    useEffect(() => completeOnboarding(), [completeOnboarding])
+    return <MarketingAnalyticsScene />
+}
+AdPerformanceScanFailed.parameters = AdPerformanceWithoutSources.parameters
+AdPerformanceScanFailed.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText(/We could not check your events for marketing sources/)).resolves.toBeVisible()
+    expect(canvas.getByText('Connect a source')).toBeVisible()
+    expect(canvas.getByText('Try again')).toBeVisible()
 }

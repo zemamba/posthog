@@ -3,7 +3,7 @@ import { BindLogic, useActions, useValues } from 'kea'
 import { useEffect } from 'react'
 
 import { IconGear, IconSparkles } from '@posthog/icons'
-import { LemonBanner, LemonButton, LemonSkeleton, LemonSwitch, LemonTabs, Link } from '@posthog/lemon-ui'
+import { LemonBanner, LemonButton, LemonSwitch, LemonTabs, Link, Spinner } from '@posthog/lemon-ui'
 
 import { FEATURE_FLAGS } from 'lib/constants'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
@@ -93,38 +93,11 @@ const QueryTileItem = ({ tile }: { tile: QueryTile }): JSX.Element => {
     )
 }
 
-// Loading placeholder that mirrors the real dashboard layout — an overview metric row, a chart card,
-// and a table card — instead of a single thin bar, so the page doesn't visibly reflow when data lands.
-const MarketingAnalyticsDashboardSkeleton = (): JSX.Element => (
-    <div className="mt-4 flex flex-col gap-y-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex flex-col gap-2 p-4 border rounded">
-                    <LemonSkeleton className="h-3 w-20" />
-                    <LemonSkeleton className="h-8 w-24" />
-                </div>
-            ))}
-        </div>
-        <div className="flex flex-col gap-3">
-            <LemonSkeleton className="h-6 w-40" />
-            <div className="border rounded p-4">
-                <LemonSkeleton className="h-64 w-full" />
-            </div>
-        </div>
-        <div className="flex flex-col gap-3">
-            <LemonSkeleton className="h-6 w-40" />
-            <div className="border rounded p-4 flex flex-col gap-3">
-                <LemonSkeleton className="h-8 w-full" />
-                <LemonSkeleton.Row repeat={5} fade className="h-10" />
-            </div>
-        </div>
-    </div>
-)
-
 const MarketingAnalyticsDashboard = (): JSX.Element => {
     const { featureFlags } = useValues(featureFlagLogic)
     const {
         hasSources,
+        dataWarehouseSources,
         hasSyncedMarketingSources,
         nativeSources,
         validExternalTables,
@@ -179,11 +152,14 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
         )
     }
 
-    if (loading) {
+    if (loading && !dataWarehouseSources) {
         return (
             <>
                 {feedbackBanner}
-                <MarketingAnalyticsDashboardSkeleton />
+                <div role="status" className="flex items-center gap-3 py-8">
+                    <Spinner />
+                    <span>Checking your marketing sources</span>
+                </div>
             </>
         )
     }
@@ -490,13 +466,7 @@ const MarketingAnalyticsAIToolWrapper = ({ children }: { children: React.ReactNo
 }
 
 export function MarketingAnalyticsScene(): JSX.Element {
-    const { featureFlags } = useValues(featureFlagLogic)
-    const newDashboardEnabled = !!featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_NEW_DASHBOARD]
-    useEffect(() => {
-        if (newDashboardEnabled) {
-            return setupPlanLogic.mount()
-        }
-    }, [newDashboardEnabled])
+    useValues(setupPlanLogic)
     const { activeTab } = useValues(marketingAnalyticsLogic)
 
     return (
