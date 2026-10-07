@@ -88,9 +88,11 @@ from products.canvas.backend.facade.tasks import cleanup_canvas_builds, sweep_ca
 from products.cloud_agents.backend.facade.tasks import (
     DELETE_OLD_WEBHOOK_DELIVERIES_CRONTAB,
     RECONCILE_RUNS_CRONTAB,
+    RETRY_DUE_WEBHOOK_DELIVERIES_CRONTAB,
     STOP_RUNS_OVER_QUOTA_CRONTAB,
     delete_old_webhook_deliveries,
     reconcile_cloud_agent_runs,
+    retry_due_webhook_deliveries,
     stop_cloud_agent_runs_over_quota,
 )
 from products.conversations.backend.tasks.email import flush_pending_email_replies
@@ -1154,6 +1156,12 @@ def setup_periodic_tasks(sender: Celery, **kwargs: Any) -> None:
         name="cleanup deleted streamlit app zips",
     )
 
+    add_periodic_task_with_expiry(
+        sender,
+        RETRY_DUE_WEBHOOK_DELIVERIES_CRONTAB,
+        retry_due_webhook_deliveries.s(),
+        name="retry due cloud agents webhook deliveries",
+    )
     add_periodic_task_with_expiry(
         sender,
         RECONCILE_RUNS_CRONTAB,

@@ -1743,6 +1743,7 @@ def get_teams_with_ai_event_count_in_period(
 
 # PostHog Desktop bills model costs as pure pass-through: no markup
 POSTHOG_CODE_COST_MARKUP_PERCENT = 0.0
+CLOUD_AGENTS_COST_MARKUP_PERCENT = POSTHOG_CODE_COST_MARKUP_PERCENT
 # Tools excluded from AI billing (traces with only these tools are not billed)
 AI_BILLING_EXCLUDED_TOOLS = ["summarize_sessions", "search"]
 AI_BILLING_INSTANCE_GROUP_TYPE = "instance"
@@ -2139,7 +2140,7 @@ def get_teams_with_cloud_agents_token_credits_used_in_period(
         ai_products=CLOUD_AGENTS_AI_PRODUCTS,
         usage_report_tag="cloud_agents_credits",
         product_tag=Product.CLOUD_AGENTS,
-        markup_percent=POSTHOG_CODE_COST_MARKUP_PERCENT,
+        markup_percent=CLOUD_AGENTS_COST_MARKUP_PERCENT,
     )
 
 
@@ -2158,8 +2159,7 @@ def get_teams_with_cloud_agents_compute_usage_in_period(begin: datetime, end: da
         return SandboxComputeUsageByTeam([], [], [])
 
 
-def combine_cloud_agents_credits(token_credits: int, compute_credits: int) -> int:
-    return token_credits + compute_credits
+combine_cloud_agents_credits = combine_posthog_code_credits
 
 
 @timed_log()

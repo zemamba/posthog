@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Final
 from uuid import UUID
 
+from django.db import transaction
 from django.utils import timezone
 
 from ...facade.enums import WebhookDeliveryStatus, WebhookEvent
@@ -45,44 +46,60 @@ def attempt_delivery(team_id: int, delivery_id: UUID) -> int | None:
 
     Returns the seconds to wait before the next attempt, or None when the delivery reached a final status.
     """
-    delivery = CloudAgentsWebhookDelivery.objects.for_team(team_id).filter(id=delivery_id).first()
-    if delivery is None or delivery.status != WebhookDeliveryStatus.PENDING.value:
-        return None
+    with transaction.atomic():
+        delivery = (
+            CloudAgentsWebhookDelivery.objects.for_team(team_id).select_for_update().filter(id=delivery_id).first()
+        )
+        if delivery is None or delivery.status != WebhookDeliveryStatus.PENDING.value:
+            return None
+        if delivery.next_attempt_at is not None and delivery.next_attempt_at > timezone.now():
+            return None
 
-    secret, _ = get_or_create_secret(team_id)
-    result = sender.post_signed(
-        delivery.url,
-        secret,
-        str(delivery.event_id),
-        WebhookEvent(delivery.event_type),
-        serialize_payload(delivery.payload),
+        secret, _ = get_or_create_secret(team_id)
+        result = sender.post_signed(
+            delivery.url,
+            secret,
+            str(delivery.event_id),
+            WebhookEvent(delivery.event_type),
+            serialize_payload(delivery.payload),
+        )
+
+        now = timezone.now()
+        delivery.attempts += 1
+        delivery.last_status_code = result.status_code
+        delivery.last_error = result.error_class
+        delivery.next_attempt_at = None
+        countdown: int | None = None
+
+        if result.status_code is not None and 200 <= result.status_code < 300:
+            delivery.status = WebhookDeliveryStatus.SUCCEEDED.value
+            delivery.delivered_at = now
+        elif not _is_retryable(result):
+            delivery.status = WebhookDeliveryStatus.FAILED.value
+        elif delivery.attempts > len(RETRY_COUNTDOWNS):
+            delivery.status = WebhookDeliveryStatus.GAVE_UP.value
+        else:
+            countdown = RETRY_COUNTDOWNS[delivery.attempts - 1]
+            if result.retry_after is not None:
+                # The receiver can ask for a longer wait, up to the cap. It cannot shorten the wait.
+                countdown = max(countdown, min(result.retry_after, MAX_RETRY_AFTER_SECONDS))
+            delivery.next_attempt_at = now + timedelta(seconds=countdown)
+
+        delivery.save(
+            update_fields=["status", "attempts", "last_status_code", "last_error", "next_attempt_at", "delivered_at"]
+        )
+        return countdown
+
+
+def due_deliveries(limit: int = 500) -> list[tuple[int, UUID]]:
+    return list(
+        CloudAgentsWebhookDelivery.all_teams.filter(
+            status=WebhookDeliveryStatus.PENDING.value,
+            next_attempt_at__lte=timezone.now(),
+        )
+        .order_by("next_attempt_at")
+        .values_list("team_id", "id")[:limit]
     )
-
-    now = timezone.now()
-    delivery.attempts += 1
-    delivery.last_status_code = result.status_code
-    delivery.last_error = result.error_class
-    delivery.next_attempt_at = None
-    countdown: int | None = None
-
-    if result.status_code is not None and 200 <= result.status_code < 300:
-        delivery.status = WebhookDeliveryStatus.SUCCEEDED.value
-        delivery.delivered_at = now
-    elif not _is_retryable(result):
-        delivery.status = WebhookDeliveryStatus.FAILED.value
-    elif delivery.attempts > len(RETRY_COUNTDOWNS):
-        delivery.status = WebhookDeliveryStatus.GAVE_UP.value
-    else:
-        countdown = RETRY_COUNTDOWNS[delivery.attempts - 1]
-        if result.retry_after is not None:
-            # The receiver can ask for a longer wait, up to the cap. It cannot shorten the wait.
-            countdown = max(countdown, min(result.retry_after, MAX_RETRY_AFTER_SECONDS))
-        delivery.next_attempt_at = now + timedelta(seconds=countdown)
-
-    delivery.save(
-        update_fields=["status", "attempts", "last_status_code", "last_error", "next_attempt_at", "delivered_at"]
-    )
-    return countdown
 
 
 def delete_expired_deliveries() -> int:

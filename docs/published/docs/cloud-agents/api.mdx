@@ -375,25 +375,8 @@ curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agent
 
 ## Box sizes and pricing
 
-Compute has two rates:
-
-- $0.040 for each vCPU-hour
-- $0.013 for each GiB-hour of memory
-
 A run is billed per second for the size you selected, for as long as its sandbox is up.
-
-| Size    | vCPU | Memory | Price per hour |
-| ------- | ---- | ------ | -------------- |
-| `1x2`   | 1    | 2 GiB  | $0.066         |
-| `2x4`   | 2    | 4 GiB  | $0.132         |
-| `2x8`   | 2    | 8 GiB  | $0.184         |
-| `4x8`   | 4    | 8 GiB  | $0.264         |
-| `4x16`  | 4    | 16 GiB | $0.368         |
-| `8x16`  | 8    | 16 GiB | $0.528         |
-| `8x32`  | 8    | 32 GiB | $0.736         |
-| `16x64` | 16   | 64 GiB | $1.472         |
-
-The catalog endpoint is the source of truth for sizes, rates, models and your project's limits:
+The catalog endpoint is the source of truth for available sizes, current rates, models and your project's limits:
 
 ```bash
 curl "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/catalog/" \

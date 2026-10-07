@@ -461,4 +461,12 @@ class Migration(migrations.Migration):
             model_name="cloudagentswebhookdelivery",
             index=models.Index(fields=["team", "-created_at"], name="cloud_agents_delivery_created"),
         ),
+        migrations.AddIndex(
+            model_name="cloudagentswebhookdelivery",
+            index=models.Index(
+                condition=models.Q(("status", "pending")),
+                fields=["next_attempt_at"],
+                name="cloud_agents_delivery_due",
+            ),
+        ),
     ]

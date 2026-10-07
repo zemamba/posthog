@@ -150,7 +150,7 @@ def reconcile_runs() -> int:
         CloudAgentRun.all_teams.filter(status__in=_TERMINAL_VALUES, cost_final=False, task_id__isnull=False)
         # A cost that is not final after this long will not become final, so the sweep stops asking.
         .filter(completed_at__gte=timezone.now() - COST_RECONCILE_WINDOW)
-        .order_by("completed_at")
+        .order_by("-completed_at")
         .values_list("team_id", "id")[:RECONCILE_BATCH_SIZE]
     )
     seen = 0
