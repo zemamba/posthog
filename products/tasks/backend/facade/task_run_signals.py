@@ -4,11 +4,7 @@ from uuid import UUID
 from django.db.models.signals import post_save
 from django.dispatch import Signal
 
-from products.tasks.backend.models import (
-    Task,
-    TaskRun,
-    task_run_status_changed as task_run_status_changed,
-)
+from products.tasks.backend.models import Task, TaskRun, task_run_status_changed
 
 # Re-exported here so a startup receiver can read it without importing the request facade.
 TaskOriginProduct = Task.OriginProduct
