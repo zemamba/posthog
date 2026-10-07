@@ -1,7 +1,7 @@
 """Decide who pays for the model use of a run, and hand a run the credential it selected.
 
 ``resolve_inference`` runs when a run is created. It reads what the user has stored and returns
-the run state keys that pin the choice. ``issue_run_inference_credential`` runs when the agent in
+the run state keys that pin the choice. ``issue_run_claude_subscription`` runs when the agent in
 the sandbox asks for the secret. No secret enters run state, a workflow input, or a log line.
 """
 
@@ -14,12 +14,8 @@ import posthoganalytics
 from posthog.dataclasses import frozen
 from posthog.enums import LabeledStrEnum
 from posthog.exceptions_capture import capture_exception
+from posthog.models.integration.claude_subscription import ClaudeSubscriptionStore, claude_subscription_storage_enabled
 from posthog.models.integration.codex import CodexUserIntegration
-from posthog.models.integration.inference_credentials import (
-    InferenceCredentialKind,
-    InferenceCredentialStore,
-    claude_subscription_storage_enabled,
-)
 from posthog.models.team.team import Team
 from posthog.models.user import User
 
@@ -29,25 +25,17 @@ from products.tasks.backend.logic.model_access import (
     INFERENCE_STATE_KEYS,
     InferenceBilling,
     RunCredentialKind,
-    ServerHeldCredentialKind,
     SubscriptionAdapter,
     resolve_model_access,
 )
 
-InferenceRequest = Literal["auto", "own_key", "own_subscription", "posthog"]
+InferenceRequest = Literal["auto", "own_subscription", "posthog"]
 InferenceUnavailableCode = Literal["no_user", "credential_missing", "not_available"]
-
-_OWN_KEY_KINDS: dict[SubscriptionAdapter, InferenceCredentialKind] = {
-    "claude": InferenceCredentialKind.ANTHROPIC_API_KEY,
-    "codex": InferenceCredentialKind.OPENAI_API_KEY,
-}
 
 
 # Each label repeats its value, because the API documents these choices as plain values.
 class RunInferenceCredential(LabeledStrEnum):
     CODEX = "codex", "codex"
-    ANTHROPIC_API_KEY = "anthropic_api_key", "anthropic_api_key"
-    OPENAI_API_KEY = "openai_api_key", "openai_api_key"
     CLAUDE_SUBSCRIPTION = "claude_subscription", "claude_subscription"
 
 
@@ -76,13 +64,12 @@ class InvalidInferenceState(ValueError):
 
 
 @frozen
-class InferenceCredentialGrant:
-    credential: ServerHeldCredentialKind
+class ClaudeSubscriptionGrant:
     secret: str = field(repr=False)
 
 
-class InferenceCredentialMissing(Exception):
-    """The run may use this credential kind, but the owner has no usable stored credential."""
+class ClaudeSubscriptionMissing(Exception):
+    """The run uses the stored Claude subscription, but the owner has no usable stored token."""
 
 
 def resolve_inference(
@@ -90,10 +77,9 @@ def resolve_inference(
 ) -> InferenceDecision:
     """Select the inference mode of a new run for ``user_id``.
 
-    ``auto`` prefers the user's API key, then the user's subscription, then the PostHog gateway.
-    An explicit ``own_key`` or ``own_subscription`` that cannot be used raises
-    ``InferenceUnavailable``. It never becomes a gateway run, because that would spend PostHog
-    credits that the user did not select.
+    ``auto`` prefers the user's subscription for the adapter, then the PostHog gateway. An
+    explicit ``own_subscription`` that cannot be used raises ``InferenceUnavailable``. It never
+    becomes a gateway run, because that would spend PostHog credits that the user did not select.
     """
     if runtime_adapter not in ("claude", "codex"):
         raise ValueError(f"Unknown runtime adapter {runtime_adapter!r}")
@@ -108,23 +94,6 @@ def resolve_inference(
         if from_auto:
             return _posthog_decision(adapter, resolved_from_auto=True)
         raise InferenceUnavailable("A run with no user can only use PostHog credits for model usage.", code="no_user")
-
-    if requested in ("auto", "own_key"):
-        key_kind = _OWN_KEY_KINDS[adapter]
-        if InferenceCredentialStore.has(user.id, key_kind):
-            return InferenceDecision(
-                mode="own_key",
-                adapter=adapter,
-                credential_kind=cast(RunCredentialKind, key_kind.value),
-                owner_user_id=user.id,
-                run_state_updates={f"{adapter}_model_access": "own-key"},
-                resolved_from_auto=from_auto,
-            )
-        if requested == "own_key":
-            raise InferenceUnavailable(
-                f"Add your {key_kind.label} in Cloud agents settings to use it for this run.",
-                code="credential_missing",
-            )
 
     subscription_error = _subscription_unavailable(adapter, user, team)
     if subscription_error is None:
@@ -161,38 +130,33 @@ def validated_inference_state(inference_state: Mapping[str, object] | None) -> d
         CLAUDE_SUBSCRIPTION_SOURCE_STATE_KEY: updates.get(CLAUDE_SUBSCRIPTION_SOURCE_STATE_KEY, "relay"),
     }
     for adapter in ("claude", "codex"):
-        if state[f"{adapter}_model_access"] not in ("posthog-gateway", "own-subscription", "own-key"):
+        if state[f"{adapter}_model_access"] not in ("posthog-gateway", "own-subscription"):
             raise InvalidInferenceState(f"Unknown {adapter}_model_access value")
     if state[CLAUDE_SUBSCRIPTION_SOURCE_STATE_KEY] not in ("relay", "server"):
         raise InvalidInferenceState(f"Unknown {CLAUDE_SUBSCRIPTION_SOURCE_STATE_KEY} value")
     return state
 
 
-def issue_run_inference_credential(
-    state: Mapping[str, object], *, team_id: int, credential: ServerHeldCredentialKind
-) -> InferenceCredentialGrant | None:
-    """The stored secret that the run with this state selected.
+def issue_run_claude_subscription(state: Mapping[str, object], *, team_id: int) -> ClaudeSubscriptionGrant | None:
+    """The stored Claude subscription token of the owner of the run with this state.
 
-    None when the state does not select ``credential``, so a gateway run and a run on another
-    credential get nothing. Raises ``InferenceCredentialMissing`` when the run selected it and the
-    owner has no usable stored credential.
+    None when the state does not select the stored token, so a gateway run, a Codex run, and a
+    run with a relayed token get nothing. Raises ``ClaudeSubscriptionMissing`` when the run
+    selected it and the owner has no usable stored token.
     """
     try:
         model_access = resolve_model_access(state)
     except ValueError:
         return None
-    if model_access.server_held_credential_kind != credential or model_access.owner_id is None:
+    if not model_access.uses_stored_claude_subscription or model_access.owner_id is None:
         return None
     owner = Team.objects.get(id=team_id).all_users_with_access().filter(id=model_access.owner_id).first()
-    if owner is None:
-        raise InferenceCredentialMissing(credential)
-    kind = InferenceCredentialKind(credential)
-    if kind == InferenceCredentialKind.CLAUDE_SUBSCRIPTION and not claude_subscription_storage_enabled(owner):
-        raise InferenceCredentialMissing(credential)
-    secret = InferenceCredentialStore.resolve_secret(owner.id, kind)
+    if owner is None or not claude_subscription_storage_enabled(owner):
+        raise ClaudeSubscriptionMissing()
+    secret = ClaudeSubscriptionStore.resolve_secret(owner.id)
     if secret is None:
-        raise InferenceCredentialMissing(credential)
-    return InferenceCredentialGrant(credential=credential, secret=secret)
+        raise ClaudeSubscriptionMissing()
+    return ClaudeSubscriptionGrant(secret=secret)
 
 
 def _posthog_decision(adapter: SubscriptionAdapter, *, resolved_from_auto: bool) -> InferenceDecision:
@@ -213,9 +177,9 @@ def _subscription_unavailable(adapter: SubscriptionAdapter, user: User, team: Te
                 "Claude subscriptions are not available for cloud agents in your organization.",
                 code="not_available",
             )
-        if not InferenceCredentialStore.has(user.id, InferenceCredentialKind.CLAUDE_SUBSCRIPTION):
+        if not ClaudeSubscriptionStore.has(user.id):
             return InferenceUnavailable(
-                "Add your Claude subscription in Cloud agents settings to use it for this run.",
+                "Connect your Claude subscription in Cloud agents settings to use it for this run.",
                 code="credential_missing",
             )
         return None

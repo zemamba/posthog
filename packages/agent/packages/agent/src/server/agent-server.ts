@@ -1380,12 +1380,11 @@ export class AgentServer {
   }
 
   /**
-   * The API key or Claude plan token PostHog stores for the run owner. A
-   * failure ends the run here: it must not continue on the PostHog gateway,
-   * because the owner did not select PostHog credits.
+   * The Claude plan token PostHog stores for the run owner. A failure ends
+   * the run here: it must not continue on the PostHog gateway, because the
+   * owner did not select PostHog credits.
    */
   private async fetchStoredRunCredential(
-    adapter: "claude" | "codex",
     credential: StoredRunCredentialKind,
   ): Promise<string> {
     try {
@@ -1398,7 +1397,7 @@ export class AgentServer {
         credential,
         reason,
       });
-      await this.reportSubscriptionTokenMissing(adapter, reason, {
+      await this.reportSubscriptionTokenMissing("claude", reason, {
         phase: "stored_credential",
         message: runCredentialFailureMessage(credential, error),
       });
@@ -2324,31 +2323,12 @@ export class AgentServer {
     });
 
     let claudeSubscriptionToken: string | null = null;
-    let claudeOwnApiKey: string | null = null;
-    let codexOwnApiKey: string | null = null;
     if (
-      this.config.claudeModelAccess === "own-key" &&
-      runtimeAdapter === "claude"
-    ) {
-      claudeOwnApiKey = await this.fetchStoredRunCredential(
-        "claude",
-        "anthropic_api_key",
-      );
-    } else if (
-      this.config.codexModelAccess === "own-key" &&
-      runtimeAdapter === "codex"
-    ) {
-      codexOwnApiKey = await this.fetchStoredRunCredential(
-        "codex",
-        "openai_api_key",
-      );
-    } else if (
       this.config.claudeModelAccess === "own-subscription" &&
       this.config.claudeSubscriptionSource === "server" &&
       runtimeAdapter === "claude"
     ) {
       claudeSubscriptionToken = await this.fetchStoredRunCredential(
-        "claude",
         "claude_subscription",
       );
     } else if (
@@ -2412,28 +2392,21 @@ export class AgentServer {
           }
         : undefined,
       claudeGatewayEnv:
-        runtimeAdapter !== "codex" &&
-        claudeSubscriptionToken === null &&
-        claudeOwnApiKey === null
+        runtimeAdapter !== "codex" && claudeSubscriptionToken === null
           ? gatewayEnv
           : undefined,
       claudeMachineAuth:
-        runtimeAdapter === "codex"
-          ? undefined
-          : claudeOwnApiKey !== null
-            ? { apiKey: claudeOwnApiKey }
-            : claudeSubscriptionToken !== null
-              ? { oauthToken: claudeSubscriptionToken }
-              : undefined,
+        runtimeAdapter !== "codex" && claudeSubscriptionToken !== null
+          ? { oauthToken: claudeSubscriptionToken }
+          : undefined,
       codexOptions:
         runtimeAdapter === "codex"
           ? {
               cwd: this.config.repositoryPath ?? "/tmp/workspace",
               // Routing a plan run through the gateway would bill us as well.
-              ...(codexSubscriptionTokens || codexOwnApiKey
+              ...(codexSubscriptionTokens
                 ? {}
                 : codexAuthFromGatewayEnv(gatewayEnv)),
-              ownApiKey: codexOwnApiKey ?? undefined,
               // Bundled-binary hint for the native codex CLI: the codex
               // binary itself, or any file in its directory. Set in the
               // sandbox image (POSTHOG_CODEX_BINARY_PATH); when unset the
@@ -2452,10 +2425,9 @@ export class AgentServer {
                   : undefined,
               serviceTier: this.config.serviceTier,
               developerInstructions: codexInstructions,
-              httpHeaders:
-                codexSubscriptionTokens || codexOwnApiKey
-                  ? undefined
-                  : gatewayEnv.openaiCustomHeaders,
+              httpHeaders: codexSubscriptionTokens
+                ? undefined
+                : gatewayEnv.openaiCustomHeaders,
               chatgptAuthTokens: codexSubscriptionTokens ?? undefined,
               refreshChatgptAuthTokens: codexSubscriptionTokens
                 ? () => this.refreshCodexSubscriptionTokens()

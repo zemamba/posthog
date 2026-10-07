@@ -1,3 +1,5 @@
+import { FEATURE_FLAGS, type FeatureFlagKey } from 'lib/constants'
+
 /**
  * How many projects a breakdown by project shows individually before the rest are folded
  * into one "all other projects" series. Shared by the usage and spend dashboards so the two
@@ -76,6 +78,13 @@ export type UsageTypeOption = (typeof USAGE_TYPES)[number]
 export type UsageTypeValue = UsageTypeOption['value']
 
 export const ALL_USAGE_TYPES: UsageTypeValue[] = USAGE_TYPES.map((opt) => opt.value)
+
+// The usage types of a product that is behind a feature flag. The filters offer one only when its flag is on.
+export const FLAG_GATED_USAGE_TYPES: Partial<Record<UsageTypeValue, FeatureFlagKey>> = {
+    cloud_agents_credits_used_in_period: FEATURE_FLAGS.CLOUD_AGENTS,
+    cloud_agents_token_credits_used_in_period: FEATURE_FLAGS.CLOUD_AGENTS,
+    cloud_agents_compute_credits_used_in_period: FEATURE_FLAGS.CLOUD_AGENTS,
+}
 
 // Date after which billing for data pipelines ends and add-on upgrades/downgrades are disabled,
 // in sync with billing_end_date of data_pipelines in billing plans config

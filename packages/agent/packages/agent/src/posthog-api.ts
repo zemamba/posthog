@@ -38,10 +38,7 @@ export type CodexSubscriptionTokenErrorCode =
   | "request_failed";
 
 /** A credential PostHog stores for the run owner, as the `subscription_token` endpoint names it. */
-export type StoredRunCredentialKind =
-  | "anthropic_api_key"
-  | "openai_api_key"
-  | "claude_subscription";
+export type StoredRunCredentialKind = "claude_subscription";
 
 export type RunCredentialErrorCode =
   | "credential_missing"
@@ -393,8 +390,8 @@ export class PostHogAPIClient {
   }
 
   /**
-   * The API key or Claude plan token that the run owner stored, for a run that
-   * was started with it. Same endpoint and same proof as the ChatGPT token: the
+   * The Claude plan token that the run owner stored, for a run that was
+   * started with it. Same endpoint and same proof as the ChatGPT token: the
    * run token from fd 3. The secret is returned to the caller only. It is never
    * logged, and an error never carries the response body.
    */

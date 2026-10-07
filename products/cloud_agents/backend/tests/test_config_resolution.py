@@ -65,9 +65,15 @@ PRECEDENCE_FIELDS: list[tuple[str, Any, Any, Any, Any]] = [
     ("branch", "call-branch", "profile-branch", "team-branch", None),
     ("model", "call-model", "profile-model", "team-model", None),
     ("size", SizeName.S_1X2, SizeName.S_2X4, SizeName.S_8X32, SizeName.S_4X16),
-    ("inference", InferenceMode.OWN_KEY, InferenceMode.OWN_SUBSCRIPTION, InferenceMode.POSTHOG, InferenceMode.AUTO),
     # Adjacent levels differ, so a level cannot pass on the value of the level below it.
     ("create_pr", False, True, False, True),
+    (
+        "inference",
+        InferenceMode.OWN_SUBSCRIPTION,
+        InferenceMode.POSTHOG,
+        InferenceMode.OWN_SUBSCRIPTION,
+        InferenceMode.AUTO,
+    ),
     ("pr_mode", PrMode.READY, PrMode.DRAFT, PrMode.READY, PrMode.DRAFT),
     ("max_duration_minutes", 10, 20, 30, 60),
     ("max_cost_usd", Decimal("1.00"), Decimal("2.00"), Decimal("3.00"), None),

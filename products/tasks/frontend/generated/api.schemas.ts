@@ -4462,8 +4462,6 @@ export interface StreamReadTokenResponseApi {
 
 /**
  * * `codex` - codex
- * * `anthropic_api_key` - anthropic_api_key
- * * `openai_api_key` - openai_api_key
  * * `claude_subscription` - claude_subscription
  */
 export type RunInferenceCredentialEnumApi =
@@ -4471,8 +4469,6 @@ export type RunInferenceCredentialEnumApi =
 
 export const RunInferenceCredentialEnumApi = {
     Codex: 'codex',
-    AnthropicApiKey: 'anthropic_api_key',
-    OpenaiApiKey: 'openai_api_key',
     ClaudeSubscription: 'claude_subscription',
 } as const
 
@@ -4483,11 +4479,9 @@ export interface TaskRunSubscriptionTokenRequestApi {
      * @pattern ^[0-9a-f]{64}$
      */
     rejected_access_token_sha256?: string | null
-    /** Credential the run needs. 'codex' (the default) returns a ChatGPT access token. 'anthropic_api_key', 'openai_api_key' and 'claude_subscription' return the secret the run owner stored, and only for a run that was started with that credential.
+    /** Credential the run needs. 'codex' (the default) returns a ChatGPT access token. 'claude_subscription' returns the Claude subscription token the run owner stored, and only for a run that was started with it.
      *
      * * `codex` - codex
-     * * `anthropic_api_key` - anthropic_api_key
-     * * `openai_api_key` - openai_api_key
      * * `claude_subscription` - claude_subscription */
     credential?: RunInferenceCredentialEnumApi
 }
@@ -4510,11 +4504,9 @@ export interface TaskRunInferenceCredentialResponseApi {
     /** Credential kind that `secret` holds
      *
      * * `codex` - codex
-     * * `anthropic_api_key` - anthropic_api_key
-     * * `openai_api_key` - openai_api_key
      * * `claude_subscription` - claude_subscription */
     credential: RunInferenceCredentialEnumApi
-    /** The run owner's stored API key or Claude subscription token. Keep it in memory only: do not log it or write it to disk. */
+    /** The run owner's stored Claude subscription token. Keep it in memory only: do not log it or write it to disk. */
     secret: string
 }
 

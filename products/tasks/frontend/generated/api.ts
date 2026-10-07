@@ -2517,7 +2517,7 @@ export const getTasksRunsSubscriptionTokenCreateUrl = (projectId: string, taskId
 }
 
 /**
- * Give the run's agent-server the credential the run was started with: a short-lived ChatGPT access token from the run owner's connected account, or the API key or Claude subscription token the run owner stored. Only the run's sandbox may call this, and it must present the run token it received at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex rejected so the server refreshes it early, once.
+ * Give the run's agent-server the credential the run was started with: a short-lived ChatGPT access token from the run owner's connected account, or the Claude subscription token the run owner stored. Only the run's sandbox may call this, and it must present the run token it received at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex rejected so the server refreshes it early, once.
  * @summary Issue the model credential of a run
  */
 export const tasksRunsSubscriptionTokenCreate = async (

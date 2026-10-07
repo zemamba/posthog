@@ -44,7 +44,7 @@ export function RunCostCard({ run }: { run: CloudAgentRunApi }): JSX.Element {
                         ? 'You are not charged for this run.'
                         : cost.final
                           ? ownProvider
-                              ? 'Total for compute. Your provider bills the model usage.'
+                              ? 'Total for compute. Model usage counts against your subscription.'
                               : 'Total for compute and model usage.'
                           : 'The cost so far. It can still change until the run settles.'}
                 </div>

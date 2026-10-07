@@ -1343,8 +1343,8 @@ class TaskRunSubscriptionTokenRequestSerializer(serializers.Serializer):
         required=False,
         default=RunInferenceCredential.CODEX.value,
         help_text="Credential the run needs. 'codex' (the default) returns a ChatGPT access token. "
-        "'anthropic_api_key', 'openai_api_key' and 'claude_subscription' return the secret the run owner "
-        "stored, and only for a run that was started with that credential.",
+        "'claude_subscription' returns the Claude subscription token the run owner stored, and only for a "
+        "run that was started with it.",
     )
 
 
@@ -1355,7 +1355,7 @@ class TaskRunInferenceCredentialResponseSerializer(serializers.Serializer):
     # Never log this serializer's data or pass it to an exception: `secret` is a long-lived credential.
     secret = serializers.CharField(
         style={"input_type": "password"},
-        help_text="The run owner's stored API key or Claude subscription token. Keep it in memory only: "
+        help_text="The run owner's stored Claude subscription token. Keep it in memory only: "
         "do not log it or write it to disk.",
     )
 

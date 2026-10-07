@@ -91,8 +91,8 @@ class RunDefaultsSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text=(
-            "How the agent pays for model usage. `auto` uses your own key or subscription when one is "
-            "connected, and PostHog inference otherwise. Null uses the product default."
+            "How the agent pays for model usage. `auto` uses your own subscription when one is connected "
+            "for the runtime, and PostHog inference otherwise. Null uses the product default."
         ),
     )
     instructions = serializers.CharField(
@@ -394,8 +394,8 @@ class CloudAgentRunConfigSerializer(serializers.Serializer):
         InferenceMode,
         source="config.inference",
         help_text=(
-            "How the run pays for model usage: `posthog` for PostHog inference, `own_key` for the API key "
-            "of the user, `own_subscription` for the subscription of the user."
+            "How the run pays for model usage: `posthog` for PostHog inference, `own_subscription` for the "
+            "subscription of the user."
         ),
     )
     create_pr = serializers.BooleanField(
@@ -447,8 +447,8 @@ class CloudAgentRunCostSerializer(serializers.Serializer):
         allow_null=True,
     )
     inference_usd = _usd_field(
-        "Model usage cost in US dollars, as a decimal string. Null when the run uses your own key or "
-        "subscription, because you pay the model provider directly.",
+        "Model usage cost in US dollars, as a decimal string. Null when the run uses your own subscription, "
+        "because you pay the model provider directly.",
         allow_null=True,
     )
     total_usd = _usd_field(
@@ -663,7 +663,7 @@ class CloudAgentUsageTotalsSerializer(serializers.Serializer):
     runs = serializers.IntegerField(help_text="Number of runs.")
     compute_usd = _usd_field("Compute cost in US dollars, as a decimal string.")
     inference_usd = _usd_field(
-        "Model usage cost in US dollars, as a decimal string. Runs on your own key or subscription add nothing."
+        "Model usage cost in US dollars, as a decimal string. Runs on your own subscription add nothing."
     )
     total_usd = _usd_field("Sum of the compute cost and the model usage cost, as a decimal string.")
     vcpu_seconds = _seconds_field("vCPU seconds used.")

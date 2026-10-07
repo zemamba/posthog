@@ -4,7 +4,7 @@ import { FEATURE_FLAGS } from 'lib/constants'
 import { App } from 'scenes/App'
 import { urls } from 'scenes/urls'
 
-import type { UserInferenceCredentialApi } from '~/generated/core/api.schemas'
+import type { UserClaudeSubscriptionApi, UserCodexIntegrationApi } from '~/generated/core/api.schemas'
 import { mswDecorator } from '~/mocks/browser'
 import { toPaginatedResponse } from '~/mocks/handlers'
 
@@ -41,7 +41,7 @@ const catalog: CloudAgentCatalogApi = {
         { id: 'claude-opus', name: 'Claude Opus', runtime_adapter: 'claude', is_default: false },
         { id: 'gpt-codex', name: 'GPT Codex', runtime_adapter: 'codex', is_default: false },
     ],
-    inference_modes: ['auto', 'own_key', 'own_subscription', 'posthog'],
+    inference_modes: ['auto', 'own_subscription', 'posthog'],
     rates: { vcpu_hour_usd: '0.040', memory_gib_hour_usd: '0.013', version: '2026-09' },
     limits: { max_concurrent_runs: 5, create_rate_per_hour: 60 },
 }
@@ -85,7 +85,7 @@ const profiles: ProfileApi[] = [
         branch: null,
         model: 'claude-opus',
         size: '8x32',
-        inference: 'own_key',
+        inference: 'own_subscription',
         instructions: null,
         tags: ['ci'],
         webhook_url: null,
@@ -216,14 +216,14 @@ const failedRun = makeRun({
     ],
 })
 
-const ownKeyRun = makeRun({
+const ownSubscriptionRun = makeRun({
     id: '0199b001-0000-7000-8000-000000000004',
     created_at: '2026-09-12T09:30:00Z',
     started_at: '2026-09-12T09:30:18Z',
     completed_at: '2026-09-12T10:12:18Z',
     prompt: 'Move the date helpers to the shared utils package and update each import.',
     branch: 'cloud-agents/shared-date-helpers',
-    config: { ...completedRun.config, inference: 'own_key', size: sizeNamed('4x8') },
+    config: { ...completedRun.config, inference: 'own_subscription', size: sizeNamed('4x8') },
     result: {
         pr_url: 'https://github.com/acme/web/pull/479',
         pr_urls: ['https://github.com/acme/web/pull/479'],
@@ -236,7 +236,7 @@ const ownKeyRun = makeRun({
         vcpu_seconds: '10080',
         gib_seconds: '20160',
         billing_mode: 'billed',
-        inference_billing: 'own_key',
+        inference_billing: 'own_subscription',
         final: true,
     },
     agent_sessions: [
@@ -295,7 +295,7 @@ const cancelledRun = makeRun({
     },
 })
 
-const runs = [queuedRun, runningRun, completedRun, failedRun, ownKeyRun, cancelledRun]
+const runs = [queuedRun, runningRun, completedRun, failedRun, ownSubscriptionRun, cancelledRun]
 
 const sessionUpdate = (timestamp: string, update: Record<string, unknown>): Record<string, unknown> => ({
     type: 'notification',
@@ -413,16 +413,14 @@ const usage: CloudAgentUsageSummaryApi = {
     })),
 }
 
-const credentials: UserInferenceCredentialApi[] = [
-    {
-        kind: 'anthropic_api_key',
-        provider: 'anthropic',
-        credential_type: 'api_key',
-        key_suffix: 'x9Qa',
-        created_at: '2026-08-30T10:00:00Z',
-        last_used_at: '2026-09-12T10:12:18Z',
-    },
-]
+const claudeSubscription: UserClaudeSubscriptionApi = {
+    status: 'connected',
+    token_suffix: 'x9Qa',
+    connected_at: '2026-08-30T10:00:00Z',
+    last_used_at: '2026-09-12T10:12:18Z',
+}
+
+const codexIntegration: UserCodexIntegrationApi = { status: 'not_connected' }
 
 const webhookEndpoints: WebhookEndpointApi[] = [
     {
@@ -511,7 +509,8 @@ const cloudAgentsDecorator = (storyRuns: CloudAgentRunApi[]): ReturnType<typeof 
             },
             [`${BASE}/webhook_endpoints/`]: toPaginatedResponse(webhookEndpoints),
             [`${BASE}/webhook_endpoints/deliveries/`]: deliveries,
-            '/api/users/@me/integrations/inference_credentials/': { results: credentials },
+            '/api/users/@me/integrations/claude_subscription/': claudeSubscription,
+            '/api/users/@me/integrations/codex/': codexIntegration,
         },
     })
 
@@ -522,7 +521,11 @@ const meta: Meta = {
         layout: 'fullscreen',
         viewMode: 'story',
         mockDate: '2026-09-14T12:00:00Z',
-        featureFlags: [FEATURE_FLAGS.CLOUD_AGENTS, FEATURE_FLAGS.CLOUD_AGENTS_CLAUDE_SUBSCRIPTION_STORAGE],
+        featureFlags: [
+            FEATURE_FLAGS.CLOUD_AGENTS,
+            FEATURE_FLAGS.CLOUD_AGENTS_CLAUDE_SUBSCRIPTION_STORAGE,
+            FEATURE_FLAGS.POSTHOG_CODE_CODEX_OWN_SUBSCRIPTION_CLOUD,
+        ],
     },
 }
 export default meta
@@ -559,9 +562,9 @@ export const RunFailed: Story = {
     parameters: { pageUrl: urls.cloudAgentRun(failedRun.id) },
 }
 
-export const RunOnOwnKey: Story = {
+export const RunOnOwnSubscription: Story = {
     decorators: [cloudAgentsDecorator(runs)],
-    parameters: { pageUrl: urls.cloudAgentRun(ownKeyRun.id) },
+    parameters: { pageUrl: urls.cloudAgentRun(ownSubscriptionRun.id) },
 }
 
 export const Profiles: Story = {

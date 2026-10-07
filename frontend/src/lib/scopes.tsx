@@ -76,7 +76,6 @@ export const API_SCOPES: APIScope[] = [
     { key: 'billing', objectName: 'Billing', objectPlural: 'billing' },
     { key: 'business_knowledge', objectName: 'Business knowledge', objectPlural: 'business knowledge' },
     { key: 'canvas', objectName: 'Canvas', objectPlural: 'canvases' },
-    { key: 'cloud_agent', objectName: 'Cloud agent', objectPlural: 'cloud agents' },
     { key: 'cohort', objectName: 'Cohort', objectPlural: 'cohorts' },
     { key: 'comment', objectName: 'Comment', objectPlural: 'comments' },
     {
@@ -290,6 +289,7 @@ export const API_SCOPES_OMITTED_FROM_MODAL: Partial<Record<APIScopeObject, strin
     batch_import: 'Pending removal: no endpoint enforces it (its viewset is INTERNAL).',
     mcp_registry: 'Behind a feature flag.',
     cross_project_dashboard: 'Behind a feature flag.',
+    cloud_agent: 'Behind a feature flag.',
     external_data_schema: 'Pending removal: covered by external_data_source; no viewset uses it.',
 }
 

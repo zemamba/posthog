@@ -109,15 +109,14 @@ import type {
     UploadedMediaUploadStartedApi,
     UserApi,
     UserAuthSessionApi,
+    UserClaudeSubscriptionApi,
+    UserClaudeSubscriptionConnectRequestApi,
     UserCodexConnectRequestApi,
     UserCodexIntegrationApi,
     UserGitHubLinkStartRequestApi,
     UserGitHubLinkStartResponseApi,
     UserGitHubPrepareCallbackRequestApi,
     UserGithubLoginApi,
-    UserInferenceCredentialApi,
-    UserInferenceCredentialConnectRequestApi,
-    UserInferenceCredentialListResponseApi,
     UserPushTokenItemApi,
     UserPushTokenRegisterRequestApi,
     UserPushTokenUnregisterRequestApi,
@@ -3007,6 +3006,63 @@ export const usersIntegrationsList = async (
     })
 }
 
+export const getUsersIntegrationsClaudeSubscriptionRetrieveUrl = (uuid: string) => {
+    return `/api/users/${uuid}/integrations/claude_subscription/`
+}
+
+/**
+ * Shows the last 4 characters of the stored token. No response carries the token.
+ * @summary Show the Claude subscription stored for cloud agent runs
+ */
+export const usersIntegrationsClaudeSubscriptionRetrieve = async (
+    uuid: string,
+    options?: RequestInit
+): Promise<UserClaudeSubscriptionApi> => {
+    return apiMutator<UserClaudeSubscriptionApi>(getUsersIntegrationsClaudeSubscriptionRetrieveUrl(uuid), {
+        ...options,
+        method: 'GET',
+    })
+}
+
+export const getUsersIntegrationsClaudeSubscriptionCreateUrl = (uuid: string) => {
+    return `/api/users/${uuid}/integrations/claude_subscription/`
+}
+
+/**
+ * Submit the token that `claude setup-token` prints on the user's machine. PostHog stores it encrypted and uses it for the user's cloud agent runs on the Claude runtime. It replaces any stored token. Only the owning user can connect. No response carries the token.
+ * @summary Store a Claude subscription for cloud agent runs
+ */
+export const usersIntegrationsClaudeSubscriptionCreate = async (
+    uuid: string,
+    userClaudeSubscriptionConnectRequestApi: UserClaudeSubscriptionConnectRequestApi,
+    options?: RequestInit
+): Promise<UserClaudeSubscriptionApi> => {
+    return apiMutator<UserClaudeSubscriptionApi>(getUsersIntegrationsClaudeSubscriptionCreateUrl(uuid), {
+        ...options,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(userClaudeSubscriptionConnectRequestApi),
+    })
+}
+
+export const getUsersIntegrationsClaudeSubscriptionDestroyUrl = (uuid: string) => {
+    return `/api/users/${uuid}/integrations/claude_subscription/`
+}
+
+/**
+ * Deletes the stored token. Idempotent.
+ * @summary Delete the Claude subscription stored for cloud agent runs
+ */
+export const usersIntegrationsClaudeSubscriptionDestroy = async (
+    uuid: string,
+    options?: RequestInit
+): Promise<void> => {
+    return apiMutator<void>(getUsersIntegrationsClaudeSubscriptionDestroyUrl(uuid), {
+        ...options,
+        method: 'DELETE',
+    })
+}
+
 export const getUsersIntegrationsCodexRetrieveUrl = (uuid: string) => {
     return `/api/users/${uuid}/integrations/codex/`
 }
@@ -3279,70 +3335,6 @@ export const usersIntegrationsGithubStartCreate = async (
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...options?.headers },
         body: JSON.stringify(userGitHubLinkStartRequestApi),
-    })
-}
-
-export const getUsersIntegrationsInferenceCredentialsRetrieveUrl = (uuid: string) => {
-    return `/api/users/${uuid}/integrations/inference_credentials/`
-}
-
-/**
- * The Anthropic API key, OpenAI API key and Claude subscription token the user stored for cloud agent runs. Each item shows the last 4 characters of the secret. No response carries a secret.
- * @summary List the user's stored inference credentials
- */
-export const usersIntegrationsInferenceCredentialsRetrieve = async (
-    uuid: string,
-    options?: RequestInit
-): Promise<UserInferenceCredentialListResponseApi> => {
-    return apiMutator<UserInferenceCredentialListResponseApi>(
-        getUsersIntegrationsInferenceCredentialsRetrieveUrl(uuid),
-        {
-            ...options,
-            method: 'GET',
-        }
-    )
-}
-
-export const getUsersIntegrationsInferenceCredentialsCreateUrl = (uuid: string) => {
-    return `/api/users/${uuid}/integrations/inference_credentials/`
-}
-
-/**
- * Store the user's own Anthropic API key, OpenAI API key or Claude subscription token for cloud agent runs. PostHog checks an API key with the provider before it stores the key. The secret is stored encrypted and replaces any stored credential of the same kind. No response carries a secret.
- * @summary Store an inference credential
- */
-export const usersIntegrationsInferenceCredentialsCreate = async (
-    uuid: string,
-    userInferenceCredentialConnectRequestApi: UserInferenceCredentialConnectRequestApi,
-    options?: RequestInit
-): Promise<UserInferenceCredentialApi> => {
-    return apiMutator<UserInferenceCredentialApi>(getUsersIntegrationsInferenceCredentialsCreateUrl(uuid), {
-        ...options,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(userInferenceCredentialConnectRequestApi),
-    })
-}
-
-export const getUsersIntegrationsInferenceCredentialsDestroyUrl = (
-    uuid: string,
-    kind: 'anthropic_api_key' | 'claude_subscription' | 'openai_api_key'
-) => {
-    return `/api/users/${uuid}/integrations/inference_credentials/${kind}/`
-}
-
-/**
- * Deletes the stored credential of the given kind. Idempotent.
- * @summary Delete a stored inference credential
- */
-export const usersIntegrationsInferenceCredentialsDestroy = async (
-    uuid: string,
-    kind: 'anthropic_api_key' | 'claude_subscription' | 'openai_api_key',
-    options?: RequestInit
-): Promise<void> => {
-    return apiMutator<void>(getUsersIntegrationsInferenceCredentialsDestroyUrl(uuid, kind), {
-        ...options,
-        method: 'DELETE',
     })
 }
 

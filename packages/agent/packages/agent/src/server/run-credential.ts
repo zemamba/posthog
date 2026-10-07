@@ -17,8 +17,6 @@ export interface RunCredentialClientOptions {
 }
 
 const CREDENTIAL_NAMES: Record<StoredRunCredentialKind, string> = {
-  anthropic_api_key: "Anthropic API key",
-  openai_api_key: "OpenAI API key",
   claude_subscription: "Claude subscription",
 };
 
@@ -37,9 +35,9 @@ export function runCredentialFailureMessage(
 }
 
 /**
- * Fetches the API key or Claude plan token that the run owner stored in
- * PostHog, with the run token as proof that the caller is this run's
- * agent-server. One request per credential: the secret stays in this
+ * Fetches the Claude plan token that the run owner stored in PostHog, with
+ * the run token as proof that the caller is this run's agent-server. One
+ * request per credential: the secret stays in this
  * process's memory for the lifetime of the run, because every CLI process the
  * agent-server starts needs it again.
  *

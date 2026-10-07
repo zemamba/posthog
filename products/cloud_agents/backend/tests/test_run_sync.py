@@ -245,8 +245,8 @@ class TestCostFinalization(RunSyncTestCase):
     @parameterized.expand(
         [
             (
-                "own_key_has_no_inference_cost",
-                {"inference_billing": "own_key", "inference_cost_cents": 50},
+                "own_subscription_has_no_inference_cost",
+                {"inference_billing": "own_subscription", "inference_cost_cents": 50},
                 None,
                 "billed",
             ),

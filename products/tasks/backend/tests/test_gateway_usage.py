@@ -370,12 +370,12 @@ class TestGatewayUsage(BaseTest):
 
     @parameterized.expand(
         [
-            ("own_key", {"claude_model_access": "own-key"}, "own_key"),
-            ("own_subscription", {"claude_model_access": "own-subscription"}, "own_subscription"),
+            ("claude_subscription", {"claude_model_access": "own-subscription"}),
+            ("chatgpt_subscription", {"runtime_adapter": "codex", "codex_model_access": "own-subscription"}),
         ]
     )
-    def test_inference_on_the_owners_credential_has_no_inference_cost(
-        self, _name: str, state: dict[str, str], expected: str
+    def test_inference_on_the_owners_subscription_has_no_inference_cost(
+        self, _name: str, state: dict[str, str]
     ) -> None:
         run = self._run(task=self._cloud_agents_task(), status=TaskRun.Status.COMPLETED)
         TaskRun.update_state_atomic(run.id, updates=state)
@@ -383,7 +383,7 @@ class TestGatewayUsage(BaseTest):
 
         billing = get_task_run_billing(team_id=self.team.id, task_id=run.task_id)
 
-        assert billing.inference_billing == expected
+        assert billing.inference_billing == "own_subscription"
         assert billing.inference_cost_cents is None
         assert billing.compute_cost_cents == 37
 
