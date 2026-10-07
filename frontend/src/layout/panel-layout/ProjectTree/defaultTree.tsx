@@ -12,6 +12,7 @@ import {
     IconCheckbox,
     IconCircleDashed,
     IconClock,
+    IconCloud,
     IconCode,
     IconColumns,
     IconDashboard,
@@ -403,6 +404,10 @@ const iconTypes: Record<FileSystemIconType, { icon: JSX.Element; iconColor?: Fil
     code_review: {
         icon: <IconPullRequest />,
         iconColor: ['var(--color-product-code-review-light)', 'var(--color-product-code-review-dark)'],
+    },
+    cloud_agent: {
+        icon: <IconCloud />,
+        iconColor: ['var(--color-product-tasks-light)', 'var(--color-product-tasks-dark)'],
     },
     stamphog: {
         icon: <IconStamphog />,

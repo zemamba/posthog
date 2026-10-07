@@ -126,6 +126,7 @@ PRODUCTS_APPS = [
     "products.data_quality.backend.apps.DataQualityConfig",
     "products.security.backend.apps.SecurityConfig",
     "products.webmcp.backend.apps.WebmcpConfig",
+    "products.cloud_agents.backend.apps.CloudAgentsConfig",
 ]
 
 INSTALLED_APPS = [

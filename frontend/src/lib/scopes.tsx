@@ -76,6 +76,7 @@ export const API_SCOPES: APIScope[] = [
     { key: 'billing', objectName: 'Billing', objectPlural: 'billing' },
     { key: 'business_knowledge', objectName: 'Business knowledge', objectPlural: 'business knowledge' },
     { key: 'canvas', objectName: 'Canvas', objectPlural: 'canvases' },
+    { key: 'cloud_agent', objectName: 'Cloud agent', objectPlural: 'cloud agents' },
     { key: 'cohort', objectName: 'Cohort', objectPlural: 'cohorts' },
     { key: 'comment', objectName: 'Comment', objectPlural: 'comments' },
     {
@@ -532,6 +533,7 @@ export const API_SCOPE_GROUPS: APIScopeGroup[] = [
             'data_catalog_approval',
             'mcp_registry',
             'task',
+            'cloud_agent',
             'today',
             'loop',
             'signal_scout',
