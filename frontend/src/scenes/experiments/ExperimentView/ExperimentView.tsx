@@ -31,6 +31,7 @@ import { isLegacyExperiment } from '../utils'
 import { DistributionModal, DistributionTable } from './DistributionTable'
 import { ExperimentDebugPanel } from './ExperimentExecutionPathComparison'
 import { ExperimentFeedbackTab } from './ExperimentFeedbackTab'
+import { ExperimentFlagCalledBanner } from './ExperimentFlagCalledBanner'
 import { ExperimentHeader } from './ExperimentHeader'
 import { EditConclusionModal } from './ExperimentModals'
 import { ExperimentReplayTab } from './ExperimentReplayTab'
@@ -164,6 +165,7 @@ export function ExperimentView(): JSX.Element {
             ) : (
                 <>
                     <ExperimentWarningBanner />
+                    <ExperimentFlagCalledBanner />
                     {showDebugPanel && (
                         <div className="mb-4">
                             <ExperimentDebugPanel

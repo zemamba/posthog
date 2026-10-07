@@ -30,6 +30,7 @@ import { useAttachedContext } from 'products/posthog_ai/frontend/api/logics'
 
 import { teamLogic } from '../teamLogic'
 import { addInsightToDashboardLogic } from './addInsightToDashboardModalLogic'
+import { DashboardFlagCalledBanner } from './DashboardFlagCalledBanner'
 import { DashboardHeader } from './DashboardHeader'
 import { DashboardEmbeddedShareButton } from './DashboardHeaderActions'
 import { DashboardModalLoading } from './DashboardModalLoading'
@@ -218,6 +219,7 @@ function DashboardScene({
                     })}
                 >
                     <DashboardRetentionBanner />
+                    <DashboardFlagCalledBanner />
                     <DashboardQueryScanBanner />
 
                     <SceneStickyBar showBorderBottom={false} className="flex gap-2 space-y-0">
