@@ -45,7 +45,9 @@ export function RunSummaryCard({ run }: { run: CloudAgentRunApi }): JSX.Element 
                 <div>
                     <div className="text-secondary text-xs">Result</div>
                     <div className="break-words" translate="no">
-                        <LemonMarkdown lowKeyHeadings>{run.result.summary}</LemonMarkdown>
+                        <LemonMarkdown lowKeyHeadings disableImages="all">
+                            {run.result.summary}
+                        </LemonMarkdown>
                     </div>
                 </div>
             )}

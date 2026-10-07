@@ -88,7 +88,7 @@ export function TeamDefaultsSection(): JSX.Element {
                                 options={[
                                     { value: null, label: 'No default profile' },
                                     ...(profiles ?? []).map((profile) => ({
-                                        value: profile.name,
+                                        value: profile.id,
                                         label: profile.name,
                                     })),
                                 ]}

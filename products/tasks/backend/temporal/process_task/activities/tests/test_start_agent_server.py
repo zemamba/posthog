@@ -1130,6 +1130,8 @@ async def test_collect_agent_shadow_result_reads_after_startup(mocker) -> None:
     [
         ("codex", {"codex_model_access": "posthog-gateway"}, {}, None, "relay"),
         ("codex", {"codex_model_access": "own-subscription"}, {}, "codex-run-token", "relay"),
+        ("codex", {"codex_model_access": "own-key"}, {}, "codex-run-token", "relay"),
+        ("claude", {"claude_model_access": "own-key"}, {}, "codex-run-token", "relay"),
         # A relayed Claude token comes from the client, so the run pulls nothing from PostHog.
         ("claude", {"claude_model_access": "own-subscription"}, {}, None, "relay"),
         (

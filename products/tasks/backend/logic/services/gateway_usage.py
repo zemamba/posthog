@@ -295,9 +295,11 @@ def _session_compute_cost(
 
 
 def _compute_cost_source(run: TaskRun, *, sessions: list[SandboxSession] | None = None) -> Decimal | None:
+    if run.environment != TaskRun.Environment.CLOUD:
+        return None
     # An unbilled run is priced too, so a reader can show what the run would cost.
-    product = compute_pricing_product(run.task.origin_product)
-    if run.environment != TaskRun.Environment.CLOUD or not compute_pricing(product).rate_cards:
+    product = compute_pricing_product(run.origin_product)
+    if not compute_pricing(product).rate_cards:
         return None
     if sessions is None:
         sessions = list(SandboxSession.objects.for_team(run.team_id).filter(task_run=run))
@@ -315,13 +317,15 @@ def _compute_cost_source(run: TaskRun, *, sessions: list[SandboxSession] | None 
         return None
 
 
-def _task_inference_billing(runs: list[TaskRun]) -> InferenceBilling:
-    # A resumed run inherits the access mode of its task, so the newest run speaks for all of them.
-    newest = max(runs, key=lambda run: run.created_at)
+def _run_inference_billing(run: TaskRun) -> InferenceBilling:
     try:
-        return inference_billing_for_state(newest.state or {})
+        return inference_billing_for_state(run.state or {})
     except InvalidModelAccess:
         return "posthog"
+
+
+def _task_inference_billing(runs: list[TaskRun]) -> InferenceBilling:
+    return _run_inference_billing(max(runs, key=lambda run: run.created_at))
 
 
 def get_task_run_billing(*, team_id: int, task_id: UUID) -> TaskRunBillingDTO:
@@ -377,14 +381,15 @@ def get_task_run_billing(*, team_id: int, task_id: UUID) -> TaskRunBillingDTO:
             )
         )
 
-    token_costs = [_token_cost_microusd(run) for run in runs]
+    posthog_runs = [run for run in runs if _run_inference_billing(run) == "posthog"]
+    token_costs = [_token_cost_microusd(run) for run in posthog_runs]
     inference_cost_cents: int | None = None
-    if inference_billing == "posthog" and all(cost is not None for cost in token_costs):
+    if posthog_runs and all(cost is not None for cost in token_costs):
         inference_cost_cents = _cents(Decimal(sum(cost or 0 for cost in token_costs)) / 1_000_000)
 
     # The calculator ends an unstamped session at its TTL, so such a session is closed after it.
     sessions_closed = all(session.ended_at is not None or session.ttl_expires_at <= now for session in sessions)
-    gateway_usage_pending = inference_billing == "posthog" and any(_pending_ids(run.state or {}) for run in runs)
+    gateway_usage_pending = any(_pending_ids(run.state or {}) for run in posthog_runs)
     return TaskRunBillingDTO(
         compute_cost_cents=_cents(compute_usd) if compute_usd is not None else None,
         inference_cost_cents=inference_cost_cents,

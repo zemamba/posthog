@@ -9,7 +9,6 @@ import structlog
 from products.tasks.backend.facade.cancellation import cancel_task_run
 from products.tasks.backend.facade.compute_quota import list_teams_over_cloud_agents_quota_with_active_runs
 
-from ..facade.enums import StopReason
 from ..models import CloudAgentRun
 from .status import TERMINAL_STATUSES
 
@@ -43,7 +42,5 @@ def stop_runs_over_quota() -> int:
                 continue
             if outcome != "accepted":
                 continue
-            # Tasks reports a plain cancellation. The sync keeps this reason when it stores that end.
-            CloudAgentRun.objects.for_team(team_id).filter(id=run.id).update(stop_reason=StopReason.USAGE_LIMIT.value)
             cancelled += 1
     return cancelled

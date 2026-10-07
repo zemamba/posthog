@@ -3744,12 +3744,33 @@ describe("AgentServer HTTP Mode", () => {
     );
 
     it.each([
-      ["a stored Claude subscription", "sk-ant-oat01-fake-stored-token"],
-      ["a missing stored Claude subscription", null],
+      [
+        "a stored Claude subscription",
+        {
+          claudeModelAccess: "own-subscription",
+          claudeSubscriptionSource: "server",
+        },
+        "claude_subscription",
+        "sk-ant-oat01-fake-stored-token",
+        "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+      ],
+      [
+        "the owner's Anthropic API key",
+        { claudeModelAccess: "own-key" },
+        "anthropic_api_key",
+        "sk-ant-api03-fake-own-key",
+        "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
+      ],
+      [
+        "a missing Anthropic API key",
+        { claudeModelAccess: "own-key" },
+        "anthropic_api_key",
+        null,
+        "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
+      ],
     ] as const)(
       "starts a Claude session on %s with the run token, without the relay or the gateway",
-      async (_name, secret) => {
-        const credential = "claude_subscription";
+      async (_name, access, credential, secret, descriptorEnv) => {
         const credentialRequests: { body: unknown; runToken: string | null }[] =
           [];
         mswServer.use(
@@ -3770,11 +3791,7 @@ describe("AgentServer HTTP Mode", () => {
           ),
         );
         mockedClaudeSdk.query.mockClear();
-        const s = createServer({
-          claudeModelAccess: "own-subscription",
-          claudeSubscriptionSource: "server",
-          codexRunToken: "run-token",
-        });
+        const s = createServer({ ...access, codexRunToken: "run-token" });
         const { app } = s as unknown as {
           app: { fetch(request: Request): Promise<Response> | Response };
         };
@@ -3814,7 +3831,7 @@ describe("AgentServer HTTP Mode", () => {
             };
             expect(sdkRequest.options.settings.env).toMatchObject({
               ANTHROPIC_BASE_URL: "https://api.anthropic.com",
-              CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: "3",
+              [descriptorEnv]: "3",
             });
             expect(sdkRequest.options.env.ANTHROPIC_BASE_URL).toBeUndefined();
             expect(

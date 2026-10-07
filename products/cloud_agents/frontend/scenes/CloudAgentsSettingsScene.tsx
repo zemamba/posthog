@@ -3,7 +3,7 @@ import { SceneExport } from 'scenes/sceneTypes'
 import { ProductKey } from '~/queries/schema/schema-general'
 
 import { CloudAgentsSceneShell } from '../components/CloudAgentsSceneShell'
-import { SubscriptionsSection } from '../components/SubscriptionsSection'
+import { ModelProviderSection } from '../components/ModelProviderSection'
 import { TeamDefaultsSection } from '../components/TeamDefaultsSection'
 import { WebhooksSection } from '../components/WebhooksSection'
 import { CloudAgentsSceneLogicProps, cloudAgentsSceneLogic } from '../logics/cloudAgentsSceneLogic'
@@ -19,7 +19,7 @@ export function CloudAgentsSettingsScene(): JSX.Element {
     return (
         <CloudAgentsSceneShell activeTab="settings">
             <TeamDefaultsSection />
-            <SubscriptionsSection />
+            <ModelProviderSection />
             <WebhooksSection />
         </CloudAgentsSceneShell>
     )

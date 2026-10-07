@@ -19,6 +19,7 @@ export const manifest: ProductManifest = {
             name: 'Cloud agents',
             description:
                 'Send a prompt and a repository. A coding agent works in a cloud sandbox and opens a pull request.',
+            docsHref: 'https://posthog.com/docs/cloud-agents/api',
             import: () => import('./frontend/scenes/CloudAgentsRunsScene'),
             projectBased: true,
             layout: 'app-container',

@@ -3471,7 +3471,7 @@ export const TasksRunsStartCreateBody = /* @__PURE__ */ zod.object({
 })
 
 /**
- * Give the run's agent-server the credential the run was started with: a short-lived ChatGPT access token from the run owner's connected account, or the Claude subscription token the run owner stored. Only the run's sandbox may call this, and it must present the run token it received at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex rejected so the server refreshes it early, once.
+ * Give the run's agent-server the credential the run was started with: a short-lived ChatGPT access token from the run owner's connected account, or the API key or Claude subscription token the run owner stored. Only the run's sandbox may call this, and it must present the run token it received at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex rejected so the server refreshes it early, once.
  * @summary Issue the model credential of a run
  */
 export const tasksRunsSubscriptionTokenCreateBodyRejectedAccessTokenSha256RegExp = new RegExp('^[0-9a-f]{64}$')
@@ -3486,11 +3486,13 @@ export const TasksRunsSubscriptionTokenCreateBody = /* @__PURE__ */ zod.object({
             'SHA-256 hex digest of the access token Codex rejected. The server refreshes only when this names its current token; otherwise it returns the newer token it already holds.'
         ),
     credential: zod
-        .enum(['codex', 'claude_subscription'])
-        .describe('\* `codex` - codex\n\* `claude_subscription` - claude_subscription')
+        .enum(['codex', 'anthropic_api_key', 'openai_api_key', 'claude_subscription'])
+        .describe(
+            '\* `codex` - codex\n\* `anthropic_api_key` - anthropic_api_key\n\* `openai_api_key` - openai_api_key\n\* `claude_subscription` - claude_subscription'
+        )
         .default(tasksRunsSubscriptionTokenCreateBodyCredentialDefault)
         .describe(
-            "Credential the run needs. 'codex' (the default) returns a ChatGPT access token. 'claude_subscription' returns the Claude subscription token the run owner stored, and only for a run that was started with it.\n\n\* `codex` - codex\n\* `claude_subscription` - claude_subscription"
+            "Credential the run needs. 'codex' (the default) returns a ChatGPT access token. 'anthropic_api_key', 'openai_api_key' and 'claude_subscription' return the secret the run owner stored, and only for a run that was started with that credential.\n\n\* `codex` - codex\n\* `anthropic_api_key` - anthropic_api_key\n\* `openai_api_key` - openai_api_key\n\* `claude_subscription` - claude_subscription"
         ),
 })
 

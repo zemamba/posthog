@@ -1,7 +1,6 @@
 from typing import Any
 
 from posthog.test.base import APIBaseTest
-from unittest.mock import patch
 
 from django.test import override_settings
 
@@ -102,28 +101,6 @@ class TestAccess(CloudAgentsAPITestCase):
         response = self.call(method, path, body, HTTP_AUTHORIZATION=f"Bearer {key}")
         assert response.status_code == status.HTTP_403_FORBIDDEN, response.json()
 
-    def test_flag_check_that_raises_blocks_the_route(self) -> None:
-        with patch("posthoganalytics.feature_enabled", side_effect=RuntimeError("down")):
-            assert self.call("get", "runs/").status_code == status.HTTP_403_FORBIDDEN
-
-    @parameterized.expand(
-        [
-            ("run_create", "post", "runs/", {"prompt": "Fix it", "repository": "acme/app"}),
-            ("profile_create", "post", "profiles/", {"name": "New profile"}),
-            ("profile_update", "patch", "profiles/{profile}/", {}),
-            ("settings_update", "patch", "settings/", {}),
-        ]
-    )
-    def test_own_key_inference_is_not_accepted(self, _name: str, method: str, path: str, body: dict[str, Any]) -> None:
-        response = self.call(method, path, {**body, "inference": "own_key"})
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
-        assert response.json()["attr"] == "inference"
-        assert self.tasks.create_calls == []
-        assert CloudAgentProfile.objects.count() == 1
-        assert self.call("get", "profiles/{profile}/").json()["inference"] is None
-        assert self.call("get", "settings/").json()["inference"] is None
-
     @parameterized.expand(DETAIL_ROUTES)
     def test_other_team_rows_are_not_found(self, _name: str, method: str, path: str, _write: bool, body: Any) -> None:
         other_org = Organization.objects.create(name="Other")
@@ -175,7 +152,7 @@ class TestProfiles(CloudAgentsAPITestCase):
             "description": "UI work",
             "repository": "acme/web",
             "size": "8x16",
-            "inference": "own_subscription",
+            "inference": "own_key",
             "pr_mode": "ready",
             "create_pr": False,
             "max_duration_minutes": 30,

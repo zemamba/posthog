@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../utils/logger";
 import {
   buildAppServerArgs,
+  OWN_KEY_ENV_VAR,
+  OWN_KEY_PROVIDER_ID,
   SANDBOX_STREAM_IDLE_TIMEOUT_MS,
   spawnCodexAppServerProcess,
 } from "./spawn";
@@ -148,6 +150,36 @@ describe("buildAppServerArgs", () => {
       }
     },
   );
+
+  it("calls the OpenAI API with the owner's key and sends no gateway provider or headers", () => {
+    const args = buildAppServerArgs({
+      binaryPath: "/bundle/codex",
+      ownApiKey: "sk-fake-own-key",
+      httpHeaders: { "x-posthog-property-task_id": "task-1" },
+    });
+
+    expect(args).toContain(`model_provider="${OWN_KEY_PROVIDER_ID}"`);
+    expect(args).toContain(
+      `model_providers.${OWN_KEY_PROVIDER_ID}.base_url="https://api.openai.com/v1"`,
+    );
+    expect(args).toContain(
+      `model_providers.${OWN_KEY_PROVIDER_ID}.env_key="${OWN_KEY_ENV_VAR}"`,
+    );
+    expect(args).toContain(
+      `shell_environment_policy.exclude=["${OWN_KEY_ENV_VAR}"]`,
+    );
+    expect(args.join(" ")).not.toMatch(/posthog\.|x-posthog|sk-fake-own-key/i);
+  });
+
+  it("refuses the gateway and the owner's key in one session", () => {
+    expect(() =>
+      buildAppServerArgs({
+        binaryPath: "/bundle/codex",
+        apiBaseUrl: "https://gateway.example/v1",
+        ownApiKey: "sk-fake-own-key",
+      }),
+    ).toThrow(/gateway/);
+  });
 
   it("uses the machine account without gateway or user integrations", () => {
     const args = buildAppServerArgs({
@@ -343,7 +375,25 @@ describe("spawnCodexAppServerProcess", () => {
         codexHome: "/appdata/codex/run-2",
         logger: silentLogger,
       });
+      spawnCodexAppServerProcess({
+        binaryPath: BINARY_PATH,
+        ownApiKey: "sk-fake-own-key",
+        logger: silentLogger,
+      });
+      const ownKeyEnv = mockSpawn.mock.lastCall?.[2].env as NodeJS.ProcessEnv;
+      expect(ownKeyEnv[OWN_KEY_ENV_VAR]).toBe("sk-fake-own-key");
+      expect(ownKeyEnv.POSTHOG_GATEWAY_API_KEY).toBeUndefined();
+      expect(ownKeyEnv.OPENAI_API_KEY).toBeUndefined();
+      expect(ownKeyEnv.OPENAI_BASE_URL).toBeUndefined();
+
+      spawnCodexAppServerProcess({
+        binaryPath: BINARY_PATH,
+        apiKey: "phk",
+        codexHome: "/appdata/codex/run-2",
+        logger: silentLogger,
+      });
       const gatewayEnv = mockSpawn.mock.lastCall?.[2].env as NodeJS.ProcessEnv;
+      expect(gatewayEnv[OWN_KEY_ENV_VAR]).toBeUndefined();
       expect(gatewayEnv.POSTHOG_GATEWAY_API_KEY).toBe("phk");
       expect(gatewayEnv.OPENAI_API_KEY).toBeUndefined();
       expect(gatewayEnv.OPENAI_BASE_URL).toBeUndefined();

@@ -86,6 +86,7 @@ MAX_RETRY_AFTER_SECONDS: Final = 24 * 60 * 60
 TITLE_MAX_LENGTH: Final = 120
 EVENT_LOG_MAX_BYTES: Final = 16 * 1024 * 1024
 RUN_ID_STATE_KEY: Final = "cloud_agents_run_id"
+_OWN_CREDENTIAL_MODES: Final = frozenset({InferenceMode.OWN_KEY, InferenceMode.OWN_SUBSCRIPTION})
 
 
 class _DuplicateIdempotencyKey(Exception):
@@ -389,7 +390,7 @@ def list_runs(team_id: int, filters: RunListFilters) -> RunList:
     if filters.profile_id is not None:
         rows = rows.filter(profile_id=filters.profile_id)
     if filters.repository:
-        rows = rows.filter(repository__iexact=filters.repository)
+        rows = rows.filter(repository__icontains=filters.repository)
     if filters.tag:
         rows = rows.filter(tags__contains=[filters.tag])
     if filters.created_after is not None:
@@ -419,9 +420,9 @@ def get_run_events(team_id: int, run_id: UUID) -> RunEventsDTO:
 
 
 def _check_credential_owner(run: CloudAgentRun, caller: CallerIdentity) -> None:
-    """A run on a user's own subscription spends that user's plan allowance, so only that user continues it."""
+    """A run on a user's own key or subscription spends that user's credential, so only that user continues it."""
     inference = run.config.get("inference")
-    if inference == InferenceMode.OWN_SUBSCRIPTION and (caller.user_id is None or caller.user_id != run.created_by_id):
+    if inference in _OWN_CREDENTIAL_MODES and (caller.user_id is None or caller.user_id != run.created_by_id):
         raise CredentialOwnerRequired()
 
 

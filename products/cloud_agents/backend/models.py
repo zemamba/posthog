@@ -150,6 +150,16 @@ class CloudAgentRun(TeamScopedRootMixin):
         indexes = [
             models.Index(fields=["team", "-created_at"], name="cloud_agents_run_team_created"),
             models.Index(fields=["team", "status"], name="cloud_agents_run_team_status"),
+            models.Index(
+                fields=["last_synced_at"],
+                condition=models.Q(status__in=[CloudAgentRunStatus.QUEUED.value, CloudAgentRunStatus.RUNNING.value]),
+                name="cloud_agents_run_active_sync",
+            ),
+            models.Index(
+                fields=["completed_at"],
+                condition=models.Q(cost_final=False),
+                name="cloud_agents_run_cost_pending",
+            ),
         ]
 
     def __str__(self) -> str:

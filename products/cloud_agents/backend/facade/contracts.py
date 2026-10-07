@@ -500,7 +500,9 @@ class OrganizationDeactivated(CloudAgentsError):
 class CredentialOwnerRequired(CloudAgentsError):
     code = "credential_owner_required"
     status_code = 403
-    default_message = "This run uses the subscription of the user who started it. Only that user can send it a message."
+    default_message = (
+        "This run uses the model credential of the user who started it. Only that user can send it a message."
+    )
 
 
 class RunNotReady(CloudAgentsError):

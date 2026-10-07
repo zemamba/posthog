@@ -869,8 +869,10 @@ CLAUDE_CREDENTIAL_UNAVAILABLE_MESSAGE = (
 SUBSCRIPTION_CLI_FLAGS = {"claude": "--claudeSubscription", "codex": "--codexSubscription"}
 
 
-# The agent-server option for a Claude plan run whose token the server holds. The launcher greps
-# the binary for the option name, as it does for the two above.
+# The agent-server options for a run on the owner's API key, and for a Claude plan run whose token
+# the server holds. The launcher greps the binary for the option name, as it does for the two above.
+OWN_KEY_CLI_FLAG = "--ownKey"
+OWN_KEY_CLI_PROVIDERS = {"claude": "anthropic", "codex": "openai"}
 CLAUDE_SUBSCRIPTION_SOURCE_CLI_FLAG = "--claudeSubscriptionSource"
 
 
@@ -882,6 +884,8 @@ def required_model_access_flags(
     """The agent-server option names that a run's model access needs the binary to support."""
     access = {"claude": claude_model_access, "codex": codex_model_access}
     flags = [flag for adapter, flag in SUBSCRIPTION_CLI_FLAGS.items() if access[adapter] == "own-subscription"]
+    if "own-key" in access.values():
+        flags.append(OWN_KEY_CLI_FLAG)
     if claude_model_access == "own-subscription" and claude_subscription_source == "server":
         flags.append(CLAUDE_SUBSCRIPTION_SOURCE_CLI_FLAG)
     return flags
@@ -896,6 +900,9 @@ def build_subscription_flags(
     flags = "".join(
         f" {flag}" for adapter, flag in SUBSCRIPTION_CLI_FLAGS.items() if access[adapter] == "own-subscription"
     )
+    for adapter, provider in OWN_KEY_CLI_PROVIDERS.items():
+        if access[adapter] == "own-key":
+            flags += f" {OWN_KEY_CLI_FLAG} {provider}"
     if claude_model_access == "own-subscription" and claude_subscription_source == "server":
         flags += f" {CLAUDE_SUBSCRIPTION_SOURCE_CLI_FLAG} server"
     return flags

@@ -46,9 +46,13 @@ import {
 } from "../hooks";
 import {
   applyMachineClaudeAuth,
+  CLAUDE_API_KEY_FD_ENV,
+  CLAUDE_OAUTH_TOKEN_FD_ENV,
   CLAUDE_PROVIDER_ENV_KEYS,
   CLAUDE_TRANSPORT_ENV_KEYS,
   CLOUD_AUTH_STRIPPED_KEYS,
+  type ClaudeFdCredential,
+  claudeFdCredential,
   MACHINE_AUTH_STRIPPED_KEYS,
   type MachineClaudeAuth,
 } from "../machine-auth";
@@ -462,12 +466,12 @@ function buildSpawnWrapper(
   onProcessSpawned?: (info: ProcessSpawnedInfo) => void,
   onProcessExited?: (pid: number) => void,
   logger?: Logger,
-  oauthToken?: string,
+  fdCredential?: ClaudeFdCredential,
   onStartupOutput?: (stdout: Readable) => void,
 ): (options: SpawnOptions) => SpawnedProcess {
   return (spawnOpts: SpawnOptions): SpawnedProcess => {
-    const command = oauthToken ? "/bin/bash" : spawnOpts.command;
-    const args = oauthToken
+    const command = fdCredential ? "/bin/bash" : spawnOpts.command;
+    const args = fdCredential
       ? [
           "-p",
           "-c",
@@ -481,19 +485,19 @@ function buildSpawnWrapper(
       cwd: spawnOpts.cwd,
       env: {
         ...spawnOpts.env,
-        ...(oauthToken ? { CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: "3" } : {}),
+        ...(fdCredential ? { [fdCredential.fdEnv]: "3" } : {}),
       },
-      stdio: oauthToken
+      stdio: fdCredential
         ? ["pipe", "pipe", "pipe", "pipe"]
         : ["pipe", "pipe", "pipe"],
     });
 
     if (child.stdout) onStartupOutput?.(child.stdout);
 
-    if (oauthToken) {
+    if (fdCredential) {
       const tokenPipe = child.stdio[3] as Writable;
       tokenPipe.on("error", () => child.kill("SIGTERM"));
-      tokenPipe.end(oauthToken);
+      tokenPipe.end(fdCredential.secret);
     }
 
     if (child.pid) {
@@ -710,8 +714,11 @@ export function buildSessionOptions(params: BuildOptionsParams): Options {
   // option or a raw `extraArgs` flag — both reach the same CLI flag, and the
   // SDK silently drops the extraArgs one on collision) rather than clobbering
   // it. The hook command is POSIX shell, so Windows Desktop hosts skip it.
+  // Only a PostHog gateway session: a session on the owner's plan or API key
+  // calls Anthropic directly, where no gateway mints a trace id per turn.
   const traceparentHookSettings =
     params.gatewayEnv?.anthropicBaseUrl &&
+    !params.machineAuth &&
     params.traceparentHookNonce &&
     process.platform !== "win32" &&
     params.userProvidedOptions?.settings === undefined &&
@@ -729,7 +736,8 @@ export function buildSessionOptions(params: BuildOptionsParams): Options {
       ? []
       : { type: "preset", preset: "claude_code" });
 
-  const claudeCodeExecutable = params.machineAuth?.oauthToken
+  const fdCredential = claudeFdCredential(params.machineAuth);
+  const claudeCodeExecutable = fdCredential
     ? undefined
     : process.env.CLAUDE_CODE_EXECUTABLE;
 
@@ -795,15 +803,13 @@ export function buildSessionOptions(params: BuildOptionsParams): Options {
     abortController: getAbortController(
       params.userProvidedOptions?.abortController,
     ),
-    ...((params.onProcessSpawned ||
-      params.machineAuth?.oauthToken ||
-      params.onStartupOutput) && {
+    ...((params.onProcessSpawned || fdCredential || params.onStartupOutput) && {
       spawnClaudeCodeProcess: buildSpawnWrapper(
         params.sessionId,
         params.onProcessSpawned,
         params.onProcessExited,
         params.logger,
-        params.machineAuth?.oauthToken,
+        fdCredential,
         params.onStartupOutput,
       ),
     }),
@@ -827,7 +833,7 @@ export function buildSessionOptions(params: BuildOptionsParams): Options {
     );
   }
 
-  if (params.machineAuth?.oauthToken) {
+  if (fdCredential) {
     delete options.pathToClaudeCodeExecutable;
     delete options.executable;
     delete options.executableArgs;
@@ -853,7 +859,12 @@ export function buildSessionOptions(params: BuildOptionsParams): Options {
         NODE_TLS_REJECT_UNAUTHORIZED: "1",
         ANTHROPIC_BASE_URL: "https://api.anthropic.com",
         CLAUDE_CODE_OAUTH_TOKEN: "",
-        CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: "3",
+        // An API key session blanks the plan token descriptor, so that a
+        // repository setting cannot make the CLI read the key as a plan token.
+        ...(fdCredential.fdEnv === CLAUDE_API_KEY_FD_ENV && {
+          [CLAUDE_OAUTH_TOKEN_FD_ENV]: "",
+        }),
+        [fdCredential.fdEnv]: "3",
         CLAUDE_CODE_REMOTE: "",
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "0",
       },

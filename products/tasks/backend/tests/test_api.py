@@ -32,7 +32,6 @@ from rest_framework.views import APIView
 
 from posthog.clickhouse.query_tagging import get_query_tags
 from posthog.models import Integration, Organization, OrganizationMembership, PersonalAPIKey, Team, User
-from posthog.models.integration.claude_subscription import ClaudeSubscriptionStore
 from posthog.models.oauth import OAuthAccessToken, OAuthApplication, OAuthRefreshToken
 from posthog.models.personal_api_key import hash_key_value
 from posthog.models.scoping import team_scope
@@ -119,8 +118,6 @@ from ee.billing.quota_limiting import QuotaResource
 # The catalog gates no model behind a rollout flag now, so the write paths that re-check
 # entitlement are exercised with a stand-in rather than with whichever model is mid-rollout.
 GATED_MODEL_FLAG = "tasks-test-model-gate"
-FAKE_CLAUDE_SUBSCRIPTION_TOKEN = "sk-ant-oat01-not-a-real-token-0003"
-STORED_CLAUDE_SUBSCRIPTION_STATE = {"claude_model_access": "own-subscription", "claude_subscription_source": "server"}
 
 TASK_ANALYTICS_QUERY: dict[str, Any] = {
     "kind": "InsightVizNode",
@@ -14228,80 +14225,120 @@ class TestTaskRunCommandAPI(BaseTaskAPITest):
 
     @parameterized.expand(
         [
-            # name, run state, requested credential, token stored, caller, token sandbox, status
+            # name, run state, requested credential, stored kinds, caller, token sandbox, status, secret
             (
-                "stored_subscription",
-                STORED_CLAUDE_SUBSCRIPTION_STATE,
-                "claude_subscription",
-                True,
+                "own_key",
+                {"claude_model_access": "own-key"},
+                "anthropic_api_key",
+                ("anthropic_api_key",),
                 "sandbox",
                 "sandbox-1",
-                200,
+                status.HTTP_200_OK,
+                "sk-fake-anthropic_api_key",
+            ),
+            (
+                "stored_subscription",
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                "claude_subscription",
+                ("anthropic_api_key", "claude_subscription"),
+                "sandbox",
+                "sandbox-1",
+                status.HTTP_200_OK,
+                "sk-fake-claude_subscription",
+            ),
+            (
+                "another_kind_than_the_run_selected",
+                {"claude_model_access": "own-key"},
+                "claude_subscription",
+                ("anthropic_api_key", "claude_subscription"),
+                "sandbox",
+                "sandbox-1",
+                status.HTTP_403_FORBIDDEN,
+                None,
+            ),
+            (
+                "default_body_on_an_own_key_run",
+                {"claude_model_access": "own-key"},
+                None,
+                ("anthropic_api_key",),
+                "sandbox",
+                "sandbox-1",
+                status.HTTP_403_FORBIDDEN,
+                None,
             ),
             (
                 "gateway_run",
                 {"claude_model_access": "posthog-gateway"},
-                "claude_subscription",
-                True,
+                "anthropic_api_key",
+                ("anthropic_api_key",),
                 "sandbox",
                 "sandbox-1",
-                403,
+                status.HTTP_403_FORBIDDEN,
+                None,
             ),
             (
                 "relayed_subscription_run",
                 {"claude_model_access": "own-subscription"},
                 "claude_subscription",
-                True,
+                ("claude_subscription",),
                 "sandbox",
                 "sandbox-1",
-                403,
+                status.HTTP_403_FORBIDDEN,
+                None,
             ),
-            ("default_body", STORED_CLAUDE_SUBSCRIPTION_STATE, None, True, "sandbox", "sandbox-1", 403),
             (
                 "human_session",
-                STORED_CLAUDE_SUBSCRIPTION_STATE,
-                "claude_subscription",
-                True,
+                {"claude_model_access": "own-key"},
+                "anthropic_api_key",
+                ("anthropic_api_key",),
                 "session",
                 "sandbox-1",
-                403,
+                status.HTTP_403_FORBIDDEN,
+                None,
             ),
             (
                 "wrong_sandbox",
-                STORED_CLAUDE_SUBSCRIPTION_STATE,
-                "claude_subscription",
-                True,
+                {"claude_model_access": "own-key"},
+                "anthropic_api_key",
+                ("anthropic_api_key",),
                 "sandbox",
                 "other-sandbox",
-                403,
+                status.HTTP_403_FORBIDDEN,
+                None,
             ),
             (
                 "nothing_stored",
-                STORED_CLAUDE_SUBSCRIPTION_STATE,
-                "claude_subscription",
-                False,
+                {"claude_model_access": "own-key"},
+                "anthropic_api_key",
+                (),
                 "sandbox",
                 "sandbox-1",
-                404,
+                status.HTTP_404_NOT_FOUND,
+                None,
             ),
-            ("unknown_credential", STORED_CLAUDE_SUBSCRIPTION_STATE, "github_token", True, "sandbox", "sandbox-1", 400),
             (
-                "anthropic_api_key",
-                STORED_CLAUDE_SUBSCRIPTION_STATE,
-                "anthropic_api_key",
-                True,
+                "unknown_credential",
+                {"claude_model_access": "own-key"},
+                "github_token",
+                ("anthropic_api_key",),
                 "sandbox",
                 "sandbox-1",
-                400,
+                status.HTTP_400_BAD_REQUEST,
+                None,
             ),
-            ("openai_api_key", STORED_CLAUDE_SUBSCRIPTION_STATE, "openai_api_key", True, "sandbox", "sandbox-1", 400),
         ]
     )
-    def test_subscription_token_returns_the_stored_claude_subscription_only_to_the_run_that_selected_it(
-        self, _name, run_state, credential, stored, caller, token_sandbox_id, expected_status
+    def test_subscription_token_returns_a_stored_credential_only_to_the_run_that_selected_it(
+        self, _name, run_state, credential, stored, caller, token_sandbox_id, expected_status, expected_secret
     ):
-        if stored:
-            ClaudeSubscriptionStore.connect(self.user.id, FAKE_CLAUDE_SUBSCRIPTION_TOKEN)
+        for kind in stored:
+            UserIntegration.objects.create(
+                user=self.user,
+                kind=kind,
+                integration_id=kind,
+                config={},
+                sensitive_config={"secret": f"sk-fake-{kind}"},
+            )
         task = self.create_task(created_by=self.user)
         run = self._create_run_with_sandbox(task)
         run.state = {**run.state, **run_state, "claude_subscription_user_id": self.user.id}
@@ -14321,42 +14358,37 @@ class TestTaskRunCommandAPI(BaseTaskAPITest):
             )
 
         self.assertEqual(response.status_code, expected_status)
-        if expected_status == status.HTTP_200_OK:
-            self.assertEqual(
-                response.json(), {"credential": "claude_subscription", "secret": FAKE_CLAUDE_SUBSCRIPTION_TOKEN}
-            )
+        if expected_secret is None:
+            self.assertNotIn("sk-fake", response.content.decode())
         else:
-            self.assertNotIn(FAKE_CLAUDE_SUBSCRIPTION_TOKEN, response.content.decode())
+            self.assertEqual(response.json(), {"credential": credential, "secret": expected_secret})
         if expected_status == status.HTTP_404_NOT_FOUND:
-            self.assertEqual(
-                response.json(),
-                {"error": "The run owner has no stored Claude subscription token.", "code": "credential_missing"},
-            )
-        if expected_status == status.HTTP_400_BAD_REQUEST:
-            self.assertEqual(response.json()["attr"], "credential")
+            self.assertEqual(response.json()["code"], "credential_missing")
 
     def test_subscription_token_never_returns_the_credential_of_a_user_who_does_not_own_the_run(self):
         owner = self.create_organization_user("run-owner")
-        ClaudeSubscriptionStore.connect(self.user.id, FAKE_CLAUDE_SUBSCRIPTION_TOKEN)
+        UserIntegration.objects.create(
+            user=self.user,
+            kind="anthropic_api_key",
+            integration_id="k",
+            config={},
+            sensitive_config={"secret": "sk-fake"},
+        )
         task = self.create_task(created_by=self.user)
         run = self._create_run_with_sandbox(task)
-        run.state = {**run.state, **STORED_CLAUDE_SUBSCRIPTION_STATE, "claude_subscription_user_id": owner.id}
+        run.state = {**run.state, "claude_model_access": "own-key", "claude_subscription_user_id": owner.id}
         run.save(update_fields=["state"])
         self._open_sandbox_session(run, "sandbox-1")
 
-        with patch(
-            "products.tasks.backend.logic.services.inference_resolution.claude_subscription_storage_enabled",
-            return_value=True,
-        ):
-            response = self._sandbox_oauth_client(task.id).post(
-                self._subscription_token_url(task, run),
-                {"credential": "claude_subscription"},
-                format="json",
-                HTTP_X_TASK_RUN_TOKEN=create_codex_subscription_run_token(run, sandbox_id="sandbox-1"),
-            )
+        response = self._sandbox_oauth_client(task.id).post(
+            self._subscription_token_url(task, run),
+            {"credential": "anthropic_api_key"},
+            format="json",
+            HTTP_X_TASK_RUN_TOKEN=create_codex_subscription_run_token(run, sandbox_id="sandbox-1"),
+        )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertNotIn(FAKE_CLAUDE_SUBSCRIPTION_TOKEN, response.content.decode())
+        self.assertNotIn("sk-fake", response.content.decode())
 
     @patch("posthog.storage.object_storage.get_presigned_url")
     def test_task_session_is_readable_for_a_public_channel_task(self, mock_download_url):

@@ -509,8 +509,8 @@ describe("PostHogAPIClient", () => {
     [
       "the secret the run selected",
       200,
-      { credential: "claude_subscription", secret: "sk-ant-oat01-fake" },
-      "sk-ant-oat01-fake",
+      { credential: "anthropic_api_key", secret: "sk-ant-api03-fake" },
+      "sk-ant-api03-fake",
     ],
     [
       "a ChatGPT-shaped answer from a server without the field",
@@ -521,7 +521,7 @@ describe("PostHogAPIClient", () => {
     [
       "another credential than the one asked for",
       200,
-      { credential: "codex", secret: "sk-fake" },
+      { credential: "openai_api_key", secret: "sk-fake" },
       { code: "request_failed" },
     ],
     [
@@ -551,7 +551,7 @@ describe("PostHogAPIClient", () => {
         "task-1",
         "run-1",
         "run-token",
-        "claude_subscription",
+        "anthropic_api_key",
         5_000,
       );
 
@@ -561,7 +561,7 @@ describe("PostHogAPIClient", () => {
         const error = await request.catch((caught: Error) => caught);
         expect(error).toMatchObject({
           name: "RunCredentialError",
-          credential: "claude_subscription",
+          credential: "anthropic_api_key",
           ...expected,
         });
         expect((error as Error).message).not.toContain("sk-");
@@ -570,7 +570,7 @@ describe("PostHogAPIClient", () => {
         "https://app.posthog.com/api/projects/7/tasks/task-1/runs/run-1/subscription_token/",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ credential: "claude_subscription" }),
+          body: JSON.stringify({ credential: "anthropic_api_key" }),
         }),
       );
       const init = mockFetch.mock.calls.at(-1)?.[1] as RequestInit;

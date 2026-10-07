@@ -64,8 +64,7 @@ def _stop_reason(run: CloudAgentRun, task_run: TaskRunDTO, status: CloudAgentRun
     if not status_logic.is_terminal(status):
         return None
     stop_reason = status_logic.stop_reason_for(status, classify_task_run_end(task_run))
-    # The quota sweep cancels a run and records why. Tasks then reports a plain cancellation.
-    if stop_reason == StopReason.CANCELLED and run.stop_reason == StopReason.USAGE_LIMIT.value:
+    if stop_reason == StopReason.CANCELLED and task_run.state.get("cancel_source") == "cloud_agents_quota_sweep":
         return StopReason.USAGE_LIMIT
     return stop_reason
 

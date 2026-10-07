@@ -1073,7 +1073,7 @@ class LivingArtifactVersionDownload:
     error: Literal["not_found", "not_stored", "unavailable"] | None
 
 
-InferenceBilling = Literal["posthog", "own_subscription"]
+InferenceBilling = Literal["posthog", "own_key", "own_subscription"]
 
 
 @dataclass(frozen=True, kw_only=True)

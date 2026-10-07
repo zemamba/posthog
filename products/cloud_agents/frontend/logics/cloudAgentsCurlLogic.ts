@@ -15,7 +15,7 @@ export function buildRunCurl(runsUrl: string, body: CloudAgentRunCreateApi): str
         `curl -X POST "${runsUrl}" \\`,
         `  -H "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \\`,
         `  -H "Content-Type: application/json" \\`,
-        `  -d '${JSON.stringify(body)}'`,
+        `  -d '${JSON.stringify(body).replace(/'/g, "'\\''")}'`,
     ].join('\n')
 }
 

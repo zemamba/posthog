@@ -85,7 +85,7 @@ from products.tasks.backend.facade.client_provenance import (
 )
 from products.tasks.backend.facade.compute_quota import ComputeBillingLimitExceeded
 from products.tasks.backend.facade.contracts import TaskAnalysisError, TaskRunLogAppendUnserialized
-from products.tasks.backend.facade.inference import ClaudeSubscriptionMissing, RunInferenceCredential
+from products.tasks.backend.facade.inference import InferenceCredentialMissing, RunInferenceCredential
 from products.tasks.backend.facade.metrics import StreamTokenRoute, observe_stream_token_routed
 from products.tasks.backend.facade.model_catalogue import TASK_RUN_GATEWAY_PRODUCT, available_model_choices
 from products.tasks.backend.facade.run_config import (
@@ -2502,8 +2502,8 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
             ),
             404: OpenApiResponse(
                 response=TaskRunErrorResponseSerializer,
-                description="Task run not found, or credential_missing: the run owner has no stored Claude "
-                "subscription token",
+                description="Task run not found, or credential_missing: the run owner has no stored credential "
+                "of the requested kind",
             ),
             409: OpenApiResponse(
                 response=TaskRunErrorResponseSerializer,
@@ -2516,7 +2516,7 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
         },
         summary="Issue the model credential of a run",
         description="Give the run's agent-server the credential the run was started with: a short-lived ChatGPT "
-        "access token from the run owner's connected account, or the Claude subscription token the "
+        "access token from the run owner's connected account, or the API key or Claude subscription token the "
         "run owner stored. Only the run's sandbox may call this, and it must present the run token it received "
         "at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex "
         "rejected so the server refreshes it early, once.",
@@ -2537,16 +2537,13 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
         credential = request.validated_data["credential"]
         if credential != RunInferenceCredential.CODEX.value:
             try:
-                credential_grant = tasks_facade.issue_run_claude_subscription_grant(
-                    pk, task_id, self.team_id, run_token=run_token
+                credential_grant = tasks_facade.issue_run_inference_credential_grant(
+                    pk, task_id, self.team_id, run_token=run_token, credential=credential
                 )
-            except ClaudeSubscriptionMissing:
+            except InferenceCredentialMissing:
                 return Response(
                     TaskRunErrorResponseSerializer(
-                        {
-                            "error": "The run owner has no stored Claude subscription token.",
-                            "code": "credential_missing",
-                        }
+                        {"error": "The run owner has no stored credential of this kind.", "code": "credential_missing"}
                     ).data,
                     status=status.HTTP_404_NOT_FOUND,
                 )
@@ -2554,7 +2551,7 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
                 raise PermissionDenied("The task run token is invalid")
             return Response(
                 TaskRunInferenceCredentialResponseSerializer(
-                    {"credential": credential, "secret": credential_grant.secret}
+                    {"credential": credential_grant.credential, "secret": credential_grant.secret}
                 ).data
             )
         try:

@@ -1,1 +1,1 @@
-1395_claude_subscription_user_integration_unique_index
+1395_inference_credential_user_integration_unique_indexes

@@ -21,61 +21,59 @@ function createClient() {
 describe("RunCredentialClient", () => {
   it("fetches a credential once with the run token and never logs the secret", async () => {
     const { client, requestStoredRunCredential, info } = createClient();
-    requestStoredRunCredential.mockResolvedValue("sk-ant-oat01-fake");
+    requestStoredRunCredential.mockResolvedValue("sk-ant-api03-fake");
 
     const [first, second] = await Promise.all([
-      client.get("claude_subscription"),
-      client.get("claude_subscription"),
+      client.get("anthropic_api_key"),
+      client.get("anthropic_api_key"),
     ]);
-    const third = await client.get("claude_subscription");
+    const third = await client.get("anthropic_api_key");
 
     expect([first, second, third]).toEqual([
-      "sk-ant-oat01-fake",
-      "sk-ant-oat01-fake",
-      "sk-ant-oat01-fake",
+      "sk-ant-api03-fake",
+      "sk-ant-api03-fake",
+      "sk-ant-api03-fake",
     ]);
     expect(requestStoredRunCredential).toHaveBeenCalledTimes(1);
     expect(requestStoredRunCredential).toHaveBeenCalledWith(
       "task-1",
       "run-1",
       "run-token",
-      "claude_subscription",
+      "anthropic_api_key",
       expect.any(Number),
     );
-    expect(JSON.stringify(info.mock.calls)).not.toContain("sk-ant-oat01-fake");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("sk-ant-api03-fake");
   });
 
   it("asks again after a failed request", async () => {
     const { client, requestStoredRunCredential } = createClient();
     requestStoredRunCredential
       .mockRejectedValueOnce(
-        new RunCredentialError(
-          "claude_subscription",
-          "request_failed",
-          500,
-          "x",
-        ),
+        new RunCredentialError("openai_api_key", "request_failed", 500, "x"),
       )
-      .mockResolvedValueOnce("sk-ant-oat01-fake");
+      .mockResolvedValueOnce("sk-fake-openai");
 
-    await expect(client.get("claude_subscription")).rejects.toMatchObject({
+    await expect(client.get("openai_api_key")).rejects.toMatchObject({
       code: "request_failed",
     });
-    await expect(client.get("claude_subscription")).resolves.toBe(
-      "sk-ant-oat01-fake",
-    );
+    await expect(client.get("openai_api_key")).resolves.toBe("sk-fake-openai");
   });
 
   it.each([
+    [
+      "anthropic_api_key",
+      "credential_missing",
+      "Add your Anthropic API key in Cloud agents settings, then start the run again.",
+    ],
     [
       "claude_subscription",
       "credential_missing",
       "Add your Claude subscription in Cloud agents settings, then start the run again.",
     ],
     [
-      "claude_subscription",
+      "openai_api_key",
       "forbidden",
-      "This run could not get your Claude subscription from PostHog. Start the run again.",
+      "This run could not get your OpenAI API key from PostHog. Start the run again.",
     ],
   ] as const)(
     "explains a %s request that failed with %s",

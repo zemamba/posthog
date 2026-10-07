@@ -32,4 +32,4 @@ def sync_run_on_task_run_status_change(sender: Any, task_run: Any, **kwargs: Any
     if task_run.origin_product != TaskOriginProduct.CLOUD_AGENTS:
         return
     # The writer's transaction is still open. The worker must read the status that it commits.
-    transaction.on_commit(partial(_enqueue_sync, task_run.team_id, str(task_run.id)))
+    transaction.on_commit(partial(_enqueue_sync, task_run.team_id, str(task_run.id)), robust=True)

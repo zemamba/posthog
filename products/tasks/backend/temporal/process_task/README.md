@@ -233,42 +233,47 @@ Cloud usage and local usage share one plan allowance, so a run can stop at a pla
 Keep the flag off while deploying the backend and publishing the sandbox agent build, then enable it for the intended users.
 Desktop and backend use the same flag; a stale client cannot bypass the backend check.
 
-### Stored Claude subscription
+### Stored credentials: own API key and stored Claude subscription
 
-A server-side caller, such as the Cloud Agents product, can start a run on the Claude subscription token that PostHog stores for the user.
-`ClaudeSubscriptionStore` (`posthog/models/integration/claude_subscription.py`) holds one token per user.
-The public Tasks API cannot select this mode.
+A server-side caller, such as the Cloud Agents product, can start a run on a credential that PostHog stores for the user.
+`InferenceCredentialStore` (`posthog/models/integration/inference_credentials.py`) holds one Anthropic API key, one OpenAI API key, and one Claude subscription token per user.
+The public Tasks API cannot select these modes.
 A caller resolves the mode with `resolve_inference` in `facade/inference.py` and passes the result to `facade/cloud_agents.py` as `inference_state`.
 
 | Run state                                                                           | Credential the run uses                 | Rollout flag                                |
 | ----------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
+| `claude_model_access: "own-key"`                                                    | The owner's Anthropic API key           | None                                        |
+| `codex_model_access: "own-key"`                                                     | The owner's OpenAI API key              | None                                        |
 | `claude_model_access: "own-subscription"` + `claude_subscription_source: "server"`  | The owner's stored Claude subscription  | `cloud-agents-claude-subscription-storage`  |
 | `claude_model_access: "own-subscription"` (source absent or `"relay"`)              | The relayed token described above       | `posthog-code-claude-own-subscription-cloud` |
 
-The owner is the user who started the run, recorded as `claude_subscription_user_id`.
+The owner is the user who started the run, recorded as `{adapter}_subscription_user_id` for the API key modes too.
 All of these keys are protected: a PATCH to the run cannot change them.
-`inference_billing_for_state` in `facade/inference.py` returns `posthog` or `own_subscription` for a run state.
+`inference_billing_for_state` in `facade/inference.py` returns `posthog`, `own_key`, or `own_subscription` for a run state.
 
-A run on the stored token has no path to PostHog credits.
-It gets no gateway URL and no gateway token, and its sandbox OAuth token omits `llm_gateway:read`, the same as every subscription run.
-`get_task_processing_context` fails the run when the owner has no stored token.
+A run on a stored credential has no path to PostHog credits.
+It gets no gateway URL and no gateway token, and its sandbox OAuth token omits `llm_gateway:read`, the same as a subscription run.
+`get_task_processing_context` fails the run when the owner has no stored credential of the needed kind.
 It does not switch the run to the gateway.
 These runs can be scheduled, because no client must answer a credential request.
+They do not reuse a warm sandbox, because a warm sandbox already holds gateway credentials.
 
-The token never enters a workflow input or output, the run state, a launch command, or the sandbox environment.
+The secret never enters a workflow input or output, the run state, a launch command, or the sandbox environment.
 The agent-server pulls it over the same path as the ChatGPT token:
 
 1. The activity mints the run token (bound to the run and the sandbox id) and the launcher hands it over on fd 3.
-2. The launcher starts the agent-server with `--claudeSubscription --claudeSubscriptionSource server`. It checks that the binary supports each option first.
-3. The agent-server calls `POST /runs/{run_id}/subscription_token/` with `{"credential": "claude_subscription"}`. A body without `credential` keeps the ChatGPT behavior.
-4. The endpoint returns `{credential, secret}` only when the run state selects the stored token and the run token matches the run and its active sandbox. It answers `404 credential_missing` when the owner has no usable token, and the run stops with a message that names Cloud agents settings.
+2. The launcher starts the agent-server with `--ownKey anthropic`, `--ownKey openai`, or `--claudeSubscription --claudeSubscriptionSource server`. It checks that the binary supports each option first.
+3. The agent-server calls `POST /runs/{run_id}/subscription_token/` with `{"credential": "anthropic_api_key" | "openai_api_key" | "claude_subscription"}`. A body without `credential` keeps the ChatGPT behavior.
+4. The endpoint returns `{credential, secret}` only when the run state selects that credential kind and the run token matches the run and its active sandbox. It answers `404 credential_missing` when the owner has no usable credential, and the run stops with a message that names Cloud agents settings.
 
-The agent-server keeps the token in memory.
-It hands the token to the Claude CLI on an inherited file descriptor (`CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`), and the CLI calls `https://api.anthropic.com` with no PostHog headers.
+The agent-server keeps the secret in memory.
+It hands an Anthropic API key or a Claude subscription token to the Claude CLI on an inherited file descriptor (`CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR` or `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`), and the CLI calls `https://api.anthropic.com` with no PostHog headers.
+Codex has no descriptor input, so it reads an OpenAI API key from one environment variable of the Codex process (`env_key` of a dedicated model provider for `https://api.openai.com/v1`), which is excluded from the shells that Codex starts.
+A sandbox environment with a restricted network gets `api.openai.com` added to its allowlist for that mode.
 
 Code that runs inside the sandbox has the same UID as these processes.
-It can read their memory where the kernel allows it, so treat the token as exposed to the run for its lifetime.
-The measures above remove the token from argv, files, logs, and inherited environments.
+It can read their memory, and for Codex their environment, where the kernel allows it, so treat the credential as exposed to the run for its lifetime.
+The measures above remove the secret from argv, files, logs, and inherited environments.
 
 ## Sandbox providers
 

@@ -13,7 +13,7 @@ import { LoadErrorBanner } from './LoadErrorBanner'
 const DELIVERY_STATUS_DISPLAY: Record<WebhookDeliveryStatusEnumApi, { label: string; type: LemonTagType }> = {
     [WebhookDeliveryStatusEnumApi.Pending]: { label: 'Pending', type: 'default' },
     [WebhookDeliveryStatusEnumApi.Succeeded]: { label: 'Delivered', type: 'success' },
-    [WebhookDeliveryStatusEnumApi.Failed]: { label: 'Failed, will retry', type: 'warning' },
+    [WebhookDeliveryStatusEnumApi.Failed]: { label: 'Failed', type: 'danger' },
     [WebhookDeliveryStatusEnumApi.GaveUp]: { label: 'Gave up', type: 'danger' },
 }
 
@@ -37,7 +37,11 @@ export function WebhookDeliveriesTable(): JSX.Element {
             key: 'status',
             render: (_, delivery) => {
                 const display = DELIVERY_STATUS_DISPLAY[delivery.status] ?? { label: delivery.status, type: 'default' }
-                return <LemonTag type={display.type}>{display.label}</LemonTag>
+                const label =
+                    delivery.status === WebhookDeliveryStatusEnumApi.Pending && delivery.attempts > 0
+                        ? 'Retrying'
+                        : display.label
+                return <LemonTag type={display.type}>{label}</LemonTag>
             },
         },
         { title: 'Attempts', key: 'attempts', align: 'right', render: (_, delivery) => delivery.attempts },

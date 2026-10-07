@@ -62,8 +62,8 @@ export interface AgentServerConfig {
   piRpcHostPath?: string;
   runtimeAdapter?: Adapter;
   model?: string;
-  claudeModelAccess?: "posthog-gateway" | "own-subscription";
-  codexModelAccess?: "posthog-gateway" | "own-subscription";
+  claudeModelAccess?: "posthog-gateway" | "own-subscription" | "own-key";
+  codexModelAccess?: "posthog-gateway" | "own-subscription" | "own-key";
   /**
    * Where a Claude plan token comes from. "relay" asks the client that started
    * the run; "server" fetches the token PostHog stores for the run owner.
@@ -71,8 +71,8 @@ export interface AgentServerConfig {
   claudeSubscriptionSource?: "relay" | "server";
   /**
    * Run-scoped secret for the run's credential endpoint; read once from fd 3
-   * at boot. Named for its first user: it also authorizes the fetch of a
-   * stored Claude plan token.
+   * at boot. Named for its first user: it also authorizes the fetch of the
+   * owner's API key and of a stored Claude plan token.
    */
   codexRunToken?: string;
   reasoningEffort?: EffortLevel | "off" | "minimal";
