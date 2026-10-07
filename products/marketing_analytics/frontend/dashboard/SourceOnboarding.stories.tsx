@@ -35,8 +35,16 @@ const suggestion = (kind: string, integration: string): SuggestionApi => ({
 
 const plan = {
     suggestions: [
-        { ...suggestion('GoogleAds', 'google_ads'), title: 'Connect Google Ads' },
-        { ...suggestion('MetaAds', 'meta_ads'), title: 'Connect Meta Ads' },
+        {
+            ...suggestion('GoogleAds', 'google_ads'),
+            title: 'Connect Google Ads',
+            evidence: 'Events include campaign tracking from Google Ads.',
+        },
+        {
+            ...suggestion('MetaAds', 'meta_ads'),
+            title: 'Connect Meta Ads',
+            evidence: 'Events include campaign tracking from Meta Ads.',
+        },
     ],
     readiness: [],
     degraded: [],
@@ -62,9 +70,9 @@ const meta: Meta = {
                         LinkedinAds: { iconPath: '/static/services/linkedin.png' },
                         TikTokAds: { iconPath: '/static/services/tiktok.png' },
                         RedditAds: { iconPath: '/static/services/reddit.png' },
-                        BingAds: { iconPath: '/static/services/bing.png' },
+                        BingAds: { iconPath: '/static/services/bing-ads.svg' },
                         SnapchatAds: { iconPath: '/static/services/snapchat.png' },
-                        PinterestAds: { iconPath: '/static/services/pinterest.png' },
+                        PinterestAds: { iconPath: '/static/services/pinterest_ads.png' },
                         BigQuery: { iconPath: '/static/services/bigquery.png' },
                     },
                 ],
