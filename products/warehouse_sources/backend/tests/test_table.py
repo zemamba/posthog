@@ -670,9 +670,8 @@ class TestUrlPatternChangeGuard(BaseTest):
 
 class TestRowCountColumnWidth(BaseTest):
     def test_row_count_beyond_32_bit_range_can_be_saved(self) -> None:
-        # Postgres's `integer` column tops out at 2,147,483,647: a synced table with more rows
-        # than that used to raise DataError("integer out of range") from table.save(), failing
-        # post-load registration for every run after the table crossed the threshold.
+        # Postgres's `integer` column tops out at 2,147,483,647, so a synced table with more
+        # rows than that must still be able to save through table.save().
         table = DataWarehouseTable(
             name="t", format="Delta", team=self.team, url_pattern="s3://bucket/team_1/t", row_count=2_147_483_648
         )
