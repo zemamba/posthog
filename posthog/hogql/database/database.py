@@ -2188,6 +2188,8 @@ class Database(BaseModel):
         if modifiers.dataWarehouseEventsModifiers:
             with timings.measure("data_warehouse_event_modifiers_fetch", emit_span=True):
                 names = {warehouse_modifier.table_name for warehouse_modifier in modifiers.dataWarehouseEventsModifiers}
+                # A `models.<name>` modifier reads the column types of the model stored as `<name>`.
+                names |= {name.removeprefix("models.") for name in names if name.startswith("models.")}
                 event_modifier_saved_queries = dict.fromkeys(names)
                 for saved_query in DataWarehouseSavedQuery.objects.exclude(deleted=True).filter(
                     team_id=team.pk, name__in=names
@@ -2733,13 +2735,19 @@ class Database(BaseModel):
 
         # Resolve a modifier's table model from already-fetched sources, raising DoesNotExist when no
         # row matches just as the eager path's `.latest()` did.
-        def _saved_query_model_for(wm: Any) -> DataWarehouseSavedQuery:
-            saved_query = sources.event_modifier_saved_queries.get(wm.table_name)
+        def _saved_query_named(table_name: str) -> DataWarehouseSavedQuery:
+            saved_query = sources.event_modifier_saved_queries.get(table_name)
             if saved_query is None:
                 raise DataWarehouseSavedQuery.DoesNotExist(
-                    f"No DataWarehouseSavedQuery for dataWarehouseEventsModifier table '{wm.table_name}'"
+                    f"No DataWarehouseSavedQuery for dataWarehouseEventsModifier table '{table_name}'"
                 )
             return saved_query
+
+        def _saved_query_model_for(wm: Any) -> DataWarehouseSavedQuery:
+            return _saved_query_named(wm.table_name)
+
+        def _models_alias_saved_query_model_for(wm: Any) -> DataWarehouseSavedQuery:
+            return _saved_query_named(wm.table_name.removeprefix("models."))
 
         def _warehouse_table_model_for(wm: Any) -> DataWarehouseTable:
             name = warehouse_tables_dot_notation_mapping.get(wm.table_name, wm.table_name)
@@ -2758,6 +2766,23 @@ class Database(BaseModel):
                 )
             return warehouse_table
 
+        with timings.measure("models_namespace", emit_span=True):
+            # Reuses the view's table object, so the second name costs no parse and sees the same modifier mappings.
+            # The slot is hidden so schema listings and autocomplete keep one entry per model.
+            models_namespace = TableNode()
+            for stored_chain, models_chain in models_namespace_chains:
+                # A stored name that holds this slot wins, so a modifier on it must not also map the derived model.
+                if any(
+                    node.has_child(models_chain) for node in (views, warehouse_tables, self_managed_warehouse_tables)
+                ):
+                    continue
+                model_table = views.get_child(stored_chain).table
+                if not isinstance(model_table, Table):
+                    continue
+                models_node = TableNode.create_nested_for_chain(models_chain, table=model_table)
+                models_node.get_child(models_chain[1:]).hidden = True
+                models_namespace.add_child(models_node, table_conflict_mode="ignore")
+
         if modifiers.dataWarehouseEventsModifiers:
             with timings.measure("data_warehouse_event_modifiers", emit_span=True):
                 for warehouse_modifier in modifiers.dataWarehouseEventsModifiers:
@@ -2765,6 +2790,7 @@ class Database(BaseModel):
                         # Apply mappings to every matching namespace. A saved query and a warehouse table can share a
                         # name, and the final database may resolve that name to the table even if a view exists too.
                         views = define_mappings(views, _saved_query_model_for)
+                        models_namespace = define_mappings(models_namespace, _models_alias_saved_query_model_for)
                         warehouse_tables = define_mappings(warehouse_tables, _warehouse_table_model_for)
                         self_managed_warehouse_tables = define_mappings(
                             self_managed_warehouse_tables, _self_managed_table_model_for
@@ -2773,19 +2799,7 @@ class Database(BaseModel):
         database._add_warehouse_tables(warehouse_tables)
         database._add_warehouse_self_managed_tables(self_managed_warehouse_tables)
         database._add_views(views)
-
-        with timings.measure("models_namespace", emit_span=True):
-            # Reuses the view's table object, so the second name costs no parse and sees the same modifier mappings.
-            # The slot is hidden so schema listings and autocomplete keep one entry per model.
-            models_namespace = TableNode()
-            for stored_chain, models_chain in models_namespace_chains:
-                model_table = views.get_child(stored_chain).table
-                if not isinstance(model_table, Table):
-                    continue
-                models_node = TableNode.create_nested_for_chain(models_chain, table=model_table)
-                models_node.get_child(models_chain[1:]).hidden = True
-                models_namespace.add_child(models_node, table_conflict_mode="ignore")
-            database._add_models_namespace(models_namespace)
+        database._add_models_namespace(models_namespace)
 
         if deferred_revenue_handles:
             # Armed before the joins and saved-expressions passes below: a join or expression that

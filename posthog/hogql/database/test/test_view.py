@@ -6,9 +6,12 @@ from django.test import override_settings
 
 from parameterized import parameterized
 
+from posthog.schema import DataWarehouseEventsModifier, HogQLQueryModifiers
+
+from posthog.hogql import ast
 from posthog.hogql.context import HogQLContext
 from posthog.hogql.database.database import Database
-from posthog.hogql.database.models import SavedQuery, TableNode
+from posthog.hogql.database.models import ExpressionField, SavedQuery, TableNode
 from posthog.hogql.database.test.tables import (
     create_aapl_stock_s3_table,
     create_aapl_stock_table_self_referencing,
@@ -159,6 +162,41 @@ class TestModelsNamespaceDualRegistration(BaseTest):
         assert cast(SavedQuery, database.get_table("models.arr")).id == str(stored.id)
         assert cast(SavedQuery, database.get_table("arr")).id == str(legacy.id)
         assert "models.arr" in database.get_view_names()
+
+    @parameterized.expand(
+        [
+            ("stored_name", "revenue", False),
+            ("models_name", "models.revenue", False),
+            ("stored_models_name_wins", "models.revenue", True),
+        ]
+    )
+    def test_event_modifier_maps_a_model_under_either_name(
+        self, _name: str, modifier_table_name: str, stored_models_name_exists: bool
+    ) -> None:
+        self._create("revenue")
+        if stored_models_name_exists:
+            self._create("models.revenue")
+        modifiers = HogQLQueryModifiers(
+            dataWarehouseEventsModifiers=[
+                DataWarehouseEventsModifier(
+                    table_name=modifier_table_name,
+                    id_field="real_id",
+                    timestamp_field="event_time",
+                    distinct_id_field="real_id",
+                )
+            ]
+        )
+
+        database = Database.create_for(team=self.team, modifiers=modifiers)
+
+        for name in ["models.revenue"] if stored_models_name_exists else ["revenue", "models.revenue"]:
+            fields = database.get_table(name).fields
+            assert isinstance(fields["id"], ExpressionField)
+            assert cast(ast.Field, fields["id"].expr).chain == ["real_id"]
+            assert isinstance(fields["timestamp"], ExpressionField)
+            assert cast(ast.Field, fields["timestamp"].expr).chain == ["event_time"]
+        if stored_models_name_exists:
+            assert not isinstance(database.get_table("revenue").fields["id"], ExpressionField)
 
     def test_a_legacy_model_named_models_keeps_its_slot(self) -> None:
         root = self._create("root_placeholder")
