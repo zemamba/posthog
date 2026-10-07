@@ -12,6 +12,7 @@ import requests
 from parameterized import parameterized
 from requests.adapters import HTTPAdapter
 
+from posthog.dataclasses import frozen
 from posthog.temporal.common.shutdown import WorkerShuttingDownError
 
 from products.warehouse_sources.backend.temporal.data_imports.pipelines.common.safe_point import (
@@ -210,8 +211,15 @@ class TestRetryOwnership:
         assert adapter_retries == [3]
 
 
+@frozen
+class _Outcome:
+    clock: _Clock
+    host: _Host
+    error: BaseException
+
+
 class TestShutdownDuringARetryWait:
-    def _run(self, *, covers_framework_checkpoints: bool, with_signal: bool) -> tuple[_Clock, _Host, BaseException]:
+    def _run(self, *, covers_framework_checkpoints: bool, with_signal: bool) -> _Outcome:
         monitor = _ShutdownMonitor()
         manager = MagicMock()
         manager.has_staged_state.return_value = False
@@ -238,25 +246,25 @@ class TestShutdownDuringARetryWait:
                 pytest.raises(Exception) as raised,
             ):
                 _paginate(RESTClient(base_url=BASE_URL, session=host))  # type: ignore[arg-type]
-        return clock, host, raised.value
+        return _Outcome(clock=clock, host=host, error=raised.value)
 
     def test_the_run_hands_off_at_the_safe_point(self) -> None:
-        clock, host, error = self._run(covers_framework_checkpoints=True, with_signal=True)
+        outcome = self._run(covers_framework_checkpoints=True, with_signal=True)
 
-        assert isinstance(error, WorkerShuttingDownError)
-        assert clock.now == WAIT_SLICE_SECONDS
-        assert len(host.starts) == 1
+        assert isinstance(outcome.error, WorkerShuttingDownError)
+        assert outcome.clock.now == WAIT_SLICE_SECONDS
+        assert len(outcome.host.starts) == 1
 
     def test_a_wrapped_resource_stops_waiting_but_does_not_reach_a_safe_point(self) -> None:
-        clock, host, error = self._run(covers_framework_checkpoints=False, with_signal=True)
+        outcome = self._run(covers_framework_checkpoints=False, with_signal=True)
 
-        assert isinstance(error, RESTClientRetryableError)
-        assert clock.now == WAIT_SLICE_SECONDS
-        assert len(host.starts) == 5
+        assert isinstance(outcome.error, RESTClientRetryableError)
+        assert outcome.clock.now == WAIT_SLICE_SECONDS
+        assert len(outcome.host.starts) == 5
 
     def test_a_run_that_cannot_hand_off_waits_the_whole_delay(self) -> None:
-        clock, host, error = self._run(covers_framework_checkpoints=False, with_signal=False)
+        outcome = self._run(covers_framework_checkpoints=False, with_signal=False)
 
-        assert isinstance(error, RESTClientRetryableError)
-        assert clock.sleeps == [200.0, 200.0, 200.0]
-        assert host.starts[-1] <= BUDGET
+        assert isinstance(outcome.error, RESTClientRetryableError)
+        assert outcome.clock.sleeps == [200.0, 200.0, 200.0]
+        assert outcome.host.starts[-1] <= BUDGET
