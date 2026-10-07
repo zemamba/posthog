@@ -213,11 +213,12 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
             <MarketingAnalyticsSourceStatusBanner />
             <DetectedSources />
             {!hasSources || !hasSyncedMarketingSources ? (
-                <LemonBanner type="info" className="mt-4">
-                    {hasConfiguredSources
-                        ? 'Your marketing sources are connected. Spend and ad performance will appear after the first sync finishes. You can connect other sources in setup while you wait.'
-                        : 'Connect a marketing source in setup to see spend and ad performance.'}
-                </LemonBanner>
+                hasConfiguredSources ? (
+                    <LemonBanner type="info" className="mt-4">
+                        Your marketing sources are connected. Spend and ad performance will appear after the first sync
+                        finishes. You can connect other sources in setup while you wait.
+                    </LemonBanner>
+                ) : null
             ) : (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
                     {marketingTiles?.map((tile, i) => (

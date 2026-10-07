@@ -4,9 +4,11 @@ import { useActions } from 'kea'
 import { useEffect } from 'react'
 
 import { FEATURE_FLAGS } from 'lib/constants'
+import { MarketingAnalyticsScene } from 'scenes/marketing-analytics/MarketingAnalyticsScene'
 import { AddSourceStep } from 'scenes/marketing-analytics/Onboarding/AddSourceStep'
 import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import { Onboarding } from 'scenes/marketing-analytics/Onboarding/Onboarding'
+import { urls } from 'scenes/urls'
 import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
 import { mswDecorator, useStorybookMocks } from '~/mocks/browser'
@@ -134,10 +136,10 @@ SkipDuringScan.play = async ({ canvasElement }: { canvasElement: HTMLElement }):
     expect(canvas.queryByText('Scanning events from the last 7 days')).not.toBeInTheDocument()
 }
 
-export function DashboardWithoutSources(): JSX.Element {
+function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = []): void {
     useStorybookMocks({
         get: {
-            '/api/projects/:team_id/marketing_analytics/setup_plan/': () => [200, { ...plan, suggestions: [] }],
+            '/api/projects/:team_id/marketing_analytics/setup_plan/': () => [200, { ...plan, suggestions }],
             '/api/environments/:team_id/external_data_sources/': () => [200, { results: [] }],
             '/api/projects/:team_id/marketing_analytics/source_validation/': () => [200, { errors_by_source: {} }],
             '/api/projects/:team_id/marketing_analytics/utm_audit/': () => [
@@ -210,6 +212,10 @@ export function DashboardWithoutSources(): JSX.Element {
             },
         },
     })
+}
+
+export function DashboardWithoutSources(): JSX.Element {
+    useDashboardWithoutSourcesMocks()
     const { completeOnboarding } = useActions(marketingOnboardingLogic)
     useEffect(() => completeOnboarding(), [completeOnboarding])
     return <NewMarketingAnalyticsDashboard />
@@ -220,4 +226,34 @@ DashboardWithoutSources.play = async ({ canvasElement }: { canvasElement: HTMLEl
     await expect(canvas.findByText(/Connect a marketing source to see spend and ad performance/)).resolves.toBeVisible()
     expect((await canvas.findAllByText('128'))[0]).toBeVisible()
     expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
+}
+
+export function AdPerformanceWithoutSources(): JSX.Element {
+    useDashboardWithoutSourcesMocks()
+    const { completeOnboarding } = useActions(marketingOnboardingLogic)
+    useEffect(() => completeOnboarding(), [completeOnboarding])
+    return <MarketingAnalyticsScene />
+}
+AdPerformanceWithoutSources.parameters = {
+    pageUrl: urls.marketingAnalyticsApp(),
+    featureFlags: [FEATURE_FLAGS.WEB_ANALYTICS_MARKETING, FEATURE_FLAGS.MARKETING_ANALYTICS_SETUP],
+}
+AdPerformanceWithoutSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText(/Connect a marketing source to see spend and ad performance/)).resolves.toBeVisible()
+    expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
+}
+
+export function AdPerformanceWithDetectedSources(): JSX.Element {
+    useDashboardWithoutSourcesMocks(plan.suggestions)
+    const { completeOnboarding } = useActions(marketingOnboardingLogic)
+    useEffect(() => completeOnboarding(), [completeOnboarding])
+    return <MarketingAnalyticsScene />
+}
+AdPerformanceWithDetectedSources.parameters = AdPerformanceWithoutSources.parameters
+AdPerformanceWithDetectedSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText('We detected these ad sources (2)')).resolves.toBeVisible()
+    expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
 }

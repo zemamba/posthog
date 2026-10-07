@@ -58,3 +58,6 @@ Conversion goals are configured within the product rather than as an onboarding 
 The source onboarding shows only the scan while it runs, then only the detected platforms.
 **Skip and add manually** opens the complete source selector at any time, including while the scan runs.
 The scan message states its seven-day detection window.
+
+On the current dashboard, spend and ad performance tiles stay hidden until a source supplies data.
+The connection notice or detected-source suggestions explain what needs to be connected.
