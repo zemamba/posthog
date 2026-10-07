@@ -138,12 +138,12 @@ interface RouterPayload {
     initial?: boolean
 }
 
-const LEAVE_EDITOR_POPSTATE_TIMEOUT_MS = 2000
+const LEAVE_EDITOR_POPSTATE_TIMEOUT_MS = 10000
 
 // The goal flow's overview and the retired self-driving step sit outside the manual stepper.
 const EDITOR_PATH_SEGMENTS = new Set<string>([...SCANNER_EDITOR_STEPS, 'overview', 'self-driving'])
 
-function isScannerEditorPath(pathname: string): boolean {
+export function isScannerEditorPath(pathname: string): boolean {
     const [root, , segment, ...rest] = removeProjectIdIfPresent(pathname).split('/').slice(1)
     return root === 'replay-vision' && rest.length === 0 && EDITOR_PATH_SEGMENTS.has(segment)
 }
