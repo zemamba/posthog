@@ -465,7 +465,7 @@ class TestUpdateTaskRunStatusActivity:
         Task.objects.filter(id=test_task_run.task_id).update(
             origin_product=origin, client_provenance=TaskClientProvenance.CLOUD_AGENTS
         )
-        TaskRun.objects.filter(id=test_task_run.id).update(environment=TaskRun.Environment.CLOUD)
+        TaskRun.objects.filter(id=test_task_run.id).update(environment=TaskRun.Environment.CLOUD, origin_product=origin)
         started = timezone.now() - timedelta(hours=1)
         session = SandboxSession.objects.for_team(test_task_run.team_id).create(
             team_id=test_task_run.team_id,

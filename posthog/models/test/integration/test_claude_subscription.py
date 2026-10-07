@@ -87,21 +87,18 @@ class TestClaudeSubscriptionStore(BaseTest):
         assert row.sensitive_config == {"secret": CLAUDE_TOKEN}
         assert set(row.config) == {"token_suffix", "connected_at", "last_used_at"}
         assert CLAUDE_TOKEN not in str(row.config)
-        assert len(row.integration_id) == 16
-        assert row.integration_id not in CLAUDE_TOKEN
+        assert row.integration_id == "claude_subscription"
         assert CLAUDE_TOKEN not in self._raw_sensitive_config()
 
     def test_connect_replaces_the_stored_token_and_resets_the_last_use(self) -> None:
         ClaudeSubscriptionStore.connect(self.user.id, CLAUDE_TOKEN)
         ClaudeSubscriptionStore.resolve_secret(self.user.id)
-        first_integration_id = UserIntegration.objects.get(user=self.user, kind="claude_subscription").integration_id
 
         summary = ClaudeSubscriptionStore.connect(self.user.id, OTHER_CLAUDE_TOKEN)
 
         assert summary.token_suffix == "0004"
         assert summary.last_used_at is None
-        row = UserIntegration.objects.get(user=self.user, kind="claude_subscription")
-        assert row.integration_id != first_integration_id
+        assert UserIntegration.objects.filter(user=self.user, kind="claude_subscription").count() == 1
         assert ClaudeSubscriptionStore.resolve_secret(self.user.id) == OTHER_CLAUDE_TOKEN
 
     @parameterized.expand([("anthropic_api_key", ANTHROPIC_KEY), ("too_short", "sk-ant-oat01")])

@@ -49,7 +49,6 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("auto", "Auto"),
-                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                             ("posthog", "PostHog"),
                         ],
@@ -189,7 +188,6 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("posthog", "PostHog"),
-                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                         ],
                         max_length=32,
@@ -363,7 +361,6 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("auto", "Auto"),
-                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                             ("posthog", "PostHog"),
                         ],

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Final
 
 from posthog.models import Team
-from posthog.models.integration.inference_credentials import CLAUDE_SUBSCRIPTION_STORAGE_FEATURE_FLAG
+from posthog.models.integration.claude_subscription import CLAUDE_SUBSCRIPTION_STORAGE_FEATURE_FLAG
 from posthog.permissions import posthog_feature_flag_enabled
 
 from products.tasks.backend.facade.model_catalogue import offered_model_choices

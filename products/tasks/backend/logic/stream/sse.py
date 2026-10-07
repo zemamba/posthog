@@ -7,7 +7,7 @@ SSE frames. ``prepare_task_run_sse_stream`` does the database reads on the reque
 
 import json
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable, Generator
 from uuid import UUID
 
 from django.conf import settings
@@ -47,6 +47,8 @@ from products.tasks.backend.metrics import (
     observe_stream_resume_gap,
 )
 from products.tasks.backend.redis import run_uses_dedicated_stream
+
+from ee.hogai.utils.aio import async_to_sync
 
 logger = structlog.get_logger(__name__)
 
@@ -158,6 +160,16 @@ def prepare_task_run_sse_stream(
         backlog_serve_after=backlog_serve_after,
         backlog_log_urls=backlog_log_urls,
     )
+
+
+def sse_body_for_server_gateway(
+    make_body: Callable[[], AsyncGenerator[bytes]],
+) -> AsyncGenerator[bytes] | Generator[bytes]:
+    """The body of an SSE response in the form that the running server gateway can iterate."""
+    if settings.SERVER_GATEWAY_INTERFACE == "ASGI":
+        return make_body()
+    # A WSGI worker cannot iterate an async body, so a thread runs the body and passes on its frames.
+    return async_to_sync(make_body)
 
 
 async def task_run_sse_stream(stream: TaskRunSseStream) -> AsyncGenerator[bytes]:

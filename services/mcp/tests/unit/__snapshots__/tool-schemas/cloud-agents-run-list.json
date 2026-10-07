@@ -26,10 +26,9 @@
             "type": "string"
         },
         "repository": {
-            "description": "Return only the runs in this repository, in the format `owner/name`.",
+            "description": "Return runs whose repository contains this text.",
             "maxLength": 255,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
             "type": "string"
         },
         "status": {

@@ -32,14 +32,10 @@ export const STOP_REASON_MESSAGES: Record<StopReasonEnumApi, string> = {
 export const INFERENCE_MODE_DISPLAY: Record<InferenceModeEnumApi, { label: string; description: string }> = {
     [InferenceModeEnumApi.Auto]: {
         label: 'Automatic',
-        description: 'Uses your own key, then your own subscription, then PostHog AI credits.',
-    },
-    [InferenceModeEnumApi.OwnKey]: {
-        label: 'Your API key',
-        description: 'Your provider bills the model usage. PostHog charges for compute only.',
+        description: 'Uses your own subscription when one is connected, and PostHog AI credits when none is.',
     },
     [InferenceModeEnumApi.OwnSubscription]: {
-        label: 'Your Claude subscription',
+        label: 'Your subscription',
         description: 'Model usage counts against your subscription. PostHog charges for compute only.',
     },
     [InferenceModeEnumApi.Posthog]: {
@@ -50,6 +46,5 @@ export const INFERENCE_MODE_DISPLAY: Record<InferenceModeEnumApi, { label: strin
 
 export const INFERENCE_BILLING_LABELS: Record<InferenceBillingEnumApi, string> = {
     [InferenceBillingEnumApi.Posthog]: 'PostHog AI credits',
-    [InferenceBillingEnumApi.OwnKey]: 'Your provider, through your API key',
-    [InferenceBillingEnumApi.OwnSubscription]: 'Your provider, through your Claude subscription',
+    [InferenceBillingEnumApi.OwnSubscription]: 'your subscription',
 }

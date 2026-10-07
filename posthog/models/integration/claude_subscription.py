@@ -5,7 +5,6 @@ A user can store one token, the one that `claude setup-token` prints. It lives o
 through `ClaudeSubscriptionStore.resolve_secret`. No route returns it.
 """
 
-import hashlib
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -46,8 +45,8 @@ class ClaudeSubscriptionSummary:
     last_used_at: datetime | None
 
 
-def claude_subscription_storage_enabled(user: "User") -> bool:
-    organization_id = str(user.current_organization_id)
+def claude_subscription_storage_enabled(user: "User", organization_id: str | int | None = None) -> bool:
+    organization_id = str(organization_id or user.current_organization_id)
     try:
         enabled = posthoganalytics.feature_enabled(
             CLAUDE_SUBSCRIPTION_STORAGE_FEATURE_FLAG,
@@ -104,7 +103,7 @@ class ClaudeSubscriptionStore:
                 user_id=user_id,
                 kind=CLAUDE_SUBSCRIPTION_KIND,
                 defaults={
-                    "integration_id": hashlib.sha256(token.encode()).hexdigest()[:16],
+                    "integration_id": UserIntegration.IntegrationKind.CLAUDE_SUBSCRIPTION.value,
                     "config": {
                         "token_suffix": token[-TOKEN_SUFFIX_LENGTH:],
                         "connected_at": timezone.now().isoformat(),

@@ -249,7 +249,6 @@ function createCodexConnection(config: AcpConnectionConfig): AcpConnection {
         codexHome: codexOptions.codexHome,
         useMachineAuth: codexOptions.useMachineAuth,
         useChatgptAuthTokens: Boolean(codexOptions.chatgptAuthTokens),
-        ownApiKey: codexOptions.ownApiKey,
         developerInstructions: codexOptions.developerInstructions,
         httpHeaders: codexOptions.httpHeaders,
         configOverrides: codexOptions.configOverrides,

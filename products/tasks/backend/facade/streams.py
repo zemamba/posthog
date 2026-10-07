@@ -39,6 +39,7 @@ from products.tasks.backend.logic.stream.sse import (
     TaskRunSseStream,
     format_sse_event,
     prepare_task_run_sse_stream,
+    sse_body_for_server_gateway,
     task_run_sse_stream,
 )
 from products.tasks.backend.redis import run_uses_dedicated_stream
@@ -67,5 +68,6 @@ __all__ = [
     "run_stream_thin_tail",
     "run_uses_dedicated_stream",
     "session_update_type",
+    "sse_body_for_server_gateway",
     "task_run_sse_stream",
 ]

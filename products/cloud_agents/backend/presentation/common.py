@@ -11,12 +11,12 @@ from rest_framework.request import Request
 
 from posthog.api.routing import TeamAndOrgViewSetMixin
 from posthog.models.user import User
-from posthog.permissions import PostHogFeatureFlagPermission
 
-from ..facade.api import FEATURE_FLAG_KEY
+from ..facade.access import FEATURE_FLAG_KEY
 from ..facade.contracts import CallerIdentity
 from ..facade.enums import CallerKind
 from .errors import CloudAgentsErrorHandlingMixin
+from .permissions import CloudAgentsAccessPermission
 
 
 def caller_from_request(request: Request) -> CallerIdentity:
@@ -42,5 +42,5 @@ class CloudAgentsViewSet(CloudAgentsErrorHandlingMixin, TeamAndOrgViewSetMixin, 
     """Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping."""
 
     scope_object = "cloud_agent"
-    permission_classes = [PostHogFeatureFlagPermission]
+    permission_classes = [CloudAgentsAccessPermission]
     posthog_feature_flag = FEATURE_FLAG_KEY

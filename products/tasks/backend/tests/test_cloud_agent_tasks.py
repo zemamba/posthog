@@ -309,7 +309,6 @@ class TestCloudAgentTasks(BaseTest):
         [
             ("posthog_credits", None, "posthog-gateway", "relay", False),
             ("posthog_decision", {}, "posthog-gateway", "relay", False),
-            ("own_key", {"claude_model_access": "own-key"}, "own-key", "relay", True),
             (
                 "stored_subscription",
                 {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
@@ -333,11 +332,12 @@ class TestCloudAgentTasks(BaseTest):
 
     @parameterized.expand(
         [
-            ("model_access_in_extra_state", {"extra_run_state": {"claude_model_access": "own-key"}}),
+            ("model_access_in_extra_state", {"extra_run_state": {"claude_model_access": "own-subscription"}}),
             ("source_in_extra_state", {"extra_run_state": {"claude_subscription_source": "server"}}),
             ("owner_in_extra_state", {"extra_run_state": {"claude_subscription_user_id": 1}}),
             ("owner_in_inference_state", {"inference_state": {"claude_subscription_user_id": 1}}),
             ("unknown_mode", {"inference_state": {"claude_model_access": "free"}}),
+            ("api_key_mode", {"inference_state": {"claude_model_access": "own-key"}}),
         ]
     )
     def test_inference_keys_outside_a_valid_inference_state_create_nothing(
@@ -351,13 +351,15 @@ class TestCloudAgentTasks(BaseTest):
     @parameterized.expand(
         [
             ("replaced_by_posthog_credits", {}, "posthog-gateway", False),
-            ("kept_when_not_stated", None, "own-key", True),
+            ("kept_when_not_stated", None, "own-subscription", True),
         ]
     )
     def test_resume_inference_mode_follows_the_new_decision_and_the_new_caller(
         self, _name: str, inference_state: dict[str, Any] | None, access: str, has_owner: bool
     ) -> None:
-        created = self._create(inference_state={"claude_model_access": "own-key"})
+        created = self._create(
+            inference_state={"claude_model_access": "own-subscription", "claude_subscription_source": "server"}
+        )
         assert created.run is not None
         self._finish(created.run.id)
         other_member = User.objects.create_and_join(self.organization, "other@example.com", "password")
@@ -371,7 +373,6 @@ class TestCloudAgentTasks(BaseTest):
 
     @parameterized.expand(
         [
-            ("own_key", {"claude_model_access": "own-key"}, True),
             (
                 "stored_subscription",
                 {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},

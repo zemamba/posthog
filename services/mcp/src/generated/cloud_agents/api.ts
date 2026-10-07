@@ -129,15 +129,13 @@ export const CloudAgentsProfilesCreateBody = () => zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
-                    .describe(
-                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
-                    ),
+                    .enum(['auto', 'own_subscription', 'posthog'])
+                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()
@@ -199,7 +197,6 @@ export const CloudAgentsRunsListParams = () => zod.object({
 
 export const cloudAgentsRunsListQueryRepositoryMax = 255
 
-export const cloudAgentsRunsListQueryRepositoryRegExp = new RegExp('^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$')
 export const cloudAgentsRunsListQueryTagMax = 50
 
 export const CloudAgentsRunsListQueryParams = () => zod.object({
@@ -218,9 +215,8 @@ export const CloudAgentsRunsListQueryParams = () => zod.object({
         .string()
         .min(1)
         .max(cloudAgentsRunsListQueryRepositoryMax)
-        .regex(cloudAgentsRunsListQueryRepositoryRegExp)
         .optional()
-        .describe('Return only the runs in this repository, in the format `owner\/name`.'),
+        .describe('Return runs whose repository contains this text.'),
     status: zod
         .enum(['queued', 'running', 'completed', 'failed', 'cancelled'])
         .optional()
@@ -313,15 +309,13 @@ export const CloudAgentsRunsCreateBody = () => zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
-                    .describe(
-                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
-                    ),
+                    .enum(['auto', 'own_subscription', 'posthog'])
+                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()

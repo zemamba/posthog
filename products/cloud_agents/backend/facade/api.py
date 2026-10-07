@@ -56,7 +56,6 @@ MIN_DURATION_MINUTES = config_resolution.MIN_DURATION_MINUTES
 MAX_DURATION_MINUTES = config_resolution.MAX_DURATION_MINUTES
 MAX_WEBHOOK_ENDPOINTS = endpoints_logic.MAX_ENDPOINTS_PER_TEAM
 WEBHOOK_API_VERSION = delivery_logic.API_VERSION
-FEATURE_FLAG_KEY = "cloud-agents"
 
 
 # --- Run configuration ---

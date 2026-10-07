@@ -11,7 +11,6 @@ import json
 from typing import Any
 from uuid import UUID
 
-from django.conf import settings
 from django.http import HttpResponseBase
 
 from drf_spectacular.types import OpenApiTypes
@@ -25,7 +24,7 @@ from posthog.api.streaming import sse_streaming_response
 from posthog.api.utils import action
 from posthog.renderers import SafeJSONRenderer, ServerSentEventRenderer
 
-from ee.hogai.utils.aio import async_to_sync
+from products.tasks.backend.facade.streams import sse_body_for_server_gateway
 
 from ..facade import api
 from ..facade.contracts import (
@@ -277,9 +276,7 @@ class CloudAgentRunViewSet(CloudAgentsViewSet):
         # sse_streaming_response. The stream body is Redis and object storage only, so it never
         # re-acquires one.
         return sse_streaming_response(
-            api.run_event_stream(stream)
-            if settings.SERVER_GATEWAY_INTERFACE == "ASGI"
-            else async_to_sync(lambda: api.run_event_stream(stream)),
+            sse_body_for_server_gateway(lambda: api.run_event_stream(stream)),
             endpoint="cloud_agent_run_events",
         )
 

@@ -2766,7 +2766,7 @@
         "feature_flag_behavior": "enable"
     },
     "cloud-agents-run-message": {
-        "description": "Send a follow-up message to a run. A running agent gets the message in its current session. A run that stopped starts a new agent session with the message, which starts a billed sandbox again and moves the run back to `queued`. `resumed` in the response says which of the two happened. Use it to ask for changes to the pull request or to continue a failed, timed out or cancelled run in the same repository state. A run that uses the model credential of the user who started it accepts messages from that user only. Each call sends one more message, so do not repeat a call that may have succeeded.",
+        "description": "Send a follow-up message to a run. A running agent gets the message in its current session. A run that stopped starts a new agent session with the message, which starts a billed sandbox again and moves the run back to `queued`. `resumed` in the response says which of the two happened. Use it to ask for changes to the pull request or to continue a failed, timed out or cancelled run in the same repository state. A run that uses the subscription of the user who started it accepts messages from that user only. Each call sends one more message, so do not repeat a call that may have succeeded.",
         "category": "Cloud agents",
         "feature": "cloud_agents",
         "summary": "Send message to cloud agent run",

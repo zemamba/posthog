@@ -451,9 +451,9 @@ class CodexConnectUserThrottle(UserRateThrottle):
     rate = "10/hour"
 
 
-# Each save of an API key sends one request to the provider, so an unbounded caller could use the route to test keys.
-class InferenceCredentialConnectUserThrottle(UserRateThrottle):
-    scope = "inference_credential_connect_user"
+# A user stores a token rarely, so a low cap costs a real user nothing and stops a script that repeats the write.
+class ClaudeSubscriptionConnectUserThrottle(UserRateThrottle):
+    scope = "claude_subscription_connect_user"
     rate = "30/hour"
 
 

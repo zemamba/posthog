@@ -15,8 +15,7 @@ export function RateCard(): JSX.Element {
                 <h3 className="m-0 text-base font-semibold">Rate card</h3>
                 <p className="m-0 text-secondary text-xs">
                     Compute is billed per second on the box size that you select. Model usage is billed separately: in
-                    AI credits when PostHog provides the model, or by your provider when you bring your own key or
-                    subscription.
+                    AI credits when PostHog provides the model, or against your own subscription when you bring one.
                 </p>
             </div>
             {rates && (

@@ -11,6 +11,7 @@ from asgiref.sync import async_to_sync
 from temporalio.testing import ActivityEnvironment
 
 from posthog.models import OrganizationMembership, User
+from posthog.models.integration.claude_subscription import ClaudeSubscriptionStore
 from posthog.models.user_integration import UserIntegration
 
 from products.signals.backend.models import SignalScoutRun
@@ -59,6 +60,7 @@ from products.tasks.backend.temporal.process_task.activities.get_task_processing
 )
 from products.tasks.backend.temporal.process_task.utils import get_actor_distinct_id
 
+FAKE_CLAUDE_SUBSCRIPTION_TOKEN = "sk-ant-oat01-not-a-real-token-0003"
 FEATURE_ENABLED_TARGET = (
     "products.tasks.backend.temporal.process_task.activities."
     "get_task_processing_context.posthoganalytics.feature_enabled"
@@ -407,89 +409,70 @@ class TestGetTaskProcessingContextActivity:
 
     @pytest.mark.django_db(transaction=True)
     @pytest.mark.parametrize(
-        "extra_state, stored_kind, storage_flag, expected_access, expected_error",
+        "token_holder, storage_flag, runtime, expected_error",
         [
-            ({"claude_model_access": "own-key"}, "anthropic_api_key", False, ("own-key", "posthog-gateway"), None),
+            ("owner", True, Task.Runtime.ACP, None),
             (
-                {"claude_model_access": "own-key"},
-                None,
-                True,
-                None,
-                "Add your Anthropic API key in Cloud agents settings, then start the run again.",
-            ),
-            (
-                {"claude_model_access": "own-key"},
-                "openai_api_key",
-                True,
-                None,
-                "Add your Anthropic API key in Cloud agents settings, then start the run again.",
-            ),
-            (
-                {"codex_model_access": "own-key", "runtime_adapter": "codex"},
-                "openai_api_key",
+                "owner",
                 False,
-                ("posthog-gateway", "own-key"),
-                None,
+                Task.Runtime.ACP,
+                "Connect your Claude subscription in Cloud agents settings, then start the run again.",
             ),
             (
-                {"codex_model_access": "own-key", "runtime_adapter": "codex"},
-                None,
-                False,
-                None,
-                "Add your OpenAI API key in Cloud agents settings, then start the run again.",
-            ),
-            (
-                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
-                "claude_subscription",
-                True,
-                ("own-subscription", "posthog-gateway"),
-                None,
-            ),
-            (
-                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
-                "claude_subscription",
-                False,
-                None,
-                "Add your Claude subscription in Cloud agents settings, then start the run again.",
-            ),
-            (
-                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
                 None,
                 True,
-                None,
-                "Add your Claude subscription in Cloud agents settings, then start the run again.",
+                Task.Runtime.ACP,
+                "Connect your Claude subscription in Cloud agents settings, then start the run again.",
+            ),
+            (
+                "another_member",
+                True,
+                Task.Runtime.ACP,
+                "Connect your Claude subscription in Cloud agents settings, then start the run again.",
+            ),
+            (
+                "owner",
+                True,
+                Task.Runtime.PI,
+                "Your Claude subscription requires the Claude runtime. Select Claude and try again.",
             ),
         ],
     )
-    def test_run_on_a_stored_credential_needs_only_that_credential(
-        self, activity_environment, test_task, extra_state, stored_kind, storage_flag, expected_access, expected_error
+    def test_run_on_a_stored_claude_subscription_needs_the_owners_token(
+        self, activity_environment, test_task, token_holder, storage_flag, runtime, expected_error
     ):
         owner = User.objects.create_user(
             email="credential-owner@example.com", password=None, first_name="Owner", distinct_id="credential-owner"
         )
         OrganizationMembership.objects.create(organization=test_task.team.organization, user=owner)
-        if stored_kind is not None:
-            UserIntegration.objects.create(
-                user=owner,
-                kind=stored_kind,
-                integration_id="stored",
-                config={},
-                sensitive_config={"secret": "sk-fake-stored-secret"},
-            )
-        task_run = test_task.create_run(acting_user_id=owner.id, extra_state=extra_state)
+        if token_holder == "owner":
+            ClaudeSubscriptionStore.connect(owner.id, FAKE_CLAUDE_SUBSCRIPTION_TOKEN)
+        elif token_holder == "another_member":
+            ClaudeSubscriptionStore.connect(test_task.created_by_id, FAKE_CLAUDE_SUBSCRIPTION_TOKEN)
+        task_run = test_task.create_run(
+            acting_user_id=owner.id,
+            extra_state={"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+        )
+        if runtime != test_task.runtime:
+            test_task.runtime = runtime
+            test_task.save(update_fields=["runtime"])
         input_data = GetTaskProcessingContextInput(run_id=str(task_run.id))
         module = "products.tasks.backend.temporal.process_task.activities.get_task_processing_context"
 
-        # Every PostHog flag is off, so a pass shows that the subscription rollout flags are not asked.
+        # Every PostHog flag is off, so a pass shows that the relayed-subscription rollout flag is not asked.
         with (
             patch(f"{module}.posthoganalytics.feature_enabled", return_value=False),
             patch(f"{module}.claude_subscription_storage_enabled", return_value=storage_flag),
         ):
             if expected_error is None:
                 result = async_to_sync(activity_environment.run)(get_task_processing_context, input_data)
-                assert (result.claude_model_access, result.codex_model_access) == expected_access
+                assert (result.claude_model_access, result.codex_model_access) == (
+                    "own-subscription",
+                    "posthog-gateway",
+                )
                 assert result.model_access.owner_id == owner.id
-                assert "sk-fake-stored-secret" not in repr(result)
+                assert result.model_access.uses_stored_claude_subscription is True
+                assert FAKE_CLAUDE_SUBSCRIPTION_TOKEN not in repr(result)
             else:
                 with pytest.raises(ProcessTaskFatalError, match=re.escape(expected_error)):
                     async_to_sync(activity_environment.run)(get_task_processing_context, input_data)

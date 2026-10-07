@@ -112,31 +112,6 @@ class TestRunStateModelAccess(SimpleTestCase):
                 "codex",
                 "own_subscription",
             ),
-            (
-                {"claude_model_access": "own-key", "claude_subscription_user_id": 12},
-                "own-key",
-                "claude",
-                "anthropic_api_key",
-                "own_key",
-            ),
-            (
-                {
-                    "claude_model_access": "own-key",
-                    "claude_subscription_source": "server",
-                    "claude_subscription_user_id": 12,
-                },
-                "own-key",
-                "claude",
-                "anthropic_api_key",
-                "own_key",
-            ),
-            (
-                {"runtime_adapter": "codex", "codex_model_access": "own-key", "codex_subscription_user_id": 12},
-                "own-key",
-                "codex",
-                "openai_api_key",
-                "own_key",
-            ),
         ]
     )
     def test_decodes_model_access(
@@ -147,7 +122,8 @@ class TestRunStateModelAccess(SimpleTestCase):
         assert access.adapter == adapter
         assert access.owner_id == (12 if adapter else None)
         assert access.credential_kind == credential_kind
-        assert access.server_held_credential_kind == (None if credential_kind == "codex" else credential_kind)
+        assert access.uses_stored_claude_subscription is (credential_kind == "claude_subscription")
+        assert access.billing == billing
         assert inference_billing_for_state(state) == billing
         for candidate in ("claude", "codex"):
             assert access.access_for(candidate) == (kind if candidate == adapter else "posthog-gateway")
@@ -155,12 +131,8 @@ class TestRunStateModelAccess(SimpleTestCase):
     @parameterized.expand(
         [
             ({"claude_model_access": "own-subscription", "codex_model_access": "own-subscription"},),
-            ({"claude_model_access": "own-key", "codex_model_access": "own-key"},),
-            ({"claude_model_access": "own-key", "codex_model_access": "own-subscription"},),
             ({"runtime_adapter": "claude", "codex_model_access": "own-subscription"},),
             ({"runtime_adapter": "codex", "claude_model_access": "own-subscription"},),
-            ({"runtime_adapter": "claude", "codex_model_access": "own-key"},),
-            ({"runtime_adapter": "codex", "claude_model_access": "own-key"},),
         ]
     )
     def test_rejects_incompatible_subscriptions(self, state: dict) -> None:

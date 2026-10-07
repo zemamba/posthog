@@ -158,7 +158,7 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
         within_limit = self.make_run(team=other_team, task_status="in_progress", status="running")
 
         def cancel(run_id: Any, *args: Any, **kwargs: Any) -> tuple[str, None]:
-            self.tasks.set_status(run_id, "cancelled")
+            self.tasks.set_status(run_id, "cancelled", state={"cancel_source": kwargs["source"]})
             return "accepted", None
 
         with (
@@ -245,8 +245,8 @@ class TestCostFinalization(RunSyncTestCase):
     @parameterized.expand(
         [
             (
-                "own_key_has_no_inference_cost",
-                {"inference_billing": "own_key", "inference_cost_cents": 50},
+                "own_subscription_has_no_inference_cost",
+                {"inference_billing": "own_subscription", "inference_cost_cents": 50},
                 None,
                 "billed",
             ),

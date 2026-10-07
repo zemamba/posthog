@@ -1,4 +1,4 @@
-"""Facade for the inference choice of a run: PostHog credits, the user's API key, or the user's plan.
+"""Facade for the inference choice of a run: PostHog credits or the user's plan.
 
 The Cloud Agents product calls ``resolve_inference`` before it creates or resumes a task, then
 passes ``InferenceDecision.run_state_updates`` as ``inference_state`` to
@@ -7,7 +7,7 @@ passes ``InferenceDecision.run_state_updates`` as ``inference_state`` to
 
 from products.tasks.backend.logic.model_access import InferenceBilling, inference_billing_for_state
 from products.tasks.backend.logic.services.inference_resolution import (
-    InferenceCredentialMissing,
+    ClaudeSubscriptionMissing,
     InferenceDecision,
     InferenceRequest,
     InferenceUnavailable,
@@ -18,7 +18,7 @@ from products.tasks.backend.logic.services.inference_resolution import (
 
 __all__ = [
     "InferenceBilling",
-    "InferenceCredentialMissing",
+    "ClaudeSubscriptionMissing",
     "InferenceDecision",
     "InferenceRequest",
     "InferenceUnavailable",

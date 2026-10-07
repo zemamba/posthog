@@ -289,8 +289,8 @@ tools:
             stopped starts a new agent session with the message, which starts a billed sandbox again and moves the run
             back to `queued`. `resumed` in the response says which of the two happened. Use it to ask for changes to the
             pull request or to continue a failed, timed out or cancelled run in the same repository state. A run that
-            uses the model credential of the user who started it accepts messages from that user only. Each call sends
-            one more message, so do not repeat a call that may have succeeded.
+            uses the subscription of the user who started it accepts messages from that user only. Each call sends one
+            more message, so do not repeat a call that may have succeeded.
         param_overrides:
             id:
                 description: ID of the run to send the message to (a UUID).

@@ -8,7 +8,6 @@ import time_machine
 from posthog.test.base import APIBaseTest
 from unittest.mock import MagicMock, patch
 
-from asgiref.sync import async_to_sync
 from parameterized import parameterized
 from rest_framework import status
 
@@ -42,12 +41,12 @@ from products.tasks.backend.facade.inference import InferenceDecision, Inference
 
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
 CREATE_BODY: dict[str, Any] = {"prompt": "Fix the flaky test", "repository": "acme/app"}
-OWN_KEY_DECISION = InferenceDecision(
-    mode="own_key",
+OWN_SUBSCRIPTION_DECISION = InferenceDecision(
+    mode="own_subscription",
     adapter="claude",
-    credential_kind="anthropic_api_key",
+    credential_kind="claude_subscription",
     owner_user_id=1,
-    run_state_updates={"claude_model_access": "own-key"},
+    run_state_updates={"claude_model_access": "own-subscription"},
     resolved_from_auto=True,
 )
 
@@ -271,7 +270,7 @@ class TestCreateRun(RunsAPITestCase):
             (
                 "inference_unavailable",
                 "runs.resolve_inference",
-                InferenceUnavailable("Add your Anthropic API key in Cloud agents settings.", code="credential_missing"),
+                InferenceUnavailable("Connect your Claude subscription first.", code="credential_missing"),
                 "inference",
             ),
             (
@@ -286,7 +285,7 @@ class TestCreateRun(RunsAPITestCase):
         self, _name: str, target: str, error: Exception, attr: str
     ) -> None:
         self.mocks[target].side_effect = error
-        response = self.create({**CREATE_BODY, "inference": "own_key"}, HTTP_IDEMPOTENCY_KEY="key-1")
+        response = self.create({**CREATE_BODY, "inference": "own_subscription"}, HTTP_IDEMPOTENCY_KEY="key-1")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST, response.json()
         assert (response.json()["attr"], response.json()["detail"]) == (attr, str(error))
@@ -305,13 +304,13 @@ class TestCreateRun(RunsAPITestCase):
         assert retried.status_code == status.HTTP_201_CREATED
         assert [str(run.id) for run in self.stored_runs()] == [retried.json()["id"]]
 
-    def test_own_credential_run_reports_who_pays_for_inference(self) -> None:
-        self.mocks["runs.resolve_inference"].return_value = OWN_KEY_DECISION
+    def test_own_subscription_run_reports_who_pays_for_inference(self) -> None:
+        self.mocks["runs.resolve_inference"].return_value = OWN_SUBSCRIPTION_DECISION
         body = self.create({**CREATE_BODY, "inference": "auto"}).json()
 
-        assert body["config"]["inference"] == "own_key"
-        assert body["cost"]["inference_billing"] == "own_key"
-        assert self.tasks.create_calls[0]["inference_state"] == {"claude_model_access": "own-key"}
+        assert body["config"]["inference"] == "own_subscription"
+        assert body["cost"]["inference_billing"] == "own_subscription"
+        assert self.tasks.create_calls[0]["inference_state"] == {"claude_model_access": "own-subscription"}
         assert self.mocks["runs.resolve_inference"].call_args.kwargs["requested"] == "auto"
 
     def test_internal_caller_is_not_billed_and_skips_the_quota(self) -> None:
@@ -378,6 +377,8 @@ class TestReadRuns(RunsAPITestCase):
             ("?status=queued", [old]),
             (f"?profile_id={profile.id}", [old]),
             ("?repository=ACME/API", [old]),
+            ("?repository=api", [old]),
+            ("?repository=acme", [new, old]),
             ("?tag=ci", [old]),
             ("?tag=c", []),
             ("?created_after=2026-10-06T00:00:00Z", [new]),
@@ -431,7 +432,7 @@ class TestReadRuns(RunsAPITestCase):
         self.tasks.billing = billing_dto(
             compute_cost_cents=37,
             inference_cost_cents=None,
-            inference_billing="own_key",
+            inference_billing="own_subscription",
             vcpu_seconds=Decimal("3600"),
             gib_seconds=Decimal("14400"),
             sessions=(
@@ -458,7 +459,7 @@ class TestReadRuns(RunsAPITestCase):
                 "vcpu_seconds": "3600.000",
                 "gib_seconds": "14400.000",
                 "billing_mode": "billed",
-                "inference_billing": "own_key",
+                "inference_billing": "own_subscription",
                 "final": False,
             },
             "sessions": [
@@ -534,10 +535,7 @@ class TestReadRuns(RunsAPITestCase):
                 HTTP_LAST_EVENT_ID="6",
             )
 
-            async def read_stream() -> bytes:
-                return b"".join([chunk async for chunk in response.streaming_content])  # type: ignore[attr-defined]
-
-            body = async_to_sync(read_stream)()
+            body = b"".join(response.streaming_content)  # type: ignore[attr-defined]
 
         assert response.status_code == status.HTTP_200_OK
         assert response["Content-Type"].startswith("text/event-stream")
@@ -667,14 +665,17 @@ class TestSendMessage(RunsAPITestCase):
         self.mocks["runs.signal_task_run_user_message"].assert_not_called()
 
     @parameterized.expand([("live", "in_progress"), ("stopped", "completed")])
-    def test_only_the_credential_owner_continues_an_own_credential_run(self, _name: str, task_status: str) -> None:
+    def test_only_the_subscription_owner_continues_an_own_subscription_run(self, _name: str, task_status: str) -> None:
         owner = User.objects.create_and_join(self.organization, "owner@example.com", None)
-        run = self.make_run(task_status=task_status, created_by=owner, config={**RUN_CONFIG, "inference": "own_key"})
+        run = self.make_run(
+            task_status=task_status, created_by=owner, config={**RUN_CONFIG, "inference": "own_subscription"}
+        )
 
         response = self.send(run)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["code"] == "credential_owner_required"
+        assert "subscription of the user who started it" in response.json()["detail"]
         self.mocks["runs.signal_task_run_user_message"].assert_not_called()
         assert self.tasks.resume_calls == []
 

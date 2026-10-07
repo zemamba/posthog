@@ -78,11 +78,11 @@ class UserIntegration(UUIDModel):
       stores the rotated token under a row lock. See `posthog.models.integration.codex`.
     - One row per user: Desktop replaces it on reconnect.
 
-    Contents for inference credentials (kinds anthropic_api_key, openai_api_key, claude_subscription):
-    - `integration_id` holds the first 16 hex characters of the SHA-256 digest of the secret
-    - `config` holds {key_suffix, connected_at, last_used_at}
-    - `sensitive_config` holds {secret}. See `posthog.models.integration.inference_credentials`.
-    - One row per user per kind: a new credential replaces the stored one.
+    Contents for kind=claude_subscription:
+    - `integration_id` holds the first 16 hex characters of the SHA-256 digest of the token
+    - `config` holds {token_suffix, connected_at, last_used_at}
+    - `sensitive_config` holds {secret}. See `posthog.models.integration.claude_subscription`.
+    - One row per user: a new token replaces the stored one.
 
     The `unique_together = ("user", "kind", "integration_id")` constraint only
     forbids the same PostHog user linking the same Slack workspace identity
@@ -96,8 +96,6 @@ class UserIntegration(UUIDModel):
         GITHUB = "github"
         SLACK = "slack"
         CODEX = "codex"
-        ANTHROPIC_API_KEY = "anthropic_api_key"
-        OPENAI_API_KEY = "openai_api_key"
         CLAUDE_SUBSCRIPTION = "claude_subscription"
 
     user = models.ForeignKey(
@@ -121,16 +119,6 @@ class UserIntegration(UUIDModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["user"], condition=models.Q(kind="codex"), name="unique_codex_user_integration"
-            ),
-            models.UniqueConstraint(
-                fields=["user"],
-                condition=models.Q(kind="anthropic_api_key"),
-                name="unique_anthropic_api_key_user_integration",
-            ),
-            models.UniqueConstraint(
-                fields=["user"],
-                condition=models.Q(kind="openai_api_key"),
-                name="unique_openai_api_key_user_integration",
             ),
             models.UniqueConstraint(
                 fields=["user"],

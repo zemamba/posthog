@@ -6,9 +6,7 @@ import { formatCost } from '../utils/pricing'
 
 /** The total cost of a run in a table row, with a hint when the number can still change or leaves something out. */
 export function RunCostCell({ cost }: { cost: CloudAgentRunCostApi }): JSX.Element {
-    const ownProvider =
-        cost.inference_billing === InferenceBillingEnumApi.OwnKey ||
-        cost.inference_billing === InferenceBillingEnumApi.OwnSubscription
+    const ownProvider = cost.inference_billing === InferenceBillingEnumApi.OwnSubscription
     const hints: string[] = []
     if (cost.billing_mode === BillingModeEnumApi.Unbilled) {
         hints.push('Not billed')
@@ -17,13 +15,13 @@ export function RunCostCell({ cost }: { cost: CloudAgentRunCostApi }): JSX.Eleme
         hints.push('Settling')
     }
     if (ownProvider) {
-        hints.push('Your provider')
+        hints.push('Your subscription')
     }
     return (
         <Tooltip
             title={
                 ownProvider
-                    ? 'Compute only. Your model provider bills the model usage of this run.'
+                    ? 'Compute only. The model usage of this run counts against your subscription.'
                     : cost.final
                       ? undefined
                       : 'This cost can still change until the run settles.'

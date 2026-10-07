@@ -4,6 +4,7 @@ from typing import Any
 
 import time_machine
 from posthog.test.base import APIBaseTest
+from unittest.mock import patch
 
 from parameterized import parameterized
 from rest_framework import status
@@ -12,7 +13,7 @@ from posthog.models import Organization, Team
 from posthog.models.scoping import team_scope
 
 from products.cloud_agents.backend.models import CloudAgentProfile, TeamCloudAgentsConfig
-from products.cloud_agents.backend.tests.base import CloudAgentsFlagMixin, TasksFakeMixin
+from products.cloud_agents.backend.tests.base import LOGIC, CloudAgentsFlagMixin, TasksFakeMixin
 from products.tasks.backend.facade.pricing import get_cloud_agents_rate_card
 
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
@@ -23,12 +24,21 @@ def _plain(value: Decimal) -> str:
 
 
 class TestCatalogAndEstimate(TasksFakeMixin, CloudAgentsFlagMixin, APIBaseTest):
-    def test_catalog_prices_come_from_the_rate_card(self) -> None:
+    @parameterized.expand(
+        [
+            ("subscription_storage_on", True, ["auto", "own_subscription", "posthog"]),
+            ("subscription_storage_off", False, ["auto", "posthog"]),
+        ]
+    )
+    def test_catalog_prices_come_from_the_rate_card(
+        self, _name: str, subscription_storage: bool, inference_modes: list[str]
+    ) -> None:
         with team_scope(self.team.id):
             TeamCloudAgentsConfig.objects.create(team=self.team, max_concurrent_runs=12)
         rate_card = get_cloud_agents_rate_card()
 
-        body = self.client.get(f"{self.base_url()}/catalog/").json()
+        with patch(f"{LOGIC}.catalog.posthog_feature_flag_enabled", return_value=subscription_storage):
+            body = self.client.get(f"{self.base_url()}/catalog/").json()
 
         assert body["rates"] == {
             "vcpu_hour_usd": _plain(rate_card.vcpu_hour_usd),
@@ -41,7 +51,7 @@ class TestCatalogAndEstimate(TasksFakeMixin, CloudAgentsFlagMixin, APIBaseTest):
         for size in sizes.values():
             expected = size["vcpu"] * rate_card.vcpu_hour_usd + size["memory_gib"] * rate_card.memory_gib_hour_usd
             assert Decimal(size["price_per_hour_usd"]) == expected
-        assert body["inference_modes"] == ["auto", "own_key", "own_subscription", "posthog"]
+        assert body["inference_modes"] == inference_modes
         assert body["limits"] == {"max_concurrent_runs": 12, "create_rate_per_hour": 60}
         assert [model["id"] for model in body["models"] if model["is_default"]] != []
         assert all(set(model) == {"id", "name", "runtime_adapter", "is_default"} for model in body["models"])
