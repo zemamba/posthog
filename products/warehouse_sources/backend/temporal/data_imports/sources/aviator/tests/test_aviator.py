@@ -19,6 +19,7 @@ from products.warehouse_sources.backend.temporal.data_imports.sources.aviator.av
     validate_credentials,
 )
 from products.warehouse_sources.backend.temporal.data_imports.sources.aviator.settings import AVIATOR_ENDPOINTS
+from products.warehouse_sources.backend.temporal.data_imports.sources.common import boundary_checkpoint
 
 
 class _FakeResumableManager:
@@ -460,6 +461,7 @@ class TestFanOutResume:
         # with only the repos still owed (and a crash mid-repo re-processes it, since merge dedupes).
         manager = _FakeResumableManager()
         repos = [{"org": "o", "name": "a"}, {"org": "o", "name": "b"}, {"org": "o", "name": "c"}]
+        monkeypatch.setattr(boundary_checkpoint, "PARTIAL_FLUSH_INTERVAL_SECONDS", 0)
         _run_fan_out("queue_stats", self._fetch_stats, repos, manager, monkeypatch)
         assert [s.completed_repo_keys for s in manager.saved] == [
             ["o/a"],
