@@ -616,8 +616,17 @@ jobs:
                         - 'products/warehouse_sources_queue/**'
                         - 'posthog/temporal/data_modeling/**'
                         - 'products/customer_analytics/backend/**'
-                        - 'products/warehouse_sources/backend/temporal/data_imports/**'
+                        # The import pipeline imports the models, the facade and the types of
+                        # warehouse_sources, and the facade of data_warehouse.
+                        - 'products/warehouse_sources/backend/**'
+                        - 'products/data_warehouse/backend/**'
                         - 'posthog/warehouse/**'
+                        # The worker is a Django process, so it loads the settings and the core
+                        # models at start. The image installs its dependencies from uv.lock.
+                        - 'posthog/models/**'
+                        - 'posthog/settings/**'
+                        - uv.lock
+                        - Dockerfile
                         - 'posthog/temporal/common/**'
                         - 'posthog/management/commands/start_temporal_worker.py'
                         - pyproject.toml
@@ -629,7 +638,13 @@ jobs:
                         - 'products/warehouse_sources_queue/**'
                         - 'posthog/warehouse/**'
                         - 'products/data_warehouse/backend/**'
+                        # The loader is a Django management command, so it loads the settings and
+                        # the core models at start. It also imports the Temporal logger.
+                        - 'posthog/models/**'
+                        - 'posthog/settings/**'
+                        - 'posthog/temporal/common/**'
                         - pyproject.toml
+                        - uv.lock
                         - Dockerfile
                         - 'posthog/clickhouse/migrations/**'
 
