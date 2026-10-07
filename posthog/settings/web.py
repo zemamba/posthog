@@ -636,9 +636,18 @@ SPECTACULAR_SETTINGS = {
             "RoleEnum": ["primary", "supporting"],
             # signals' report chart size; cloud_agents' sandbox size also sits on a field named `size`.
             "SizeEnum": ["small", "medium", "large"],
-            # ai_observability's text representation event; cloud_agents' webhook event also sits on a
-            # field named `event_type`.
-            "EventTypeEnum": ["$ai_generation", "$ai_span", "$ai_embedding", "$ai_trace"],
+            # Keeps the name `CodeEnum` for the dataset conflict codes of ai_observability. A second field named
+            # `code` with fixed values (the experiment health finding codes) would otherwise rename it, and the
+            # frontend imports of `CodeEnumApi` would break.
+            "CodeEnum": [
+                "dataset_archived",
+                "dataset_name_conflict",
+                "dataset_item_archived",
+                "dataset_item_active",
+                "client_item_id_conflict",
+                "limit_reached",
+                "stale_version",
+            ],
             # replay_vision alert destinations: the create body and the alert's listed destinations share this set.
             "VisionAlertDestinationTypeEnum": ["slack", "webhook"],
             # The API-only pin kind uses StrEnum; name its component without a Django Choices class.

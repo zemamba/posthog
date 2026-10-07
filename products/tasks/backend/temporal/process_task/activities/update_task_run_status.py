@@ -10,6 +10,7 @@ from temporalio.exceptions import ApplicationError
 
 from posthog.temporal.common.utils import asyncify
 
+from products.tasks.backend.constants import TIMED_OUT_INACTIVITY_STATE_KEY
 from products.tasks.backend.error_telemetry import truncate_error_message
 from products.tasks.backend.exceptions import (
     SandboxControlPlaneError,
@@ -30,9 +31,6 @@ from products.tasks.backend.models import Task, TaskRun
 from products.tasks.backend.temporal.metrics import record_run_token_usage
 from products.tasks.backend.temporal.observability import log_with_activity_context
 
-# TaskRun.state marker for runs completed by the inactivity timeout; kept out of
-# error_message so a normal completion never reads as a failure.
-TIMED_OUT_INACTIVITY_STATE_KEY = "timed_out_inactivity"
 # TaskRun.state marker for runs stopped by the hard wall-clock cap. Written without an
 # error_message: the marker is the machine-readable reason, and a fabricated prose
 # message would just get parroted back to users by every error surface.
