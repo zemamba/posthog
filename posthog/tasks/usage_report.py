@@ -2636,9 +2636,8 @@ def get_teams_with_logs_retention_byte_days_in_period(
 def get_teams_with_logs_records_in_period(
     begin: datetime,
     end: datetime,
-) -> list[
-    tuple[int, int]
-]:  # nosemgrep: tuple-return-prefer-dataclass -- (team_id, count) rows, the shape the shared usage report combiners take
+    # nosemgrep: tuple-return-prefer-dataclass -- (team_id, count) rows, the shape the shared usage report combiners take
+) -> list[tuple[int, int]]:
     with tags_context(product=Product.LOGS, feature=Feature.USAGE_REPORT):
         return sync_execute(
             """
