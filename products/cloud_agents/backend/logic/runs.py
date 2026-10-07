@@ -79,7 +79,6 @@ from .cost import apply_billing
 from .profiles import get_profile, get_profile_by_ref
 from .run_rows import get_run_row, run_rows, session_entry, to_run_dto
 from .settings import get_team_settings
-from .webhooks.endpoints import validate_webhook_url
 
 INACTIVITY_TIMEOUT_SECONDS: Final = 600
 MAX_RETRY_AFTER_SECONDS: Final = 24 * 60 * 60
@@ -262,7 +261,6 @@ def _create_run(
                     metadata=dict(data.metadata or {}),
                     idempotency_key=idempotency_key,
                     request_hash=body_hash,
-                    webhook_url=config.webhook_url,
                     config={
                         **config.to_json(),
                         "model": selection.model,
@@ -323,8 +321,6 @@ def start_run(
     settings = get_team_settings(team_id)
     profile = _resolve_profile(team_id, data.profile, settings)
     config = resolve_run_config(data, profile, settings)
-    if data.webhook_url:
-        validate_webhook_url(data.webhook_url)
     selection = _select_model(config.model)
 
     _check_quota(team_id, billable=caller.billable)

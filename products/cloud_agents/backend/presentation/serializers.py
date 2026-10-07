@@ -21,8 +21,6 @@ from ..facade.enums import (
     SizeName,
     StopReason,
     UsageGroupBy,
-    WebhookDeliveryStatus,
-    WebhookEvent,
 )
 
 REPOSITORY_REGEX = r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
@@ -154,12 +152,6 @@ class ProfileWriteFieldsSerializer(RunDefaultsSerializer):
         max_length=2000, required=False, allow_blank=True, help_text="What this profile is for."
     )
     tags = _tags_field(required=False, help_text="Tags added to every run that uses this profile.")
-    webhook_url = serializers.URLField(
-        max_length=URL_MAX_LENGTH,
-        required=False,
-        allow_null=True,
-        help_text="HTTPS URL that gets the events of every run that uses this profile. Null sends none.",
-    )
 
 
 class ProfileCreateSerializer(ProfileWriteFieldsSerializer):
@@ -182,9 +174,6 @@ class ProfileSerializer(RunDefaultsSerializer):
     name = serializers.CharField(help_text="Name of the profile.")
     description = serializers.CharField(allow_blank=True, help_text="What this profile is for.")
     tags = _tags_field(help_text="Tags added to every run that uses this profile.")
-    webhook_url = serializers.URLField(
-        allow_null=True, help_text="HTTPS URL that gets the events of every run that uses this profile."
-    )
     created_by = serializers.IntegerField(
         source="created_by_id", allow_null=True, help_text="ID of the user who created the profile."
     )
@@ -210,97 +199,7 @@ class CloudAgentSettingsSerializer(RunDefaultsSerializer):
         help_text="How many runs the project can have active at the same time."
     )
     create_rate_per_hour = serializers.IntegerField(help_text="How many runs the project can start in one hour.")
-    webhook_secret_set = serializers.BooleanField(help_text="Whether the project has a webhook signing secret.")
     updated_at = serializers.DateTimeField(allow_null=True, help_text="When the settings were last changed.")
-
-
-def _event_types_field(**kwargs: Any) -> serializers.ListField:
-    return serializers.ListField(child=LabeledEnumField(WebhookEvent), max_length=len(WebhookEvent), **kwargs)
-
-
-class WebhookEndpointCreateSerializer(serializers.Serializer):
-    url = serializers.URLField(
-        max_length=URL_MAX_LENGTH, help_text="HTTPS URL that gets a POST request for each event."
-    )
-    enabled = serializers.BooleanField(
-        required=False, default=True, help_text="Whether PostHog sends events to this endpoint."
-    )
-    event_types = _event_types_field(
-        required=False,
-        default=list,
-        help_text="The event types to send. An empty list sends all event types.",
-    )
-
-
-class WebhookEndpointUpdateSerializer(serializers.Serializer):
-    url = serializers.URLField(
-        max_length=URL_MAX_LENGTH, required=False, help_text="HTTPS URL that gets a POST request for each event."
-    )
-    enabled = serializers.BooleanField(required=False, help_text="Whether PostHog sends events to this endpoint.")
-    event_types = _event_types_field(
-        required=False, help_text="The event types to send. An empty list sends all event types."
-    )
-
-
-class WebhookEndpointSerializer(serializers.Serializer):
-    id = serializers.UUIDField(help_text="ID of the webhook endpoint.")
-    url = serializers.URLField(help_text="HTTPS URL that gets a POST request for each event.")
-    enabled = serializers.BooleanField(help_text="Whether PostHog sends events to this endpoint.")
-    event_types = _event_types_field(help_text="The event types to send. An empty list sends all event types.")
-    created_by = serializers.IntegerField(
-        source="created_by_id", allow_null=True, help_text="ID of the user who created the endpoint."
-    )
-    created_at = serializers.DateTimeField(help_text="When the endpoint was created.")
-    updated_at = serializers.DateTimeField(help_text="When the endpoint was last changed.")
-
-
-class WebhookSecretSerializer(serializers.Serializer):
-    secret = serializers.CharField(
-        allow_null=True,
-        help_text=(
-            "The signing secret. It is present only in the response that creates or rotates it, so store it "
-            "then. Null when the project already has a secret: rotate the secret to get a new one."
-        ),
-    )
-    created = serializers.BooleanField(help_text="Whether this request created the secret.")
-
-
-class WebhookTestSerializer(serializers.Serializer):
-    delivery_id = serializers.UUIDField(help_text="ID of the delivery that carries the test event.")
-
-
-class WebhookDeliverySerializer(serializers.Serializer):
-    id = serializers.UUIDField(help_text="ID of the delivery.")
-    endpoint = serializers.UUIDField(
-        source="endpoint_id",
-        allow_null=True,
-        help_text="ID of the webhook endpoint. Null for a delivery to the webhook URL of one run.",
-    )
-    url = serializers.URLField(help_text="URL that the event was sent to.")
-    run_id = serializers.UUIDField(help_text="ID of the run that the event is about.")
-    event_type = LabeledEnumField(WebhookEvent, help_text="Type of the event.")
-    event_id = serializers.UUIDField(
-        help_text="ID of the event. It is the same for every attempt and for every endpoint that gets the event."
-    )
-    status = LabeledEnumField(
-        WebhookDeliveryStatus,
-        help_text=(
-            "`pending` waits for an attempt, `succeeded` got a 2xx response, `failed` got a response that "
-            "a retry cannot fix, and `gave_up` used all its retries."
-        ),
-    )
-    attempts = serializers.IntegerField(help_text="How many times PostHog tried to send the event.")
-    last_status_code = serializers.IntegerField(
-        allow_null=True, help_text="HTTP status of the last attempt. Null when no response arrived."
-    )
-    last_error = serializers.CharField(
-        allow_null=True, help_text="Kind of connection error of the last attempt. Null when a response arrived."
-    )
-    next_attempt_at = serializers.DateTimeField(
-        allow_null=True, help_text="When the next attempt is due. Null when no attempt is planned."
-    )
-    delivered_at = serializers.DateTimeField(allow_null=True, help_text="When the receiver accepted the event.")
-    created_at = serializers.DateTimeField(help_text="When the delivery was created.")
 
 
 # --- Runs ---
@@ -338,12 +237,6 @@ class CloudAgentRunCreateSerializer(RunDefaultsSerializer):
             f"Your own key and value pairs, stored with the run and returned with it. At most "
             f"{MAX_METADATA_PAIRS} pairs. Keys and values are strings."
         ),
-    )
-    webhook_url = serializers.URLField(
-        max_length=URL_MAX_LENGTH,
-        required=False,
-        allow_null=True,
-        help_text="HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project.",
     )
 
     def validate_metadata(self, value: dict[str, str]) -> dict[str, str]:

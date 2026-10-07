@@ -106,19 +106,6 @@
             },
             "maxItems": 20,
             "type": "array"
-        },
-        "webhook_url": {
-            "anyOf": [
-                {
-                    "format": "uri",
-                    "maxLength": 2000,
-                    "type": "string"
-                },
-                {
-                    "type": "null"
-                }
-            ],
-            "description": "HTTPS URL that gets the events of every run that uses this profile. Null sends none."
         }
     },
     "required": ["name"],

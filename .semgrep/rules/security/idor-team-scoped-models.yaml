@@ -113,8 +113,6 @@ rules:
                               |ClusteringJob
                               |CloudAgentProfile
                               |CloudAgentRun
-                              |CloudAgentsWebhookDelivery
-                              |CloudAgentsWebhookEndpoint
                               |Cohort
                               |CohortBackfillChunk
                               |CohortBackfillRun
@@ -569,8 +567,6 @@ rules:
                         |ClusteringJob
                         |CloudAgentProfile
                         |CloudAgentRun
-                        |CloudAgentsWebhookDelivery
-                        |CloudAgentsWebhookEndpoint
                         |Cohort
                         |CohortBackfillChunk
                         |CohortBackfillRun

@@ -231,11 +231,6 @@ export interface ProfileApi {
      */
     tags: string[]
     /**
-     * HTTPS URL that gets the events of every run that uses this profile.
-     * @nullable
-     */
-    webhook_url: string | null
-    /**
      * ID of the user who created the profile.
      * @nullable
      */
@@ -336,12 +331,6 @@ export interface ProfileCreateApi {
      */
     tags?: string[]
     /**
-     * HTTPS URL that gets the events of every run that uses this profile. Null sends none.
-     * @maxLength 2000
-     * @nullable
-     */
-    webhook_url?: string | null
-    /**
      * Name of the profile. It is unique in the project, without regard to case.
      * @maxLength 100
      */
@@ -428,12 +417,6 @@ export interface PatchedProfileUpdateApi {
      * @items.maxLength 50
      */
     tags?: string[]
-    /**
-     * HTTPS URL that gets the events of every run that uses this profile. Null sends none.
-     * @maxLength 2000
-     * @nullable
-     */
-    webhook_url?: string | null
     /**
      * Name of the profile. It is unique in the project, without regard to case.
      * @maxLength 100
@@ -831,12 +814,6 @@ export interface CloudAgentRunCreateApi {
     tags?: string[]
     /** Your own key and value pairs, stored with the run and returned with it. At most 16 pairs. Keys and values are strings. */
     metadata?: CloudAgentRunCreateApiMetadata
-    /**
-     * HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project.
-     * @maxLength 2000
-     * @nullable
-     */
-    webhook_url?: string | null
 }
 
 export type CloudAgentRunEventsApiEventsItem = { [key: string]: unknown }
@@ -979,8 +956,6 @@ export interface CloudAgentSettingsApi {
     max_concurrent_runs: number
     /** How many runs the project can start in one hour. */
     create_rate_per_hour: number
-    /** Whether the project has a webhook signing secret. */
-    webhook_secret_set: boolean
     /**
      * When the settings were last changed.
      * @nullable
@@ -1134,171 +1109,6 @@ export interface CloudAgentUsageSummaryApi {
     totals: CloudAgentUsageTotalsApi
     /** Usage for each day or for each profile. */
     buckets: CloudAgentUsageBucketApi[]
-}
-
-/**
- * * `run.started` - Run started
- * * `run.completed` - Run completed
- * * `run.failed` - Run failed
- * * `run.cancelled` - Run cancelled
- * * `run.test` - Test event
- */
-export type WebhookEventEnumApi = (typeof WebhookEventEnumApi)[keyof typeof WebhookEventEnumApi]
-
-export const WebhookEventEnumApi = {
-    Runstarted: 'run.started',
-    Runcompleted: 'run.completed',
-    Runfailed: 'run.failed',
-    Runcancelled: 'run.cancelled',
-    Runtest: 'run.test',
-} as const
-
-export interface WebhookEndpointApi {
-    /** ID of the webhook endpoint. */
-    id: string
-    /** HTTPS URL that gets a POST request for each event. */
-    url: string
-    /** Whether PostHog sends events to this endpoint. */
-    enabled: boolean
-    /**
-     * The event types to send. An empty list sends all event types.
-     * @maxItems 5
-     */
-    event_types: WebhookEventEnumApi[]
-    /**
-     * ID of the user who created the endpoint.
-     * @nullable
-     */
-    created_by: number | null
-    /** When the endpoint was created. */
-    created_at: string
-    /** When the endpoint was last changed. */
-    updated_at: string
-}
-
-export interface PaginatedWebhookEndpointListApi {
-    count: number
-    /** @nullable */
-    next?: string | null
-    /** @nullable */
-    previous?: string | null
-    results: WebhookEndpointApi[]
-}
-
-export interface WebhookEndpointCreateApi {
-    /**
-     * HTTPS URL that gets a POST request for each event.
-     * @maxLength 2000
-     */
-    url: string
-    /** Whether PostHog sends events to this endpoint. */
-    enabled?: boolean
-    /**
-     * The event types to send. An empty list sends all event types.
-     * @maxItems 5
-     */
-    event_types?: WebhookEventEnumApi[]
-}
-
-export interface PatchedWebhookEndpointUpdateApi {
-    /**
-     * HTTPS URL that gets a POST request for each event.
-     * @maxLength 2000
-     */
-    url?: string
-    /** Whether PostHog sends events to this endpoint. */
-    enabled?: boolean
-    /**
-     * The event types to send. An empty list sends all event types.
-     * @maxItems 5
-     */
-    event_types?: WebhookEventEnumApi[]
-}
-
-export interface WebhookTestApi {
-    /** ID of the delivery that carries the test event. */
-    delivery_id: string
-}
-
-/**
- * * `pending` - Pending
- * * `succeeded` - Succeeded
- * * `failed` - Failed
- * * `gave_up` - Gave Up
- */
-export type WebhookDeliveryStatusEnumApi =
-    (typeof WebhookDeliveryStatusEnumApi)[keyof typeof WebhookDeliveryStatusEnumApi]
-
-export const WebhookDeliveryStatusEnumApi = {
-    Pending: 'pending',
-    Succeeded: 'succeeded',
-    Failed: 'failed',
-    GaveUp: 'gave_up',
-} as const
-
-export interface WebhookDeliveryApi {
-    /** ID of the delivery. */
-    id: string
-    /**
-     * ID of the webhook endpoint. Null for a delivery to the webhook URL of one run.
-     * @nullable
-     */
-    endpoint: string | null
-    /** URL that the event was sent to. */
-    url: string
-    /** ID of the run that the event is about. */
-    run_id: string
-    /** Type of the event.
-     *
-     * * `run.started` - Run started
-     * * `run.completed` - Run completed
-     * * `run.failed` - Run failed
-     * * `run.cancelled` - Run cancelled
-     * * `run.test` - Test event */
-    event_type: WebhookEventEnumApi
-    /** ID of the event. It is the same for every attempt and for every endpoint that gets the event. */
-    event_id: string
-    /** `pending` waits for an attempt, `succeeded` got a 2xx response, `failed` got a response that a retry cannot fix, and `gave_up` used all its retries.
-     *
-     * * `pending` - Pending
-     * * `succeeded` - Succeeded
-     * * `failed` - Failed
-     * * `gave_up` - Gave Up */
-    status: WebhookDeliveryStatusEnumApi
-    /** How many times PostHog tried to send the event. */
-    attempts: number
-    /**
-     * HTTP status of the last attempt. Null when no response arrived.
-     * @nullable
-     */
-    last_status_code: number | null
-    /**
-     * Kind of connection error of the last attempt. Null when a response arrived.
-     * @nullable
-     */
-    last_error: string | null
-    /**
-     * When the next attempt is due. Null when no attempt is planned.
-     * @nullable
-     */
-    next_attempt_at: string | null
-    /**
-     * When the receiver accepted the event.
-     * @nullable
-     */
-    delivered_at: string | null
-    /** When the delivery was created. */
-    created_at: string
-}
-
-export interface WebhookSecretApi {
-    /**
-     * The signing secret. It is present only in the response that creates or rotates it, so store it then. Null when the project already has a secret: rotate the secret to get a new one.
-     * @nullable
-     */
-    secret: string | null
-    /** Whether this request created the secret. */
-    created: boolean
 }
 
 export type CloudAgentsEstimateRetrieveParams = {
@@ -1456,14 +1266,3 @@ export const CloudAgentsUsageRetrieveGroupBy = {
     Day: 'day',
     Profile: 'profile',
 } as const
-
-export type CloudAgentsWebhookEndpointsListParams = {
-    /**
-     * Number of results to return per page.
-     */
-    limit?: number
-    /**
-     * The initial index from which to return the results.
-     */
-    offset?: number
-}

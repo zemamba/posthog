@@ -75,21 +75,6 @@ class UsageGroupBy(LabeledStrEnum):
     PROFILE = "profile"
 
 
-class WebhookEvent(LabeledStrEnum):
-    RUN_STARTED = "run.started", "Run started"
-    RUN_COMPLETED = "run.completed", "Run completed"
-    RUN_FAILED = "run.failed", "Run failed"
-    RUN_CANCELLED = "run.cancelled", "Run cancelled"
-    RUN_TEST = "run.test", "Test event"
-
-
-class WebhookDeliveryStatus(LabeledStrEnum):
-    PENDING = "pending"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    GAVE_UP = "gave_up"
-
-
 @frozen
 class SizeShape:
     vcpu: int

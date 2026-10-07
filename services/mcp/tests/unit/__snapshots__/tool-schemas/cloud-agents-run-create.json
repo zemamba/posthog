@@ -123,19 +123,6 @@
             },
             "maxItems": 20,
             "type": "array"
-        },
-        "webhook_url": {
-            "anyOf": [
-                {
-                    "format": "uri",
-                    "maxLength": 2000,
-                    "type": "string"
-                },
-                {
-                    "type": "null"
-                }
-            ],
-            "description": "HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project."
         }
     },
     "required": ["prompt"],

@@ -7,7 +7,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 import posthog.uuidt
-import posthog.helpers.encrypted_fields
 
 
 class Migration(migrations.Migration):
@@ -73,7 +72,6 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=100)),
                 ("description", models.TextField(blank=True, default="")),
                 ("tags", models.JSONField(blank=True, default=list)),
-                ("webhook_url", models.URLField(blank=True, max_length=2000, null=True)),
                 ("deleted", models.BooleanField(default=False)),
                 ("deleted_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
@@ -131,7 +129,6 @@ class Migration(migrations.Migration):
                 ("metadata", models.JSONField(blank=True, default=dict)),
                 ("idempotency_key", models.CharField(blank=True, max_length=100, null=True)),
                 ("request_hash", models.CharField(blank=True, max_length=64, null=True)),
-                ("webhook_url", models.URLField(blank=True, max_length=2000, null=True)),
                 ("config", models.JSONField(default=dict)),
                 (
                     "status",
@@ -234,104 +231,6 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name="CloudAgentsWebhookEndpoint",
-            fields=[
-                (
-                    "id",
-                    models.UUIDField(default=posthog.uuidt.uuid7, editable=False, primary_key=True, serialize=False),
-                ),
-                ("url", models.URLField(max_length=2000)),
-                ("enabled", models.BooleanField(default=True)),
-                ("event_types", models.JSONField(blank=True, default=list)),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "created_by",
-                    models.ForeignKey(
-                        blank=True,
-                        db_constraint=False,
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="+",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
-                (
-                    "team",
-                    models.ForeignKey(
-                        db_constraint=False,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="+",
-                        to="posthog.team",
-                    ),
-                ),
-            ],
-            options={
-                "default_manager_name": "all_teams",
-            },
-            managers=[
-                ("all_teams", django.db.models.manager.Manager()),
-            ],
-        ),
-        migrations.CreateModel(
-            name="CloudAgentsWebhookDelivery",
-            fields=[
-                (
-                    "id",
-                    models.UUIDField(default=posthog.uuidt.uuid7, editable=False, primary_key=True, serialize=False),
-                ),
-                ("url", models.URLField(max_length=2000)),
-                ("run_id", models.UUIDField()),
-                ("event_type", models.CharField(max_length=32)),
-                ("event_id", models.UUIDField()),
-                ("payload", models.JSONField()),
-                (
-                    "status",
-                    models.CharField(
-                        choices=[
-                            ("pending", "Pending"),
-                            ("succeeded", "Succeeded"),
-                            ("failed", "Failed"),
-                            ("gave_up", "Gave Up"),
-                        ],
-                        default="pending",
-                        max_length=16,
-                    ),
-                ),
-                ("attempts", models.PositiveIntegerField(default=0)),
-                ("last_status_code", models.PositiveIntegerField(blank=True, null=True)),
-                ("last_error", models.CharField(blank=True, max_length=100, null=True)),
-                ("next_attempt_at", models.DateTimeField(blank=True, null=True)),
-                ("delivered_at", models.DateTimeField(blank=True, null=True)),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                (
-                    "team",
-                    models.ForeignKey(
-                        db_constraint=False,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="+",
-                        to="posthog.team",
-                    ),
-                ),
-                (
-                    "endpoint",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="+",
-                        to="cloud_agents.cloudagentswebhookendpoint",
-                    ),
-                ),
-            ],
-            options={
-                "default_manager_name": "all_teams",
-            },
-            managers=[
-                ("all_teams", django.db.models.manager.Manager()),
-            ],
-        ),
-        migrations.CreateModel(
             name="TeamCloudAgentsConfig",
             fields=[
                 ("repository", models.CharField(blank=True, max_length=255, null=True)),
@@ -391,8 +290,6 @@ class Migration(migrations.Migration):
                 ),
                 ("max_concurrent_runs", models.PositiveIntegerField(blank=True, null=True)),
                 ("create_rate_per_hour", models.PositiveIntegerField(blank=True, null=True)),
-                ("webhook_secret", posthog.helpers.encrypted_fields.EncryptedTextField(blank=True, null=True)),
-                ("webhook_secret_created_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 (
@@ -452,18 +349,6 @@ class Migration(migrations.Migration):
                 condition=models.Q(("idempotency_key__isnull", False)),
                 fields=("team", "idempotency_key"),
                 name="cloud_agents_run_unique_idempotency_key",
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="cloudagentswebhookdelivery",
-            index=models.Index(fields=["team", "-created_at"], name="cloud_agents_delivery_created"),
-        ),
-        migrations.AddIndex(
-            model_name="cloudagentswebhookdelivery",
-            index=models.Index(
-                condition=models.Q(("status", "pending")),
-                fields=["next_attempt_at"],
-                name="cloud_agents_delivery_due",
             ),
         ),
     ]

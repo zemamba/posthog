@@ -53,7 +53,7 @@ def _parse_time(value: object) -> datetime | None:
 
 
 def _format_time(value: datetime | None) -> str | None:
-    # The same text that the REST API writes for a time, so a webhook receiver can share a parser.
+    # The same text that the REST API writes for a time.
     return value.isoformat().replace("+00:00", "Z") if value is not None else None
 
 
@@ -129,69 +129,3 @@ def to_run_dto(run: CloudAgentRun) -> RunDTO:
         created_by_email=created_by.email if created_by is not None else None,
         caller_kind=CallerKind(run.caller_kind),
     )
-
-
-def _decimal(value: Decimal | None) -> str | None:
-    return None if value is None else str(value)
-
-
-def format_price(value: Decimal) -> str:
-    """A price without trailing zeros, for example `0.368`."""
-    return format(value.normalize(), "f")
-
-
-def run_payload(run: RunDTO) -> dict[str, Any]:
-    """The JSON shape of a run in a webhook event. It is the same shape that the REST API returns."""
-    return {
-        "id": str(run.id),
-        "status": run.status.value,
-        "stop_reason": run.stop_reason.value if run.stop_reason else None,
-        "error": run.error,
-        "created_at": _format_time(run.created_at),
-        "started_at": _format_time(run.started_at),
-        "completed_at": _format_time(run.completed_at),
-        "updated_at": _format_time(run.updated_at),
-        "prompt": run.prompt,
-        "repository": run.repository,
-        "branch": run.branch,
-        "profile": {"id": str(run.profile_id), "name": run.profile_name} if run.profile_id else None,
-        "config": {
-            "model": run.config.model,
-            "size": {
-                "name": run.size.name.value,
-                "vcpu": run.size.vcpu,
-                "memory_gib": run.size.memory_gib,
-                "price_per_hour_usd": format_price(run.size.price_per_hour_usd),
-            },
-            "inference": run.config.inference.value,
-            "create_pr": run.config.create_pr,
-            "pr_mode": run.config.pr_mode.value,
-            "max_duration_minutes": run.config.max_duration_minutes,
-            "max_cost_usd": _decimal(run.config.max_cost_usd),
-            "instructions_applied": bool(run.config.instructions),
-        },
-        "result": {"pr_url": run.result.pr_url, "pr_urls": run.result.pr_urls, "summary": run.result.summary},
-        "cost": {
-            "compute_usd": _decimal(run.cost.compute_usd),
-            "inference_usd": _decimal(run.cost.inference_usd),
-            "total_usd": _decimal(run.cost.total_usd),
-            "vcpu_seconds": _decimal(run.cost.vcpu_seconds),
-            "gib_seconds": _decimal(run.cost.gib_seconds),
-            "billing_mode": run.cost.billing_mode.value,
-            "inference_billing": run.cost.inference_billing.value if run.cost.inference_billing else None,
-            "final": run.cost.final,
-        },
-        "agent_sessions": [
-            {
-                "index": session.index,
-                "status": session.status.value,
-                "started_at": _format_time(session.started_at),
-                "ended_at": _format_time(session.ended_at),
-            }
-            for session in run.agent_sessions
-        ],
-        "tags": run.tags,
-        "metadata": run.metadata,
-        "created_by": {"id": run.created_by_id, "email": run.created_by_email} if run.created_by_id else None,
-        "caller": run.caller_kind.value,
-    }

@@ -24,11 +24,6 @@ from ..logic import (
     streams as streams_logic,
     usage as usage_logic,
 )
-from ..logic.analytics import capture_event
-from ..logic.webhooks import (
-    delivery as delivery_logic,
-    endpoints as endpoints_logic,
-)
 from .contracts import (
     CallerIdentity,
     CatalogDTO,
@@ -45,17 +40,11 @@ from .contracts import (
     RunUsageDTO,
     TeamSettingsDTO,
     UsageSummaryDTO,
-    WebhookDeliveryDTO,
-    WebhookEndpointCreateInput,
-    WebhookEndpointDTO,
-    WebhookSecretDTO,
 )
-from .enums import SizeName, UsageGroupBy, WebhookEvent
+from .enums import SizeName, UsageGroupBy
 
 MIN_DURATION_MINUTES = config_resolution.MIN_DURATION_MINUTES
 MAX_DURATION_MINUTES = config_resolution.MAX_DURATION_MINUTES
-MAX_WEBHOOK_ENDPOINTS = endpoints_logic.MAX_ENDPOINTS_PER_TEAM
-WEBHOOK_API_VERSION = delivery_logic.API_VERSION
 
 
 # --- Run configuration ---
@@ -176,59 +165,6 @@ def get_team_settings(team_id: int) -> TeamSettingsDTO:
 
 def update_team_settings(team_id: int, changes: Mapping[str, Any], caller: CallerIdentity) -> TeamSettingsDTO:
     return settings_logic.update_team_settings(team_id, changes, caller)
-
-
-# --- Webhooks ---
-
-
-def list_webhook_endpoints(team_id: int) -> list[WebhookEndpointDTO]:
-    return endpoints_logic.list_endpoints(team_id)
-
-
-def get_webhook_endpoint(team_id: int, endpoint_id: UUID) -> WebhookEndpointDTO:
-    return endpoints_logic.get_endpoint(team_id, endpoint_id)
-
-
-def create_webhook_endpoint(
-    team_id: int, data: WebhookEndpointCreateInput, caller: CallerIdentity
-) -> WebhookEndpointDTO:
-    return endpoints_logic.create_endpoint(team_id, data, caller)
-
-
-def update_webhook_endpoint(team_id: int, endpoint_id: UUID, changes: Mapping[str, Any]) -> WebhookEndpointDTO:
-    return endpoints_logic.update_endpoint(team_id, endpoint_id, changes)
-
-
-def delete_webhook_endpoint(team_id: int, endpoint_id: UUID, caller: CallerIdentity) -> None:
-    endpoints_logic.delete_endpoint(team_id, endpoint_id, caller)
-
-
-def validate_webhook_url(url: str) -> None:
-    endpoints_logic.validate_webhook_url(url)
-
-
-def get_or_create_webhook_secret(team_id: int) -> WebhookSecretDTO:
-    """The secret is in the result only when this call created it. Rotate the secret to read a new one."""
-    secret, created = endpoints_logic.get_or_create_secret(team_id)
-    return WebhookSecretDTO(secret=secret if created else None, created=created)
-
-
-def rotate_webhook_secret(team_id: int) -> WebhookSecretDTO:
-    return WebhookSecretDTO(secret=endpoints_logic.rotate_secret(team_id), created=True)
-
-
-def send_test_webhook_event(team_id: int, endpoint_id: UUID, caller: CallerIdentity) -> UUID:
-    delivery_id = delivery_logic.send_test_event(team_id, endpoint_id)
-    capture_event("cloud_agents_webhook_test_sent", caller, team_id, {"endpoint_id": str(endpoint_id)})
-    return delivery_id
-
-
-def enqueue_run_event(team_id: int, run_id: UUID, event_type: WebhookEvent, payload: dict[str, Any]) -> list[UUID]:
-    return delivery_logic.enqueue_run_event(team_id, run_id, event_type, payload)
-
-
-def list_recent_webhook_deliveries(team_id: int) -> list[WebhookDeliveryDTO]:
-    return delivery_logic.list_recent_deliveries(team_id)
 
 
 # --- Limits ---

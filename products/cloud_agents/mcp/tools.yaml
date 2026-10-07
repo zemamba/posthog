@@ -342,23 +342,3 @@ tools:
             across many runs. Use cloud-agents-run-usage for one run.
         feature_flag: cloud-agents
         feature_flag_behavior: enable
-    cloud-agents-webhook-endpoint-create:
-        operation: cloud_agents_webhook_endpoints_create
-        enabled: false
-        disabled_reason: A webhook endpoint sends run data to an external URL, so a person sets it up.
-    cloud-agents-webhook-endpoint-delete:
-        operation: cloud_agents_webhook_endpoints_destroy
-        enabled: false
-        disabled_reason: Webhook endpoints are project configuration that a person manages.
-    cloud-agents-webhook-endpoint-update:
-        operation: cloud_agents_webhook_endpoints_partial_update
-        enabled: false
-        disabled_reason: A webhook endpoint sends run data to an external URL, so a person changes it.
-    cloud-agents-webhook-secret-create:
-        operation: cloud_agents_webhook_endpoints_secret_create
-        enabled: false
-        disabled_reason: The response carries the webhook signing secret, which must not enter an agent conversation.
-    cloud-agents-webhook-secret-rotate:
-        operation: cloud_agents_webhook_endpoints_rotate_secret_create
-        enabled: false
-        disabled_reason: The response carries the webhook signing secret, and a rotation breaks every receiver at once.

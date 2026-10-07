@@ -91,8 +91,6 @@ export const cloudAgentsProfilesCreateBodyTagsItemMax = 50
 
 export const cloudAgentsProfilesCreateBodyTagsMax = 20
 
-export const cloudAgentsProfilesCreateBodyWebhookUrlMax = 2000
-
 export const cloudAgentsProfilesCreateBodyNameMax = 100
 
 export const CloudAgentsProfilesCreateBody = () => zod
@@ -158,11 +156,6 @@ export const CloudAgentsProfilesCreateBody = () => zod
             .max(cloudAgentsProfilesCreateBodyTagsMax)
             .optional()
             .describe('Tags added to every run that uses this profile.'),
-        webhook_url: zod
-            .url()
-            .max(cloudAgentsProfilesCreateBodyWebhookUrlMax)
-            .nullish()
-            .describe('HTTPS URL that gets the events of every run that uses this profile. Null sends none.'),
         name: zod
             .string()
             .max(cloudAgentsProfilesCreateBodyNameMax)
@@ -232,7 +225,7 @@ export const CloudAgentsRunsListQueryParams = () => zod.object({
 })
 
 /**
- * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run, stream its events or register a webhook to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
+ * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run or stream its events to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
  * @summary Start a run
  */
 export const CloudAgentsRunsCreateParams = () => zod.object({
@@ -270,8 +263,6 @@ export const cloudAgentsRunsCreateBodyTagsItemMax = 50
 export const cloudAgentsRunsCreateBodyTagsMax = 20
 
 export const cloudAgentsRunsCreateBodyMetadataMaxOne = 512
-
-export const cloudAgentsRunsCreateBodyWebhookUrlMax = 2000
 
 export const CloudAgentsRunsCreateBody = () => zod
     .object({
@@ -349,13 +340,6 @@ export const CloudAgentsRunsCreateBody = () => zod
             .optional()
             .describe(
                 'Your own key and value pairs, stored with the run and returned with it. At most 16 pairs. Keys and values are strings.'
-            ),
-        webhook_url: zod
-            .url()
-            .max(cloudAgentsRunsCreateBodyWebhookUrlMax)
-            .nullish()
-            .describe(
-                'HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project.'
             ),
     })
     .describe('The run defaults that a profile and the project settings share. A null value sets no default.')

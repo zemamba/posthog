@@ -6,7 +6,7 @@ showTitle: true
 
 Cloud agents runs a coding agent in a cloud sandbox.
 You send a prompt and a GitHub repository, the agent works on the task, and a pull request comes back.
-You can start and follow runs from the API, from webhooks, or from the PostHog MCP server.
+You can start and follow runs from the API or from the PostHog MCP server.
 
 Cloud agents is in limited availability behind a feature flag.
 Until it is enabled for your organization, every endpoint on this page returns `403`.
@@ -72,7 +72,6 @@ It does not wait for the agent.
 | `create_pr`    | boolean          | `true`                          | Whether the agent opens a pull request when it finishes.                                                                                   |
 | `tags`         | array of strings | `[]`                            | Up to 20 tags of up to 50 characters each. The tags of the profile are added to them.                                                      |
 | `metadata`     | object           | `{}`                            | Your own key and value pairs, returned with the run. Up to 16 pairs. Keys have up to 64 characters and values up to 512. Both are strings. |
-| `webhook_url`  | string           | From the profile                | Public HTTPS URL that gets the events of this run, in addition to the project's [webhook endpoints](#webhooks).                            |
 
 The request also accepts `pr_mode`, `max_duration_minutes` and `max_cost_usd`.
 These fields are reserved.
@@ -225,7 +224,7 @@ Filter with `status`, `profile_id`, `repository`, `tag`, `created_after` and `cr
 ## Follow a run
 
 You can follow a run in three ways.
-[Webhooks](#webhooks) are a fourth, and they need no open connection.
+Webhooks for run events are not available yet.
 
 ### Poll the run
 
@@ -344,7 +343,7 @@ curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agent
   }'
 ```
 
-A profile accepts `name`, `description`, `repository`, `branch`, `model`, `size`, `inference`, `instructions`, `create_pr`, `tags` and `webhook_url`.
+A profile accepts `name`, `description`, `repository`, `branch`, `model`, `size`, `inference`, `instructions`, `create_pr` and `tags`.
 Only `name` is required, and it is unique in the project without regard to case.
 A `null` field sets no default.
 
@@ -515,166 +514,12 @@ The agent uses your subscription inside the sandbox to call the model provider.
 Code that the agent runs in the sandbox, including code from the repository, may be able to read that sign-in.
 Run agents only on repositories that you trust, and disconnect the subscription if you think that the sign-in is exposed.
 
-## Webhooks
-
-PostHog can send a signed `POST` request to your server when a run changes.
-
-### Events
-
-| Event           | Sent when                                            |
-| --------------- | ---------------------------------------------------- |
-| `run.started`   | The agent starts work. A resumed run sends it again. |
-| `run.completed` | The run completes.                                   |
-| `run.failed`    | The run fails.                                       |
-| `run.cancelled` | The run is cancelled.                                |
-| `run.test`      | You send a test event.                               |
-
-### Set up an endpoint
-
-```bash
-curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/" \
-  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
-  --header "Content-Type: application/json" \
-  --data '{"url": "https://example.com/hooks/posthog", "event_types": ["run.completed", "run.failed"]}'
-```
-
-The URL must be a public HTTPS address.
-An empty `event_types` list sends all event types.
-A project can have 5 endpoints.
-A run can also name its own `webhook_url`, which gets every event of that run.
-
-| Method and path                         | Purpose                                     |
-| --------------------------------------- | ------------------------------------------- |
-| `GET webhook_endpoints/`                | List endpoints.                             |
-| `POST webhook_endpoints/`               | Create an endpoint.                         |
-| `GET webhook_endpoints/:id/`            | Retrieve an endpoint.                       |
-| `PATCH webhook_endpoints/:id/`          | Change `url`, `enabled` or `event_types`.   |
-| `DELETE webhook_endpoints/:id/`         | Delete an endpoint.                         |
-| `POST webhook_endpoints/:id/test/`      | Send a `run.test` event to the endpoint.    |
-| `POST webhook_endpoints/secret/`        | Create the signing secret of the project.   |
-| `POST webhook_endpoints/rotate_secret/` | Replace the signing secret.                 |
-| `GET webhook_endpoints/deliveries/`     | List the last 50 deliveries of the project. |
-
-### Payload
-
-```json
-{
-  "id": "0199c1f5-02aa-7d10-8e4b-6a1f0c9d2b33",
-  "type": "run.completed",
-  "created_at": "2026-10-07T09:32:52.101334+00:00",
-  "api_version": "2026-10-01",
-  "data": {
-    "run": {}
-  }
-}
-```
-
-`data.run` is the run object, in the same shape that the REST API returns.
-`id` is the event ID.
-It is the same for every attempt and for every endpoint that gets the event, so use it to drop duplicates.
-
-### Headers
-
-| Header                        | Value                                             |
-| ----------------------------- | ------------------------------------------------- |
-| `X-PostHog-Webhook-Id`        | The event ID.                                     |
-| `X-PostHog-Webhook-Event`     | The event type, for example `run.completed`.      |
-| `X-PostHog-Webhook-Timestamp` | Unix time in seconds when the request was signed. |
-| `X-PostHog-Webhook-Signature` | `v1=` followed by a hex HMAC-SHA256 digest.       |
-
-### Verify the signature
-
-Create the signing secret one time and store it:
-
-```bash
-curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/secret/" \
-  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
-```
-
-```json
-{
-  "secret": "whsec_EXAMPLE_ONLY",
-  "created": true
-}
-```
-
-The secret is in the response only when this request created it.
-If `secret` is `null`, the project already has a secret, and you must rotate it to get a new one.
-
-To verify a request:
-
-1. Take the raw request body, before any JSON parsing.
-2. Build the signed message: the `X-PostHog-Webhook-Timestamp` value, a dot, then the raw body.
-3. Compute the HMAC-SHA256 of the message with the secret, as a hex digest.
-4. Compare it with the value after `v1=` in `X-PostHog-Webhook-Signature`, with a constant-time comparison.
-5. Reject a request whose timestamp is too old for you, for example more than 5 minutes.
-
-Python:
-
-```python
-import hashlib
-import hmac
-import time
-
-
-def verify(secret: str, timestamp: str, raw_body: bytes, signature_header: str) -> bool:
-    if abs(time.time() - int(timestamp)) > 300:
-        return False
-    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature_header.removeprefix("v1="))
-```
-
-Node:
-
-```js
-const crypto = require('node:crypto')
-
-function verify(secret, timestamp, rawBody, signatureHeader) {
-  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
-    return false
-  }
-  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(rawBody).digest('hex')
-  const received = signatureHeader.replace(/^v1=/, '')
-  return expected.length === received.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))
-}
-```
-
-### Retries
-
-Answer with a `2xx` status within 5 seconds.
-PostHog does not follow redirects.
-
-PostHog tries again after a connection error, a timeout, or a `408`, `425`, `429` or `5xx` response.
-It waits 10 seconds, 1 minute, 5 minutes, 30 minutes, 2 hours and 6 hours between attempts, then gives up.
-A `Retry-After` header in your response can make a wait longer, up to 6 hours.
-Any other response is final and is not retried.
-
-`GET webhook_endpoints/deliveries/` shows the status of each delivery: `pending`, `succeeded`, `failed` or `gave_up`, with the number of attempts and the last status code.
-Deliveries are kept for 30 days.
-
-### Test event
-
-`POST webhook_endpoints/:id/test/` sends a `run.test` event to one endpoint, also when the endpoint is disabled or filters event types.
-The payload has a small run with the prompt `This is a test event. No run was started.`
-The response has the `delivery_id` to look for in the deliveries list.
-
-### Rotate the secret
-
-```bash
-curl --request POST "https://us.posthog.com/api/projects/$PROJECT_ID/cloud_agents/webhook_endpoints/rotate_secret/" \
-  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
-```
-
-The response has the new secret.
-The old secret stops working immediately, so update your receiver at the same time.
-
 ## Limits and errors
 
 | Limit                        | Default                                            |
 | ---------------------------- | -------------------------------------------------- |
 | Active runs at the same time | 5 for each project                                 |
 | Runs started                 | 60 an hour for each project, in bursts of up to 10 |
-| Webhook endpoints            | 5 for each project                                 |
 
 `limits` in the catalog shows the values for your project.
 A resumed run counts as an active run.
@@ -694,26 +539,23 @@ Errors use the standard PostHog error body.
 }
 ```
 
-| Code                         | Status | Meaning                                                                                         |
-| ---------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
-| `invalid_input`              | 400    | A field is not valid. `attr` names the field.                                                   |
-| `repository_required`        | 400    | No repository on the run, its profile, or the project settings.                                 |
-| `invalid_webhook_url`        | 400    | The webhook URL is not a public HTTPS address.                                                  |
-| `too_many_webhook_endpoints` | 400    | The project already has 5 webhook endpoints.                                                    |
-| `permission_denied`          | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.            |
-| `organization_deactivated`   | 403    | The organization is deactivated. Contact support.                                               |
-| `credential_owner_required`  | 403    | The run uses the subscription of the user who started it. Only that user can send it a message. |
-| `run_not_found`              | 404    | The run does not exist in this project.                                                         |
-| `profile_not_found`          | 404    | The profile does not exist in this project.                                                     |
-| `webhook_endpoint_not_found` | 404    | The webhook endpoint does not exist in this project.                                            |
-| `run_not_ready`              | 409    | The run is still starting. Try again in a few seconds.                                          |
-| `run_stopping`               | 409    | The run is stopping. Wait until it stops, then try again.                                       |
-| `run_not_resumable`          | 409    | The run cannot be resumed. Start a new run.                                                     |
-| `idempotency_key_reused`     | 422    | The idempotency key was used with a different request. Use a new key.                           |
-| `concurrency_limited`        | 429    | The project is at its limit of active runs. Wait until a run stops.                             |
-| `create_rate_limited`        | 429    | The project starts runs too quickly. Wait for `Retry-After`.                                    |
-| `usage_limited`              | 429    | The project reached its usage limit. Raise the limit in billing settings.                       |
-| `cancel_unavailable`         | 503    | The run could not be cancelled now. Try again in a few seconds.                                 |
+| Code                        | Status | Meaning                                                                                         |
+| --------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `invalid_input`             | 400    | A field is not valid. `attr` names the field.                                                   |
+| `repository_required`       | 400    | No repository on the run, its profile, or the project settings.                                 |
+| `permission_denied`         | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.            |
+| `organization_deactivated`  | 403    | The organization is deactivated. Contact support.                                               |
+| `credential_owner_required` | 403    | The run uses the subscription of the user who started it. Only that user can send it a message. |
+| `run_not_found`             | 404    | The run does not exist in this project.                                                         |
+| `profile_not_found`         | 404    | The profile does not exist in this project.                                                     |
+| `run_not_ready`             | 409    | The run is still starting. Try again in a few seconds.                                          |
+| `run_stopping`              | 409    | The run is stopping. Wait until it stops, then try again.                                       |
+| `run_not_resumable`         | 409    | The run cannot be resumed. Start a new run.                                                     |
+| `idempotency_key_reused`    | 422    | The idempotency key was used with a different request. Use a new key.                           |
+| `concurrency_limited`       | 429    | The project is at its limit of active runs. Wait until a run stops.                             |
+| `create_rate_limited`       | 429    | The project starts runs too quickly. Wait for `Retry-After`.                                    |
+| `usage_limited`             | 429    | The project reached its usage limit. Raise the limit in billing settings.                       |
+| `cancel_unavailable`        | 503    | The run could not be cancelled now. Try again in a few seconds.                                 |
 
 ## MCP tools
 
@@ -737,5 +579,5 @@ They are available when Cloud agents is enabled for your organization.
 | `cloud-agents-usage-summary`  | `cloud_agent:read`  | Get cost and usage totals for a date range.                  |
 
 `cloud-agents-run-create` cannot send an idempotency key, so each call starts a new run.
-Project settings, profile changes, webhook endpoints and webhook secrets are not available as MCP tools.
+Project settings and profile changes are not available as MCP tools.
 Use the REST API for them.

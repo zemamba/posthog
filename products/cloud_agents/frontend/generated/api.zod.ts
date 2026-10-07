@@ -32,8 +32,6 @@ export const cloudAgentsProfilesCreateBodyTagsItemMax = 50
 
 export const cloudAgentsProfilesCreateBodyTagsMax = 20
 
-export const cloudAgentsProfilesCreateBodyWebhookUrlMax = 2000
-
 export const cloudAgentsProfilesCreateBodyNameMax = 100
 
 export const CloudAgentsProfilesCreateBody = /* @__PURE__ */ zod
@@ -117,11 +115,6 @@ export const CloudAgentsProfilesCreateBody = /* @__PURE__ */ zod
             .max(cloudAgentsProfilesCreateBodyTagsMax)
             .optional()
             .describe('Tags added to every run that uses this profile.'),
-        webhook_url: zod
-            .url()
-            .max(cloudAgentsProfilesCreateBodyWebhookUrlMax)
-            .nullish()
-            .describe('HTTPS URL that gets the events of every run that uses this profile. Null sends none.'),
         name: zod
             .string()
             .max(cloudAgentsProfilesCreateBodyNameMax)
@@ -151,8 +144,6 @@ export const cloudAgentsProfilesPartialUpdateBodyDescriptionMax = 2000
 export const cloudAgentsProfilesPartialUpdateBodyTagsItemMax = 50
 
 export const cloudAgentsProfilesPartialUpdateBodyTagsMax = 20
-
-export const cloudAgentsProfilesPartialUpdateBodyWebhookUrlMax = 2000
 
 export const cloudAgentsProfilesPartialUpdateBodyNameMax = 100
 
@@ -237,11 +228,6 @@ export const CloudAgentsProfilesPartialUpdateBody = /* @__PURE__ */ zod
             .max(cloudAgentsProfilesPartialUpdateBodyTagsMax)
             .optional()
             .describe('Tags added to every run that uses this profile.'),
-        webhook_url: zod
-            .url()
-            .max(cloudAgentsProfilesPartialUpdateBodyWebhookUrlMax)
-            .nullish()
-            .describe('HTTPS URL that gets the events of every run that uses this profile. Null sends none.'),
         name: zod
             .string()
             .max(cloudAgentsProfilesPartialUpdateBodyNameMax)
@@ -251,7 +237,7 @@ export const CloudAgentsProfilesPartialUpdateBody = /* @__PURE__ */ zod
     .describe('The run defaults that a profile and the project settings share. A null value sets no default.')
 
 /**
- * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run, stream its events or register a webhook to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
+ * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run or stream its events to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
  * @summary Start a run
  */
 export const cloudAgentsRunsCreateBodyRepositoryMax = 255
@@ -276,8 +262,6 @@ export const cloudAgentsRunsCreateBodyTagsItemMax = 50
 export const cloudAgentsRunsCreateBodyTagsMax = 20
 
 export const cloudAgentsRunsCreateBodyMetadataMaxOne = 512
-
-export const cloudAgentsRunsCreateBodyWebhookUrlMax = 2000
 
 export const CloudAgentsRunsCreateBody = /* @__PURE__ */ zod
     .object({
@@ -373,13 +357,6 @@ export const CloudAgentsRunsCreateBody = /* @__PURE__ */ zod
             .optional()
             .describe(
                 'Your own key and value pairs, stored with the run and returned with it. At most 16 pairs. Keys and values are strings.'
-            ),
-        webhook_url: zod
-            .url()
-            .max(cloudAgentsRunsCreateBodyWebhookUrlMax)
-            .nullish()
-            .describe(
-                'HTTPS URL that gets the events of this run, in addition to the webhook endpoints of the project.'
             ),
     })
     .describe('The run defaults that a profile and the project settings share. A null value sets no default.')
@@ -492,62 +469,3 @@ export const CloudAgentsSettingsPartialUpdateBody = /* @__PURE__ */ zod
             .describe('ID of the profile that a run uses when it names no profile. Null sets no default profile.'),
     })
     .describe('The run defaults that a profile and the project settings share. A null value sets no default.')
-
-/**
- * PostHog sends run events to the URL as signed POST requests. A project can have 5 endpoints.
- * @summary Create a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsCreateBodyUrlMax = 2000
-
-export const cloudAgentsWebhookEndpointsCreateBodyEnabledDefault = true
-export const cloudAgentsWebhookEndpointsCreateBodyEventTypesMax = 5
-
-export const CloudAgentsWebhookEndpointsCreateBody = /* @__PURE__ */ zod.object({
-    url: zod
-        .url()
-        .max(cloudAgentsWebhookEndpointsCreateBodyUrlMax)
-        .describe('HTTPS URL that gets a POST request for each event.'),
-    enabled: zod
-        .boolean()
-        .default(cloudAgentsWebhookEndpointsCreateBodyEnabledDefault)
-        .describe('Whether PostHog sends events to this endpoint.'),
-    event_types: zod
-        .array(
-            zod
-                .enum(['run.started', 'run.completed', 'run.failed', 'run.cancelled', 'run.test'])
-                .describe(
-                    '\* `run.started` - Run started\n\* `run.completed` - Run completed\n\* `run.failed` - Run failed\n\* `run.cancelled` - Run cancelled\n\* `run.test` - Test event'
-                )
-        )
-        .max(cloudAgentsWebhookEndpointsCreateBodyEventTypesMax)
-        .optional()
-        .describe('The event types to send. An empty list sends all event types.'),
-})
-
-/**
- * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
- * @summary Update a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsPartialUpdateBodyUrlMax = 2000
-
-export const cloudAgentsWebhookEndpointsPartialUpdateBodyEventTypesMax = 5
-
-export const CloudAgentsWebhookEndpointsPartialUpdateBody = /* @__PURE__ */ zod.object({
-    url: zod
-        .url()
-        .max(cloudAgentsWebhookEndpointsPartialUpdateBodyUrlMax)
-        .optional()
-        .describe('HTTPS URL that gets a POST request for each event.'),
-    enabled: zod.boolean().optional().describe('Whether PostHog sends events to this endpoint.'),
-    event_types: zod
-        .array(
-            zod
-                .enum(['run.started', 'run.completed', 'run.failed', 'run.cancelled', 'run.test'])
-                .describe(
-                    '\* `run.started` - Run started\n\* `run.completed` - Run completed\n\* `run.failed` - Run failed\n\* `run.cancelled` - Run cancelled\n\* `run.test` - Test event'
-                )
-        )
-        .max(cloudAgentsWebhookEndpointsPartialUpdateBodyEventTypesMax)
-        .optional()
-        .describe('The event types to send. An empty list sends all event types.'),
-})

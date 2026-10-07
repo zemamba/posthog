@@ -9,7 +9,6 @@ CreateModel takes no lock on those tables. Django still applies `on_delete`.
 from django.db import models
 from django.db.models.functions import Lower
 
-from posthog.helpers.encrypted_fields import EncryptedTextField
 from posthog.models.scoping.root_mixin import TeamScopedRootMixin
 from posthog.models.utils import uuid7
 
@@ -22,7 +21,6 @@ from .facade.enums import (
     PrMode,
     SizeName,
     StopReason,
-    WebhookDeliveryStatus,
 )
 
 URL_MAX_LENGTH = 2000
@@ -56,7 +54,6 @@ class CloudAgentProfile(RunDefaultsMixin, TeamScopedRootMixin):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, default="")
     tags = models.JSONField(default=list, blank=True)
-    webhook_url = models.URLField(max_length=URL_MAX_LENGTH, null=True, blank=True)
 
     deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -109,7 +106,6 @@ class CloudAgentRun(TeamScopedRootMixin):
     metadata = models.JSONField(default=dict, blank=True)
     idempotency_key = models.CharField(max_length=100, null=True, blank=True)
     request_hash = models.CharField(max_length=64, null=True, blank=True)
-    webhook_url = models.URLField(max_length=URL_MAX_LENGTH, null=True, blank=True)
 
     # Snapshot of the resolved configuration (ResolvedRunConfig.to_json), so a later change to a
     # profile or to the project settings does not change a run that already started.
@@ -181,10 +177,6 @@ class TeamCloudAgentsConfig(RunDefaultsMixin, TeamScopedRootMixin):
     max_concurrent_runs = models.PositiveIntegerField(null=True, blank=True)
     create_rate_per_hour = models.PositiveIntegerField(null=True, blank=True)
 
-    # Encrypted and not hashed, because signing a delivery needs the raw value.
-    webhook_secret = EncryptedTextField(null=True, blank=True)
-    webhook_secret_created_at = models.DateTimeField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -193,65 +185,3 @@ class TeamCloudAgentsConfig(RunDefaultsMixin, TeamScopedRootMixin):
 
     def __str__(self) -> str:
         return f"TeamCloudAgentsConfig(team={self.team_id})"
-
-
-class CloudAgentsWebhookEndpoint(TeamScopedRootMixin):
-    all_teams = models.Manager()  # noqa: DJ012
-
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    team = models.ForeignKey("posthog.Team", on_delete=models.CASCADE, related_name="+", db_constraint=False)
-    url = models.URLField(max_length=URL_MAX_LENGTH)
-    enabled = models.BooleanField(default=True)
-    # An empty list means all event types.
-    event_types = models.JSONField(default=list, blank=True)
-    created_by = models.ForeignKey(
-        "posthog.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+", db_constraint=False
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        default_manager_name = "all_teams"
-
-    def __str__(self) -> str:
-        return f"CloudAgentsWebhookEndpoint({self.id})"
-
-
-class CloudAgentsWebhookDelivery(TeamScopedRootMixin):
-    all_teams = models.Manager()  # noqa: DJ012
-
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    team = models.ForeignKey("posthog.Team", on_delete=models.CASCADE, related_name="+", db_constraint=False)
-    # Null for a delivery to the `webhook_url` of one run, and for a delivery whose endpoint was deleted.
-    endpoint = models.ForeignKey(
-        CloudAgentsWebhookEndpoint, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
-    )
-    url = models.URLField(max_length=URL_MAX_LENGTH)
-    run_id = models.UUIDField()
-    event_type = models.CharField(max_length=32)
-    event_id = models.UUIDField()
-    payload = models.JSONField()
-    status = models.CharField(
-        max_length=16, choices=WebhookDeliveryStatus.choices, default=WebhookDeliveryStatus.PENDING.value
-    )
-    attempts = models.PositiveIntegerField(default=0)
-    last_status_code = models.PositiveIntegerField(null=True, blank=True)
-    # The exception class name only. The text of a transport error can hold the URL.
-    last_error = models.CharField(max_length=100, null=True, blank=True)
-    next_attempt_at = models.DateTimeField(null=True, blank=True)
-    delivered_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        default_manager_name = "all_teams"
-        indexes = [
-            models.Index(fields=["team", "-created_at"], name="cloud_agents_delivery_created"),
-            models.Index(
-                fields=["next_attempt_at"],
-                condition=models.Q(status=WebhookDeliveryStatus.PENDING.value),
-                name="cloud_agents_delivery_due",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"CloudAgentsWebhookDelivery({self.id}, {self.status})"

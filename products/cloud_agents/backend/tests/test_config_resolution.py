@@ -36,7 +36,6 @@ EMPTY_TEAM = TeamSettingsDTO(
     default_profile_id=None,
     max_concurrent_runs=5,
     create_rate_per_hour=60,
-    webhook_secret_set=False,
     updated_at=None,
 )
 EMPTY_PROFILE = ProfileDTO(
@@ -54,7 +53,6 @@ EMPTY_PROFILE = ProfileDTO(
     max_duration_minutes=None,
     max_cost_usd=None,
     tags=[],
-    webhook_url=None,
     created_by_id=None,
     created_at=NOW,
     updated_at=NOW,
@@ -163,9 +161,8 @@ class TestResolveRunConfig(SimpleTestCase):
                 _resolve({"repository": "acme/app"}, None, {"max_duration_minutes": minutes})
             assert raised.exception.attr == "max_duration_minutes"
 
-    def test_webhook_url_and_profile_id(self) -> None:
-        config = _resolve({"repository": "acme/app"}, {"webhook_url": "https://example.com/hook"}, {})
-        assert config.webhook_url == "https://example.com/hook"
+    def test_profile_id(self) -> None:
+        config = _resolve({"repository": "acme/app"}, {"description": "UI work"}, {})
         assert config.profile_id == PROFILE_ID
         assert _resolve({"repository": "acme/app"}, None, {}).profile_id is None
 

@@ -13,7 +13,7 @@ from .config_resolution import validate_max_duration_minutes
 from .limits import DEFAULT_CREATE_RATE_PER_HOUR, DEFAULT_MAX_CONCURRENT_RUNS
 from .team_config import get_team_config
 
-# The limits and the webhook secret are not here: staff set the limits, and the secret has its own calls.
+# The limits are not here: staff set them.
 SETTINGS_UPDATE_FIELDS: Final = frozenset(
     {
         "repository",
@@ -49,7 +49,6 @@ def to_settings_dto(config: TeamCloudAgentsConfig) -> TeamSettingsDTO:
             config.max_concurrent_runs if config.max_concurrent_runs is not None else DEFAULT_MAX_CONCURRENT_RUNS
         ),
         create_rate_per_hour=config.create_rate_per_hour or DEFAULT_CREATE_RATE_PER_HOUR,
-        webhook_secret_set=bool(config.webhook_secret),
         updated_at=config.updated_at,
     )
 

@@ -23,12 +23,10 @@ from products.tasks.backend.facade.contracts import TaskRunDTO
 
 # Module imports, not names: the task modules import this module, and this module starts their
 # tasks, so each side reads the other at call time.
-from ..facade.enums import CloudAgentRunStatus, StopReason, WebhookEvent
+from ..facade.enums import CloudAgentRunStatus, StopReason
 from ..models import CloudAgentRun
 from ..tasks import run_tasks
 from . import status as status_logic
-from .run_rows import run_payload, to_run_dto
-from .webhooks import delivery as delivery_logic
 
 logger = structlog.get_logger(__name__)
 
@@ -39,11 +37,6 @@ COST_RECONCILE_WINDOW: Final = timedelta(days=7)
 SUMMARY_STATE_KEY: Final = "task_summary"
 
 _TERMINAL_VALUES: Final = [status.value for status in status_logic.TERMINAL_STATUSES]
-_TERMINAL_EVENTS: Final = {
-    CloudAgentRunStatus.COMPLETED: WebhookEvent.RUN_COMPLETED,
-    CloudAgentRunStatus.FAILED: WebhookEvent.RUN_FAILED,
-    CloudAgentRunStatus.CANCELLED: WebhookEvent.RUN_CANCELLED,
-}
 
 
 def _update_session(run: CloudAgentRun, task_run: TaskRunDTO, status: CloudAgentRunStatus) -> None:
@@ -99,10 +92,6 @@ def _apply_to_current_run(run: CloudAgentRun, task_run: TaskRunDTO) -> None:
 
     if new_status == previous_status:
         return
-    event = WebhookEvent.RUN_STARTED if new_status == CloudAgentRunStatus.RUNNING else _TERMINAL_EVENTS.get(new_status)
-    if event is not None:
-        # In this transaction, so a status change and its event are stored together or not at all.
-        delivery_logic.enqueue_run_event(run.team_id, run.id, event, run_payload(to_run_dto(run)))
     if status_logic.is_terminal(new_status):
         transaction.on_commit(partial(run_tasks.finalize_run_cost.delay, run.team_id, str(run.id)))
 

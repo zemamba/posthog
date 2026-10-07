@@ -17,7 +17,6 @@ from ..facade.enums import InferenceMode, PrMode, SizeName
 from ..models import CloudAgentProfile, TeamCloudAgentsConfig
 from .analytics import capture_event
 from .config_resolution import validate_max_duration_minutes
-from .webhooks.endpoints import validate_webhook_url
 
 PROFILE_UPDATE_FIELDS: Final = frozenset(
     {
@@ -34,7 +33,6 @@ PROFILE_UPDATE_FIELDS: Final = frozenset(
         "max_duration_minutes",
         "max_cost_usd",
         "tags",
-        "webhook_url",
     }
 )
 _ENUM_FIELDS: Final = frozenset({"size", "inference", "pr_mode"})
@@ -56,7 +54,6 @@ def to_profile_dto(profile: CloudAgentProfile) -> ProfileDTO:
         max_duration_minutes=profile.max_duration_minutes,
         max_cost_usd=profile.max_cost_usd,
         tags=list(profile.tags or []),
-        webhook_url=profile.webhook_url,
         created_by_id=profile.created_by_id,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
@@ -90,8 +87,6 @@ def _validate_values(values: Mapping[str, Any], *, team_id: int, exclude_id: UUI
             raise _name_taken_error()
     if values.get("max_duration_minutes") is not None:
         validate_max_duration_minutes(values["max_duration_minutes"])
-    if values.get("webhook_url"):
-        validate_webhook_url(values["webhook_url"])
 
 
 def _column_values(values: Mapping[str, Any]) -> dict[str, Any]:

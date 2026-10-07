@@ -59,7 +59,6 @@ RUN_CONFIG: dict[str, Any] = {
     "max_duration_minutes": 60,
     "max_cost_usd": None,
     "tags": [],
-    "webhook_url": None,
     "profile_id": None,
 }
 TERMINAL_TASK_RUN_STATUSES = ("completed", "failed", "cancelled")

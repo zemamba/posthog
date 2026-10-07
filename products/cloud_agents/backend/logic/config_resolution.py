@@ -89,7 +89,6 @@ def resolve_run_config(call: RunCreateInput, profile: ProfileDTO | None, team: T
         max_duration_minutes=max_duration_minutes,
         max_cost_usd=_first_set("max_cost_usd", call, profile, team, PRODUCT_DEFAULTS),
         tags=_merge_tags(profile.tags if profile else None, call.tags),
-        webhook_url=_first_set("webhook_url", call, profile),
         profile_id=profile.id if profile else None,
     )
 

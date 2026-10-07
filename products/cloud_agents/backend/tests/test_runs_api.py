@@ -1,4 +1,3 @@
-import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -18,9 +17,7 @@ from posthog.token_bucket import BucketDecision
 from products.cloud_agents.backend.facade import api
 from products.cloud_agents.backend.facade.contracts import CallerIdentity, RunCreateInput
 from products.cloud_agents.backend.facade.enums import BillingMode, CallerKind
-from products.cloud_agents.backend.logic.run_rows import run_payload
 from products.cloud_agents.backend.models import CloudAgentProfile, CloudAgentRun, TeamCloudAgentsConfig
-from products.cloud_agents.backend.presentation.serializers import CloudAgentRunSerializer
 from products.cloud_agents.backend.tests.base import (
     LOGIC,
     RUN_CONFIG,
@@ -120,11 +117,6 @@ class TestCreateRun(RunsAPITestCase):
         assert (call["model"], call["runtime_adapter"]) == (run.config["model"], "claude")
         assert run.current_task_run_id in self.tasks.runs
 
-    def test_webhook_payload_has_the_shape_of_the_api_response(self) -> None:
-        run_id = self.create({**CREATE_BODY, "tags": ["ci"], "metadata": {"ticket": "ABC-1"}}).json()["id"]
-        run = api.get_run(self.team.id, UUID(run_id))
-        assert run_payload(run) == json.loads(json.dumps(CloudAgentRunSerializer(run).data, default=str))
-
     def test_profile_supplies_the_repository_and_instructions(self) -> None:
         with team_scope(self.team.id):
             profile = CloudAgentProfile.objects.create(
@@ -152,7 +144,6 @@ class TestCreateRun(RunsAPITestCase):
                 "metadata",
                 "invalid_input",
             ),
-            ("http_webhook", {**CREATE_BODY, "webhook_url": "http://example.com/hook"}, None, "invalid_webhook_url"),
         ]
     )
     def test_invalid_request_starts_nothing(

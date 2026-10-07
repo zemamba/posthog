@@ -25,8 +25,6 @@ from .enums import (
     SizeName,
     StopReason,
     UsageGroupBy,
-    WebhookDeliveryStatus,
-    WebhookEvent,
     size_shape,
 )
 
@@ -75,7 +73,6 @@ class RunCreateInput:
     max_cost_usd: Decimal | None = None
     tags: list[str] | None = None
     metadata: dict[str, Any] | None = None
-    webhook_url: str | None = None
     idempotency_key: str | None = None
 
 
@@ -95,7 +92,6 @@ class ProfileDTO:
     max_duration_minutes: int | None
     max_cost_usd: Decimal | None
     tags: list[str]
-    webhook_url: str | None
     created_by_id: int | None
     created_at: datetime
     updated_at: datetime
@@ -116,7 +112,6 @@ class ProfileCreateInput:
     max_duration_minutes: int | None = None
     max_cost_usd: Decimal | None = None
     tags: list[str] = field(default_factory=list)
-    webhook_url: str | None = None
 
 
 @frozen
@@ -136,7 +131,6 @@ class TeamSettingsDTO:
     default_profile_id: UUID | None
     max_concurrent_runs: int
     create_rate_per_hour: int
-    webhook_secret_set: bool
     updated_at: datetime | None
 
 
@@ -155,7 +149,6 @@ class ResolvedRunConfig:
     max_duration_minutes: int
     max_cost_usd: Decimal | None
     tags: list[str]
-    webhook_url: str | None
     profile_id: UUID | None
 
     def to_json(self) -> dict[str, Any]:
@@ -171,7 +164,6 @@ class ResolvedRunConfig:
             "max_duration_minutes": self.max_duration_minutes,
             "max_cost_usd": None if self.max_cost_usd is None else str(self.max_cost_usd),
             "tags": list(self.tags),
-            "webhook_url": self.webhook_url,
             "profile_id": None if self.profile_id is None else str(self.profile_id),
         }
 
@@ -191,7 +183,6 @@ class ResolvedRunConfig:
             max_duration_minutes=data["max_duration_minutes"],
             max_cost_usd=None if max_cost_usd is None else Decimal(str(max_cost_usd)),
             tags=list(data.get("tags") or []),
-            webhook_url=data.get("webhook_url"),
             profile_id=None if profile_id is None else UUID(str(profile_id)),
         )
 
@@ -373,49 +364,6 @@ class UsageSummaryDTO:
     buckets: list[UsageBucketDTO]
 
 
-@frozen
-class WebhookEndpointDTO:
-    id: UUID
-    url: str
-    enabled: bool
-    event_types: list[WebhookEvent]
-    created_by_id: int | None
-    created_at: datetime
-    updated_at: datetime
-
-
-@frozen
-class WebhookEndpointCreateInput:
-    url: str
-    enabled: bool = True
-    event_types: list[WebhookEvent] = field(default_factory=list)
-
-
-@frozen
-class WebhookDeliveryDTO:
-    id: UUID
-    endpoint_id: UUID | None
-    url: str
-    run_id: UUID
-    event_type: WebhookEvent
-    event_id: UUID
-    status: WebhookDeliveryStatus
-    attempts: int
-    last_status_code: int | None
-    last_error: str | None
-    next_attempt_at: datetime | None
-    delivered_at: datetime | None
-    created_at: datetime
-
-
-@frozen
-class WebhookSecretDTO:
-    """`secret` is set only in the response that creates or rotates it."""
-
-    secret: str | None = field(repr=False)
-    created: bool
-
-
 class CloudAgentsError(Exception):
     """Base class for errors a caller can act on. `message` is safe to show to the caller."""
 
@@ -447,12 +395,6 @@ class ProfileNotFound(CloudAgentsError):
     code = "profile_not_found"
     status_code = 404
     default_message = "This profile does not exist in this project."
-
-
-class WebhookEndpointNotFound(CloudAgentsError):
-    code = "webhook_endpoint_not_found"
-    status_code = 404
-    default_message = "This webhook endpoint does not exist in this project."
 
 
 class RepositoryRequired(InvalidInput):
@@ -536,16 +478,3 @@ class CreateRateLimited(CloudAgentsError):
     def __init__(self, *, retry_after: int) -> None:
         super().__init__(f"This project starts runs too quickly. Try again in {retry_after} seconds.")
         self.retry_after = retry_after
-
-
-class InvalidWebhookUrl(CloudAgentsError):
-    code = "invalid_webhook_url"
-    default_message = "The webhook URL must be a public HTTPS address."
-
-
-class TooManyWebhookEndpoints(CloudAgentsError):
-    code = "too_many_webhook_endpoints"
-
-    def __init__(self, *, limit: int) -> None:
-        super().__init__(f"A project can have {limit} webhook endpoints. Delete one, then try again.")
-        self.limit = limit

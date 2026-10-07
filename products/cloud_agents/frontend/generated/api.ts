@@ -24,20 +24,12 @@ import type {
     CloudAgentsRunsEventsRetrieveParams,
     CloudAgentsRunsListParams,
     CloudAgentsUsageRetrieveParams,
-    CloudAgentsWebhookEndpointsListParams,
     PaginatedCloudAgentRunListApi,
     PaginatedProfileListApi,
-    PaginatedWebhookEndpointListApi,
     PatchedCloudAgentSettingsUpdateApi,
     PatchedProfileUpdateApi,
-    PatchedWebhookEndpointUpdateApi,
     ProfileApi,
     ProfileCreateApi,
-    WebhookDeliveryApi,
-    WebhookEndpointApi,
-    WebhookEndpointCreateApi,
-    WebhookSecretApi,
-    WebhookTestApi,
 } from './api.schemas'
 
 export const getCloudAgentsCatalogRetrieveUrl = (projectId: string) => {
@@ -237,7 +229,7 @@ export const getCloudAgentsRunsCreateUrl = (projectId: string) => {
 }
 
 /**
- * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run, stream its events or register a webhook to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
+ * Starts a sandbox with a coding agent that works on the prompt in the repository. The response returns at once with a `queued` run. Read the run or stream its events to follow it. Send the same `Idempotency-Key` header again to get the same run and not a second one.
  * @summary Start a run
  */
 export const cloudAgentsRunsCreate = async (
@@ -437,193 +429,5 @@ export const cloudAgentsUsageRetrieve = async (
     return apiMutator<CloudAgentUsageSummaryApi>(getCloudAgentsUsageRetrieveUrl(projectId, params), {
         ...options,
         method: 'GET',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsListUrl = (
-    projectId: string,
-    params?: CloudAgentsWebhookEndpointsListParams
-) => {
-    const normalizedParams = new URLSearchParams()
-
-    Object.entries(params || {}).forEach(([key, value]) => {
-        if (value !== undefined) {
-            normalizedParams.append(key, value === null ? 'null' : String(value))
-        }
-    })
-
-    const stringifiedParams = normalizedParams.toString()
-
-    return stringifiedParams.length > 0
-        ? `/api/projects/${projectId}/cloud_agents/webhook_endpoints/?${stringifiedParams}`
-        : `/api/projects/${projectId}/cloud_agents/webhook_endpoints/`
-}
-
-/**
- * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
- * @summary List webhook endpoints
- */
-export const cloudAgentsWebhookEndpointsList = async (
-    projectId: string,
-    params?: CloudAgentsWebhookEndpointsListParams,
-    options?: RequestInit
-): Promise<PaginatedWebhookEndpointListApi> => {
-    return apiMutator<PaginatedWebhookEndpointListApi>(getCloudAgentsWebhookEndpointsListUrl(projectId, params), {
-        ...options,
-        method: 'GET',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsCreateUrl = (projectId: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/`
-}
-
-/**
- * PostHog sends run events to the URL as signed POST requests. A project can have 5 endpoints.
- * @summary Create a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsCreate = async (
-    projectId: string,
-    webhookEndpointCreateApi: WebhookEndpointCreateApi,
-    options?: RequestInit
-): Promise<WebhookEndpointApi> => {
-    return apiMutator<WebhookEndpointApi>(getCloudAgentsWebhookEndpointsCreateUrl(projectId), {
-        ...options,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(webhookEndpointCreateApi),
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsRetrieveUrl = (projectId: string, id: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/${id}/`
-}
-
-/**
- * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
- * @summary Retrieve a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsRetrieve = async (
-    projectId: string,
-    id: string,
-    options?: RequestInit
-): Promise<WebhookEndpointApi> => {
-    return apiMutator<WebhookEndpointApi>(getCloudAgentsWebhookEndpointsRetrieveUrl(projectId, id), {
-        ...options,
-        method: 'GET',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsPartialUpdateUrl = (projectId: string, id: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/${id}/`
-}
-
-/**
- * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
- * @summary Update a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsPartialUpdate = async (
-    projectId: string,
-    id: string,
-    patchedWebhookEndpointUpdateApi?: PatchedWebhookEndpointUpdateApi,
-    options?: RequestInit
-): Promise<WebhookEndpointApi> => {
-    return apiMutator<WebhookEndpointApi>(getCloudAgentsWebhookEndpointsPartialUpdateUrl(projectId, id), {
-        ...options,
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
-        body: JSON.stringify(patchedWebhookEndpointUpdateApi),
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsDestroyUrl = (projectId: string, id: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/${id}/`
-}
-
-/**
- * Base for every cloud_agents viewset: the scope object, the feature flag, and the error mapping.
- * @summary Delete a webhook endpoint
- */
-export const cloudAgentsWebhookEndpointsDestroy = async (
-    projectId: string,
-    id: string,
-    options?: RequestInit
-): Promise<void> => {
-    return apiMutator<void>(getCloudAgentsWebhookEndpointsDestroyUrl(projectId, id), {
-        ...options,
-        method: 'DELETE',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsTestCreateUrl = (projectId: string, id: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/${id}/test/`
-}
-
-/**
- * Sends a `run.test` event to the endpoint, also when the endpoint is disabled.
- * @summary Send a test event
- */
-export const cloudAgentsWebhookEndpointsTestCreate = async (
-    projectId: string,
-    id: string,
-    options?: RequestInit
-): Promise<WebhookTestApi> => {
-    return apiMutator<WebhookTestApi>(getCloudAgentsWebhookEndpointsTestCreateUrl(projectId, id), {
-        ...options,
-        method: 'POST',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsDeliveriesListUrl = (projectId: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/deliveries/`
-}
-
-/**
- * The last 50 deliveries of the project, newest first.
- * @summary List recent webhook deliveries
- */
-export const cloudAgentsWebhookEndpointsDeliveriesList = async (
-    projectId: string,
-    options?: RequestInit
-): Promise<WebhookDeliveryApi[]> => {
-    return apiMutator<WebhookDeliveryApi[]>(getCloudAgentsWebhookEndpointsDeliveriesListUrl(projectId), {
-        ...options,
-        method: 'GET',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsRotateSecretCreateUrl = (projectId: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/rotate_secret/`
-}
-
-/**
- * Replaces the signing secret and returns the new one. The old secret stops working immediately.
- * @summary Rotate the webhook signing secret
- */
-export const cloudAgentsWebhookEndpointsRotateSecretCreate = async (
-    projectId: string,
-    options?: RequestInit
-): Promise<WebhookSecretApi> => {
-    return apiMutator<WebhookSecretApi>(getCloudAgentsWebhookEndpointsRotateSecretCreateUrl(projectId), {
-        ...options,
-        method: 'POST',
-    })
-}
-
-export const getCloudAgentsWebhookEndpointsSecretCreateUrl = (projectId: string) => {
-    return `/api/projects/${projectId}/cloud_agents/webhook_endpoints/secret/`
-}
-
-/**
- * Creates the signing secret of the project and returns it one time. When the project already has a secret, the response has no secret: rotate the secret to get a new one.
- * @summary Create the webhook signing secret
- */
-export const cloudAgentsWebhookEndpointsSecretCreate = async (
-    projectId: string,
-    options?: RequestInit
-): Promise<WebhookSecretApi> => {
-    return apiMutator<WebhookSecretApi>(getCloudAgentsWebhookEndpointsSecretCreateUrl(projectId), {
-        ...options,
-        method: 'POST',
     })
 }

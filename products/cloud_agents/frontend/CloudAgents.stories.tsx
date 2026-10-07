@@ -16,8 +16,6 @@ import type {
     CloudAgentSizeApi,
     CloudAgentUsageSummaryApi,
     ProfileApi,
-    WebhookDeliveryApi,
-    WebhookEndpointApi,
 } from './generated/api.schemas'
 import { NEW_RUN_SEARCH_PARAM } from './logics/cloudAgentsNewRunLogic'
 
@@ -56,7 +54,6 @@ const settings: CloudAgentSettingsApi = {
     default_profile: null,
     max_concurrent_runs: 5,
     create_rate_per_hour: 60,
-    webhook_secret_set: true,
     updated_at: '2026-09-01T09:00:00Z',
 }
 
@@ -72,7 +69,6 @@ const profiles: ProfileApi[] = [
         inference: 'posthog',
         instructions: 'Update one package group in each pull request. Run the full test suite.',
         tags: ['nightly', 'dependencies'],
-        webhook_url: null,
         created_by: 1,
         created_at: '2026-08-20T10:00:00Z',
         updated_at: '2026-09-10T14:30:00Z',
@@ -88,7 +84,6 @@ const profiles: ProfileApi[] = [
         inference: 'own_subscription',
         instructions: null,
         tags: ['ci'],
-        webhook_url: null,
         created_by: 1,
         created_at: '2026-08-28T10:00:00Z',
         updated_at: '2026-09-12T08:15:00Z',
@@ -104,7 +99,6 @@ const profiles: ProfileApi[] = [
         inference: null,
         instructions: null,
         tags: [],
-        webhook_url: null,
         created_by: 1,
         created_at: '2026-09-02T10:00:00Z',
         updated_at: '2026-09-02T10:00:00Z',
@@ -326,7 +320,7 @@ const runningEvents: Record<string, unknown>[] = [
         sessionUpdate: 'agent_message_chunk',
         content: {
             type: 'text',
-            text: 'The test fails 3 times in 20. It reads the order before the payment webhook is processed. I will make the test wait for the webhook, and not for a fixed time.',
+            text: 'The test fails 3 times in 20. It reads the order before the payment event is processed. I will make the test wait for the event, and not for a fixed time.',
         },
     }),
     sessionUpdate('2026-09-14T11:51:40Z', { sessionUpdate: 'usage_snapshot', tokens: { input: 18420 } }),
@@ -422,69 +416,6 @@ const claudeSubscription: UserClaudeSubscriptionApi = {
 
 const codexIntegration: UserCodexIntegrationApi = { status: 'not_connected' }
 
-const webhookEndpoints: WebhookEndpointApi[] = [
-    {
-        id: '0199c001-0000-7000-8000-000000000001',
-        url: 'https://example.com/webhooks/posthog-cloud-agents',
-        enabled: true,
-        event_types: ['run.completed', 'run.failed'],
-        created_by: 1,
-        created_at: '2026-09-01T09:00:00Z',
-        updated_at: '2026-09-01T09:00:00Z',
-    },
-    {
-        id: '0199c001-0000-7000-8000-000000000002',
-        url: 'https://hooks.example.com/ci/agent-events',
-        enabled: false,
-        event_types: [],
-        created_by: 1,
-        created_at: '2026-09-05T09:00:00Z',
-        updated_at: '2026-09-05T09:00:00Z',
-    },
-]
-
-const makeDelivery = (overrides: Partial<WebhookDeliveryApi>): WebhookDeliveryApi => ({
-    id: '0199d001-0000-7000-8000-000000000001',
-    endpoint: webhookEndpoints[0].id,
-    url: webhookEndpoints[0].url,
-    run_id: completedRun.id,
-    event_type: 'run.completed',
-    event_id: 'evt_0001',
-    status: 'succeeded',
-    attempts: 1,
-    last_status_code: 200,
-    last_error: null,
-    next_attempt_at: null,
-    delivered_at: '2026-09-14T08:19:42Z',
-    created_at: '2026-09-14T08:19:41Z',
-    ...overrides,
-})
-
-const deliveries: WebhookDeliveryApi[] = [
-    makeDelivery({}),
-    makeDelivery({
-        id: '0199d001-0000-7000-8000-000000000002',
-        run_id: failedRun.id,
-        event_type: 'run.failed',
-        event_id: 'evt_0002',
-        status: 'failed',
-        attempts: 3,
-        last_status_code: 503,
-        delivered_at: null,
-        created_at: '2026-09-13T16:07:06Z',
-    }),
-    makeDelivery({
-        id: '0199d001-0000-7000-8000-000000000003',
-        event_type: 'run.test',
-        event_id: 'evt_0003',
-        status: 'gave_up',
-        attempts: 8,
-        last_status_code: null,
-        delivered_at: null,
-        created_at: '2026-09-10T12:00:00Z',
-    }),
-]
-
 const BASE = '/api/projects/:team_id/cloud_agents'
 
 /** Every endpoint the scenes call. Each story passes the runs that its list and detail requests return. */
@@ -507,8 +438,6 @@ const cloudAgentsDecorator = (storyRuns: CloudAgentRunApi[]): ReturnType<typeof 
                 const run = storyRuns.find((candidate) => candidate.id === params.id)
                 return [200, run ? eventsFor(run) : { events: [], truncated: false }]
             },
-            [`${BASE}/webhook_endpoints/`]: toPaginatedResponse(webhookEndpoints),
-            [`${BASE}/webhook_endpoints/deliveries/`]: deliveries,
             '/api/users/@me/integrations/claude_subscription/': claudeSubscription,
             '/api/users/@me/integrations/codex/': codexIntegration,
         },

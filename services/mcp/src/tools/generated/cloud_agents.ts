@@ -84,9 +84,6 @@ const cloudAgentsProfileCreate = (): ToolBase<
         if (params.tags !== undefined) {
             body['tags'] = params.tags
         }
-        if (params.webhook_url !== undefined) {
-            body['webhook_url'] = params.webhook_url
-        }
         if (params.name !== undefined) {
             body['name'] = params.name
         }
@@ -257,9 +254,6 @@ const cloudAgentsRunCreate = (): ToolBase<
         }
         if (params.metadata !== undefined) {
             body['metadata'] = params.metadata
-        }
-        if (params.webhook_url !== undefined) {
-            body['webhook_url'] = params.webhook_url
         }
         const result = await context.api.request<Schemas.CloudAgentRun>({
             method: 'POST',

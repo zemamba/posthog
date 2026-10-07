@@ -14,7 +14,7 @@ from posthog.models import Organization, Team
 
 from products.cloud_agents.backend import receivers
 from products.cloud_agents.backend.logic import sweeps, sync
-from products.cloud_agents.backend.models import CloudAgentRun, CloudAgentsWebhookDelivery, CloudAgentsWebhookEndpoint
+from products.cloud_agents.backend.models import CloudAgentRun
 from products.cloud_agents.backend.tasks.run_tasks import (
     FINALIZE_RETRY_DELAYS_SECONDS,
     finalize_run_cost,
@@ -22,7 +22,6 @@ from products.cloud_agents.backend.tasks.run_tasks import (
     stop_cloud_agent_runs_over_quota,
     sync_cloud_agent_run,
 )
-from products.cloud_agents.backend.tasks.tasks import deliver_webhook
 from products.cloud_agents.backend.tests.base import LOGIC, TasksFakeMixin, billing_dto, task_run_dto
 
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
@@ -31,22 +30,14 @@ TASKS_USAGE_LIMIT_ERROR = "Your organization reached its PostHog Desktop usage l
 
 
 class RunSyncTestCase(TasksFakeMixin, BaseTest):
-    def setUp(self) -> None:
-        super().setUp()
-        CloudAgentsWebhookEndpoint.objects.create(team=self.team, url="https://example.com/hook")
-
     def sync(self, run: CloudAgentRun, task_run_id: Any = None) -> tuple[CloudAgentRun, Any]:
         """Run the sync task, commit, and return the stored run and the finalization calls."""
         with (
-            patch.object(deliver_webhook, "delay"),
             patch.object(finalize_run_cost, "delay") as finalize,
             self.captureOnCommitCallbacks(execute=True),
         ):
             sync_cloud_agent_run(self.team.id, str(task_run_id or run.current_task_run_id))
         return CloudAgentRun.objects.get(id=run.id), finalize
-
-    def events(self) -> list[str]:
-        return list(CloudAgentsWebhookDelivery.objects.order_by("created_at").values_list("event_type", flat=True))
 
 
 class TestApplyTaskRunUpdate(RunSyncTestCase):
@@ -59,7 +50,6 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
 
         assert (running.status, running.stop_reason, running.started_at) == ("running", None, NOW)
         assert running.agent_sessions[0]["status"] == "running"
-        assert self.events() == ["run.started"]
         finalize.assert_not_called()
 
         self.tasks.set_status(
@@ -78,21 +68,14 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
         assert (done.pr_url, done.pr_urls) == ("https://github.com/acme/app/pull/7", [done.pr_url])
         assert done.summary == "Fixed the test."
         assert done.agent_sessions[0]["ended_at"] == (NOW + timedelta(minutes=5)).isoformat()
-        assert self.events() == ["run.started", "run.completed"]
         finalize.assert_called_once_with(self.team.id, str(run.id))
-        payload = CloudAgentsWebhookDelivery.objects.get(event_type="run.completed").payload["data"]["run"]
-        assert (payload["id"], payload["status"], payload["result"]["pr_url"]) == (
-            str(run.id),
-            "completed",
-            done.pr_url,
-        )
 
     @parameterized.expand(
         [
-            ("cancelled", "cancelled", "Stopped by user", {}, "cancelled", "run.cancelled", False),
-            ("error", "failed", "Traceback: KeyError at worker.py", {}, "error", "run.failed", True),
-            ("timeout", "failed", None, {"timed_out_wall_clock": True}, "timeout", "run.failed", True),
-            ("usage_limit", "failed", TASKS_USAGE_LIMIT_ERROR, {}, "usage_limit", "run.failed", True),
+            ("cancelled", "cancelled", "Stopped by user", {}, "cancelled", False),
+            ("error", "failed", "Traceback: KeyError at worker.py", {}, "error", True),
+            ("timeout", "failed", None, {"timed_out_wall_clock": True}, "timeout", True),
+            ("usage_limit", "failed", TASKS_USAGE_LIMIT_ERROR, {}, "usage_limit", True),
         ]
     )
     def test_end_of_a_run(
@@ -102,7 +85,6 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
         tasks_error: str | None,
         state: dict[str, Any],
         stop_reason: str,
-        event: str,
         has_error: bool,
     ) -> None:
         run = self.make_run()
@@ -115,8 +97,6 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
         # The text of Tasks can hold an exception or the name of another product. The API never shows it.
         assert tasks_error is None or tasks_error not in (stored.error or "")
         assert "Desktop" not in (stored.error or "")
-        # A run that ends before it was seen as running sends no start event.
-        assert self.events() == [event]
         finalize.assert_called_once()
 
     def test_late_read_does_not_move_a_run_back(self) -> None:
@@ -126,7 +106,6 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
         stored, finalize = self.sync(run)
 
         assert (stored.status, stored.stop_reason) == ("completed", "done")
-        assert self.events() == []
         finalize.assert_not_called()
 
     def test_update_from_an_older_session_does_not_change_the_resumed_run(self) -> None:
@@ -143,7 +122,6 @@ class TestApplyTaskRunUpdate(RunSyncTestCase):
 
         assert (stored.status, stored.stop_reason, stored.error) == ("queued", None, None)
         assert [session["status"] for session in stored.agent_sessions] == ["failed", "queued"]
-        assert self.events() == []
         finalize.assert_not_called()
 
     def test_unknown_tasks_run_changes_nothing(self) -> None:
@@ -305,7 +283,7 @@ class TestReconciler(RunSyncTestCase):
             )
             for run in (stale, never_synced, fresh):
                 self.tasks.set_status(run.current_task_run_id, "in_progress")
-            with patch.object(deliver_webhook, "delay"), patch.object(finalize_run_cost, "delay") as finalize:
+            with patch.object(finalize_run_cost, "delay") as finalize:
                 reconcile_cloud_agent_runs()
 
         statuses = {
