@@ -6,10 +6,10 @@ from typing import cast
 from uuid import UUID
 
 from rest_framework import viewsets
-from rest_framework.authentication import SessionAuthentication
 from rest_framework.request import Request
 
 from posthog.api.routing import TeamAndOrgViewSetMixin
+from posthog.auth import SessionAuthentication
 from posthog.models.user import User
 
 from ..facade.access import FEATURE_FLAG_KEY

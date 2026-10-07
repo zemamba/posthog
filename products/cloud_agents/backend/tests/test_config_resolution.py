@@ -16,7 +16,7 @@ from products.cloud_agents.backend.facade.contracts import (
     RunCreateInput,
     TeamSettingsDTO,
 )
-from products.cloud_agents.backend.facade.enums import InferenceMode, PrMode, SizeName, size_shape
+from products.cloud_agents.backend.facade.enums import InferenceMode, PrMode, SizeName, SizeShape, size_shape
 from products.cloud_agents.backend.logic.config_resolution import render_prompt, resolve_run_config
 
 PROFILE_ID = UUID("01900000-0000-7000-8000-000000000001")
@@ -190,4 +190,4 @@ class TestResolveRunConfig(SimpleTestCase):
 
     @parameterized.expand([(SizeName.S_1X2, (1, 2)), (SizeName.S_4X16, (4, 16)), (SizeName.S_16X64, (16, 64))])
     def test_size_shape(self, size: SizeName, expected: tuple[int, int]) -> None:
-        assert size_shape(size) == expected
+        assert size_shape(size) == SizeShape(vcpu=expected[0], memory_gib=expected[1])

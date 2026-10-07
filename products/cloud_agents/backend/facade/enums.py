@@ -9,6 +9,7 @@ No Django imports: use LabeledStrEnum or LabeledIntEnum, not
 models.TextChoices, for an enum that backs model or serializer choices.
 """
 
+from posthog.dataclasses import frozen
 from posthog.enums import LabeledStrEnum
 
 
@@ -89,7 +90,13 @@ class WebhookDeliveryStatus(LabeledStrEnum):
     GAVE_UP = "gave_up"
 
 
-def size_shape(size: SizeName) -> tuple[int, int]:
-    """Return `(vcpu, memory_gib)` for a size."""
+@frozen
+class SizeShape:
+    vcpu: int
+    memory_gib: int
+
+
+def size_shape(size: SizeName) -> SizeShape:
+    """Return the vCPU and memory for a size."""
     vcpu, memory_gib = SizeName(size).value.split("x")
-    return int(vcpu), int(memory_gib)
+    return SizeShape(vcpu=int(vcpu), memory_gib=int(memory_gib))

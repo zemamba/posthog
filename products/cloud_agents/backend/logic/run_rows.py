@@ -44,8 +44,8 @@ def get_run_row(team_id: int, run_id: UUID) -> CloudAgentRun:
 
 
 def size_spec(size: SizeName) -> SizeSpec:
-    vcpu, memory_gib = size_shape(size)
-    return SizeSpec.from_name(size, price_per_hour_usd=cloud_agents_hourly_price_usd(vcpu, memory_gib))
+    shape = size_shape(size)
+    return SizeSpec.from_name(size, price_per_hour_usd=cloud_agents_hourly_price_usd(shape.vcpu, shape.memory_gib))
 
 
 def _parse_time(value: object) -> datetime | None:

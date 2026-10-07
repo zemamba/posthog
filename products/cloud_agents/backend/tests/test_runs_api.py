@@ -501,17 +501,17 @@ class TestReadRuns(RunsAPITestCase):
 
     @parameterized.expand(
         [
-            ("no_accept_header", "", {}),
-            ("accept_any", "", {"HTTP_ACCEPT": "*/*"}),
-            ("accept_json", "", {"HTTP_ACCEPT": "application/json"}),
-            ("format_json", "?format=json", {}),
+            ("accept_any", "", "*/*"),
+            ("accept_json", "", "application/json"),
+            ("format_json", "?format=json", None),
         ]
     )
-    def test_events_default_to_json(self, _name: str, query: str, headers: dict[str, str]) -> None:
+    def test_events_default_to_json(self, _name: str, query: str, accept: str | None) -> None:
         run = self.make_run(task_status="completed")
         self.mocks["runs.read_task_run_history"].return_value = [{"n": 1}]
 
-        response = self.client.get(self.runs_url(f"{run.id}/events/{query}"), **headers)
+        url = self.runs_url(f"{run.id}/events/{query}")
+        response = self.client.get(url, HTTP_ACCEPT=accept) if accept is not None else self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK, response.content
         assert response["Content-Type"].startswith("application/json")

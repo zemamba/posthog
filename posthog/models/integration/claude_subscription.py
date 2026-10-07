@@ -7,6 +7,7 @@ through `ClaudeSubscriptionStore.resolve_secret`. No route returns it.
 
 from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from django.db import connection, transaction
 from django.utils import timezone
@@ -45,7 +46,7 @@ class ClaudeSubscriptionSummary:
     last_used_at: datetime | None
 
 
-def claude_subscription_storage_enabled(user: "User", organization_id: str | int | None = None) -> bool:
+def claude_subscription_storage_enabled(user: "User", organization_id: str | int | UUID | None = None) -> bool:
     organization_id = str(organization_id or user.current_organization_id)
     try:
         enabled = posthoganalytics.feature_enabled(

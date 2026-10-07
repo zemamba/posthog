@@ -53,8 +53,8 @@ class SizeSpec:
 
     @classmethod
     def from_name(cls, name: SizeName, *, price_per_hour_usd: Decimal) -> SizeSpec:
-        vcpu, memory_gib = size_shape(name)
-        return cls(name=name, vcpu=vcpu, memory_gib=memory_gib, price_per_hour_usd=price_per_hour_usd)
+        shape = size_shape(name)
+        return cls(name=name, vcpu=shape.vcpu, memory_gib=shape.memory_gib, price_per_hour_usd=price_per_hour_usd)
 
 
 @frozen

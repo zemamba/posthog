@@ -305,7 +305,7 @@ class TestGatewayUsage(BaseTest):
         billing = get_task_run_billing(team_id=self.team.id, task_id=task.id)
         assert billing.compute_cost_cents == 74
         assert billing.inference_cost_cents == 0
-        assert (billing.vcpu_seconds, billing.gib_seconds) == (28_800, 115_200)
+        assert (billing.vcpu_seconds, billing.gib_seconds) == (Decimal(28_800), Decimal(115_200))
         assert (billing.billable, billing.waived, billing.settled) == (True, False, True)
         assert billing.inference_billing == "posthog"
         assert billing.rate_card_version == CLOUD_AGENTS_RATE_CARD.version
@@ -325,7 +325,7 @@ class TestGatewayUsage(BaseTest):
         billing = get_task_run_billing(team_id=self.team.id, task_id=task.id)
         assert billing.compute_cost_cents == 37
         assert billing.waived is True
-        assert (billing.vcpu_seconds, billing.gib_seconds) == (14_400, 57_600)
+        assert (billing.vcpu_seconds, billing.gib_seconds) == (Decimal(14_400), Decimal(57_600))
         assert [(s.cost_cents, s.waived) for s in billing.sessions] == [(0, True), (37, False)]
 
     def test_waiver_never_changes_the_cost_of_another_product(self) -> None:

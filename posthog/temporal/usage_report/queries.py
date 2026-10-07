@@ -230,7 +230,11 @@ def _sandbox_compute_usage(begin: datetime, end: datetime) -> dict[str, list[tup
     }
 
 
-def _cloud_agents_compute_usage(begin: datetime, end: datetime) -> dict[str, list[tuple[int, int]]]:
+def _cloud_agents_compute_usage(
+    begin: datetime, end: datetime
+) -> dict[
+    str, list[tuple[int, int]]
+]:  # nosemgrep: tuple-return-prefer-dataclass -- (team_id, count) rows, the shape the shared usage report combiners take
     return {"credits": get_teams_with_cloud_agents_compute_usage_in_period(begin, end).credits}
 
 
