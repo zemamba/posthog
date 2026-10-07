@@ -172,7 +172,12 @@ from posthog.hogql.timings import HogQLTimings
 
 from posthog.exceptions_capture import capture_exception
 from posthog.ph_client import feature_enabled_or_false
-from posthog.schema_enums import DatabaseSerializedFieldType, PersonsOnEventsMode, SessionTableVersion
+from posthog.schema_enums import (
+    DatabaseSerializedFieldType,
+    DataWarehouseSavedQueryOrigin,
+    PersonsOnEventsMode,
+    SessionTableVersion,
+)
 from posthog.scopes import APIScopeObject
 from posthog.synthetic_user import SyntheticUser
 from posthog.week_start_day import WeekStartDay
@@ -331,6 +336,22 @@ MODELS_NAMESPACE_TABLE_ERROR = "The models namespace is reserved for data models
 
 def is_reserved_models_name(name: str) -> bool:
     return name == "models" or name.startswith("models.")
+
+
+def models_namespace_chain(saved_query: Any) -> list[str] | None:
+    """The `models.` path an authored saved query also resolves under, or None when it gets only its stored name.
+
+    `origin` is nullable on old rows, so authored means "not machine-made" rather than an exact origin match.
+    """
+    origin = getattr(saved_query, "origin", None)
+    if origin in (DataWarehouseSavedQueryOrigin.ENDPOINT, DataWarehouseSavedQueryOrigin.MANAGED_VIEWSET):
+        return None
+    if getattr(saved_query, "managed_viewset_id", None) is not None:
+        return None
+    name: str = saved_query.name
+    if is_reserved_models_name(name) or is_reserved_system_name(name):
+        return None
+    return ["models", *name.split(".")]
 
 
 def _revenue_trigger_prefixes(handles: list[SourceHandle]) -> set[str]:
@@ -1151,6 +1172,10 @@ class Database(BaseModel):
         for name in sorted(node.resolve_all_table_names()):
             self._view_table_names.append(name)
 
+    def _add_models_namespace(self, node: TableNode):
+        # Merged after every other source, so any name that already resolves keeps its table.
+        self.tables.merge_with(node, table_conflict_mode="ignore")
+
     def _is_direct_query(self) -> bool:
         return self._connection_id is not None
 
@@ -1287,6 +1312,10 @@ class Database(BaseModel):
 
         # Add view names to denied tables so the query raises "You don't have access" instead of "Unknown table"
         self._denied_tables.add(saved_query.name)
+        # The deny set is matched by name, so the second name must be denied as well or it reads the same rows.
+        models_chain = models_namespace_chain(saved_query)
+        if models_chain is not None:
+            self._denied_tables.add(".".join(models_chain))
         return True
 
     def _is_warehouse_expression_denied(self, expression: Any) -> bool:
@@ -2368,6 +2397,7 @@ class Database(BaseModel):
         warehouse_tables: TableNode = TableNode()
         self_managed_warehouse_tables: TableNode = TableNode()
         views: TableNode = TableNode()
+        models_namespace_chains: list[tuple[list[str], list[str]]] = []
         warehouse_tables_to_process: list[tuple[Table, DataWarehouseTable]] = []
         saved_query_ids_by_table = {
             saved_query.table_id: str(saved_query.pk)
@@ -2393,6 +2423,9 @@ class Database(BaseModel):
                         ),
                         table_conflict_mode="ignore",
                     )
+                    models_chain = models_namespace_chain(saved_query)
+                    if models_chain is not None:
+                        models_namespace_chains.append((saved_query.name.split("."), models_chain))
 
         with timings.measure("endpoint_saved_query", emit_span=True):
             if not database._is_direct_query():
@@ -2740,6 +2773,19 @@ class Database(BaseModel):
         database._add_warehouse_tables(warehouse_tables)
         database._add_warehouse_self_managed_tables(self_managed_warehouse_tables)
         database._add_views(views)
+
+        with timings.measure("models_namespace", emit_span=True):
+            # Reuses the view's table object, so the second name costs no parse and sees the same modifier mappings.
+            # The slot is hidden so schema listings and autocomplete keep one entry per model.
+            models_namespace = TableNode()
+            for stored_chain, models_chain in models_namespace_chains:
+                model_table = views.get_child(stored_chain).table
+                if not isinstance(model_table, Table):
+                    continue
+                models_node = TableNode.create_nested_for_chain(models_chain, table=model_table)
+                models_node.get_child(models_chain[1:]).hidden = True
+                models_namespace.add_child(models_node, table_conflict_mode="ignore")
+            database._add_models_namespace(models_namespace)
 
         if deferred_revenue_handles:
             # Armed before the joins and saved-expressions passes below: a join or expression that

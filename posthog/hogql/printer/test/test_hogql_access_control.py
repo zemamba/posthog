@@ -1152,6 +1152,36 @@ class TestWarehouseViewAccessControl(BaseTest):
         view.save(update_fields=["table", "is_materialized"])
         return backing_table
 
+    @parameterized.expand([("view", False), ("materialized", True)])
+    def test_denied_model_is_refused_under_both_names(self, _name: str, materialized: bool):
+        from posthog.hogql.query import execute_hogql_query
+
+        if materialized:
+            self._materialize(self.denied_view)
+        self._create_ac(
+            resource="warehouse_view",
+            resource_id=str(self.denied_view.id),
+            access_level="none",
+            member=self._membership(),
+        )
+
+        database = Database.create_for(team=self.team, user=self.user)
+
+        for name in ("denied_view", "models.denied_view"):
+            with self.assertRaises(TableAccessDeniedError):
+                database.get_table(name)
+            assert database.is_table_access_denied(name)
+        assert database.has_table("models.allowed_view")
+
+        response = execute_hogql_query(
+            "SELECT table_name FROM system.information_schema.tables WHERE table_name LIKE '%_view'",
+            team=self.team,
+            user=self.user,
+        )
+        listed = {row[0] for row in response.results or []}
+        assert "allowed_view" in listed
+        assert not {"denied_view", "models.denied_view", "models.allowed_view"} & listed
+
     def test_denied_materialized_view_also_blocks_backing_table(self):
         # A materialized view's backing table shares the view's name. Denying the view must not leave
         # the backing table queryable under that name.
