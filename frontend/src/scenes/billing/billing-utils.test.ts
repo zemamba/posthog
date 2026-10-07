@@ -1,3 +1,5 @@
+import { FEATURE_FLAGS } from 'lib/constants'
+
 import {
     billingErrorGuidance,
     buildSpendTrackingProperties,
@@ -8,7 +10,7 @@ import {
 
 describe('getUsageTypeOptions', () => {
     it('includes informational Desktop component metrics in Usage but not Spend', () => {
-        const usageOptions = getUsageTypeOptions()
+        const usageOptions = getUsageTypeOptions({ [FEATURE_FLAGS.CLOUD_AGENTS]: true })
         const spendOptions = getSpendTypeOptions()
         const componentTypes = [
             'posthog_code_token_credits_used_in_period',

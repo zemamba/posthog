@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 from posthog.dataclasses import frozen
 
@@ -81,7 +81,7 @@ def resolve_model_access(state: Mapping[str, object]) -> ModelAccess:
     for candidate in candidates:
         value = state.get(f"{candidate}_model_access")
         if value == "own-subscription" or value == "own-key":
-            modes[candidate] = value
+            modes[candidate] = cast(OwnModelAccessMode, value)
     if len(modes) > 1:
         if "own-key" in modes.values():
             raise InvalidModelAccess("Select only one of your own model credentials for this run.")
