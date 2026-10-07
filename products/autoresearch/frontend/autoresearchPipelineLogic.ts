@@ -44,6 +44,7 @@ import {
 import {
     PREDICTION_SEGMENTS,
     PREDICTION_SEGMENT_THRESHOLDS,
+    type PredictionLinkDestination,
     type PredictionSegmentCounts,
     type PredictionSegmentKey,
     predictionSegmentCohortFilters,
@@ -521,6 +522,9 @@ export interface autoresearchPipelineLogicActions {
     reportNotebookOpened: (runId: string) => {
         runId: string
     }
+    reportPredictionLinkClicked: (destination: PredictionLinkDestination) => {
+        destination: PredictionLinkDestination
+    }
     resumePipeline: () => any
     resumePipelineFailure: (
         error: string,
@@ -683,6 +687,7 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
         loadDetail: true,
         toggleRunArtifacts: (runId: string) => ({ runId }),
         reportNotebookOpened: (runId: string) => ({ runId }),
+        reportPredictionLinkClicked: (destination: PredictionLinkDestination) => ({ destination }),
         setSuggestionDraft: (draft: string) => ({ draft }),
         setSuggestionPriority: (priority: CreateSuggestionPriorityEnumApi) => ({ priority }),
         setActiveScoreRun: (run: AutoresearchRunApi | null) => ({ run }),
@@ -1321,6 +1326,9 @@ export const autoresearchPipelineLogic = kea<autoresearchPipelineLogicType>([
         },
         reportNotebookOpened: ({ runId }) => {
             posthog.capture('autoresearch model report notebook opened', { pipeline_id: props.id, run_id: runId })
+        },
+        reportPredictionLinkClicked: ({ destination }) => {
+            posthog.capture('autoresearch model prediction link clicked', { pipeline_id: props.id, destination })
         },
         setPredictionsPeopleView: ({ view }) => {
             posthog.capture('autoresearch model predictions view changed', { pipeline_id: props.id, view })
