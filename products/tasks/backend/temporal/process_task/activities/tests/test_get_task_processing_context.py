@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import pytest
@@ -402,6 +403,95 @@ class TestGetTaskProcessingContextActivity:
                 assert result.codex_model_access == "own-subscription"
             else:
                 with pytest.raises(ProcessTaskFatalError, match="ChatGPT account is not connected"):
+                    async_to_sync(activity_environment.run)(get_task_processing_context, input_data)
+
+    @pytest.mark.django_db(transaction=True)
+    @pytest.mark.parametrize(
+        "extra_state, stored_kind, storage_flag, expected_access, expected_error",
+        [
+            ({"claude_model_access": "own-key"}, "anthropic_api_key", False, ("own-key", "posthog-gateway"), None),
+            (
+                {"claude_model_access": "own-key"},
+                None,
+                True,
+                None,
+                "Add your Anthropic API key in Cloud agents settings, then start the run again.",
+            ),
+            (
+                {"claude_model_access": "own-key"},
+                "openai_api_key",
+                True,
+                None,
+                "Add your Anthropic API key in Cloud agents settings, then start the run again.",
+            ),
+            (
+                {"codex_model_access": "own-key", "runtime_adapter": "codex"},
+                "openai_api_key",
+                False,
+                ("posthog-gateway", "own-key"),
+                None,
+            ),
+            (
+                {"codex_model_access": "own-key", "runtime_adapter": "codex"},
+                None,
+                False,
+                None,
+                "Add your OpenAI API key in Cloud agents settings, then start the run again.",
+            ),
+            (
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                "claude_subscription",
+                True,
+                ("own-subscription", "posthog-gateway"),
+                None,
+            ),
+            (
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                "claude_subscription",
+                False,
+                None,
+                "Add your Claude subscription in Cloud agents settings, then start the run again.",
+            ),
+            (
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                None,
+                True,
+                None,
+                "Add your Claude subscription in Cloud agents settings, then start the run again.",
+            ),
+        ],
+    )
+    def test_run_on_a_stored_credential_needs_only_that_credential(
+        self, activity_environment, test_task, extra_state, stored_kind, storage_flag, expected_access, expected_error
+    ):
+        owner = User.objects.create_user(
+            email="credential-owner@example.com", password=None, first_name="Owner", distinct_id="credential-owner"
+        )
+        OrganizationMembership.objects.create(organization=test_task.team.organization, user=owner)
+        if stored_kind is not None:
+            UserIntegration.objects.create(
+                user=owner,
+                kind=stored_kind,
+                integration_id="stored",
+                config={},
+                sensitive_config={"secret": "sk-fake-stored-secret"},
+            )
+        task_run = test_task.create_run(acting_user_id=owner.id, extra_state=extra_state)
+        input_data = GetTaskProcessingContextInput(run_id=str(task_run.id))
+        module = "products.tasks.backend.temporal.process_task.activities.get_task_processing_context"
+
+        # Every PostHog flag is off, so a pass shows that the subscription rollout flags are not asked.
+        with (
+            patch(f"{module}.posthoganalytics.feature_enabled", return_value=False),
+            patch(f"{module}.claude_subscription_storage_enabled", return_value=storage_flag),
+        ):
+            if expected_error is None:
+                result = async_to_sync(activity_environment.run)(get_task_processing_context, input_data)
+                assert (result.claude_model_access, result.codex_model_access) == expected_access
+                assert result.model_access.owner_id == owner.id
+                assert "sk-fake-stored-secret" not in repr(result)
+            else:
+                with pytest.raises(ProcessTaskFatalError, match=re.escape(expected_error)):
                     async_to_sync(activity_environment.run)(get_task_processing_context, input_data)
 
     @pytest.mark.django_db(transaction=True)

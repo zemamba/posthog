@@ -23,6 +23,8 @@ from products.tasks.backend.facade import (
     contracts,
 )
 from products.tasks.backend.feature_flags import get_model_access_error
+from products.tasks.backend.logic.model_access import INFERENCE_STATE_KEYS
+from products.tasks.backend.logic.services.inference_resolution import validated_inference_state
 from products.tasks.backend.logic.services.model_catalogue import runtime_adapter_for
 from products.tasks.backend.logic.services.sandbox_config import (
     SANDBOX_SIZE_SHAPES,
@@ -93,6 +95,7 @@ def create_cloud_agent_task(
     reasoning_effort: str | None,
     inactivity_timeout_seconds: int | None,
     extra_run_state: Mapping[str, object] | None,
+    inference_state: Mapping[str, object] | None = None,
 ) -> contracts.CloudAgentTaskDTO:
     """Create a Cloud Agents task and start its first run.
 
@@ -106,7 +109,12 @@ def create_cloud_agent_task(
 
     The sandbox has the fixed shape of ``sandbox_size``, the default size included, so that
     the usage record of each session states the full selected shape.
+
+    ``inference_state`` is ``InferenceDecision.run_state_updates`` from ``facade.inference``. It
+    selects who pays for model use, and ``user_id`` becomes the owner of the selected credential.
+    ``None`` is a run on PostHog credits. ``extra_run_state`` must not carry these keys.
     """
+    _refuse_inference_keys(extra_run_state)
     replay = _find_replayed_task(team_id, origin_key)
     if replay is not None:
         return replay
@@ -116,6 +124,7 @@ def create_cloud_agent_task(
     )
     run_state: dict[str, Any] = {
         **(extra_run_state or {}),
+        **validated_inference_state(inference_state),
         **_sized_run_state(sandbox_size),
         # The boot path reads the override and delivers the prompt one time. A pending user
         # message is delivered at boot and forwarded again for a cold background run.
@@ -170,6 +179,7 @@ def resume_cloud_agent_task(
     reasoning_effort: str | None,
     inactivity_timeout_seconds: int | None,
     extra_run_state: Mapping[str, object] | None,
+    inference_state: Mapping[str, object] | None = None,
 ) -> contracts.TaskRunDTO:
     """Start a successor run that resumes ``previous_run_id`` with ``message`` as its first turn.
 
@@ -177,10 +187,17 @@ def resume_cloud_agent_task(
     Tasks: the Cloud Agents product authorizes its own callers. ``model`` and
     ``reasoning_effort`` left as ``None`` keep the selection of the previous run.
 
+    ``inference_state`` is ``InferenceDecision.run_state_updates`` from ``facade.inference``, and
+    it replaces the inference mode of the previous run. ``None`` keeps the mode of the previous
+    run. In both cases ``user_id`` becomes the owner of the credential, so the run never uses the
+    credential of another user.
+
     Raises ``CloudAgentTaskNotFound`` for an unknown task, ``CloudAgentRunNotResumable`` when
     the previous run is unknown, still active or owned by an earlier task owner, and
     ``CloudAgentTaskInvalid`` when the request is refused for another reason.
     """
+    _refuse_inference_keys(extra_run_state)
+    inference = validated_inference_state(inference_state) if inference_state is not None else {}
     task = _cloud_agent_tasks(team_id).filter(id=task_id).first()
     if task is None:
         raise CloudAgentTaskNotFound("Task not found")
@@ -196,6 +213,7 @@ def resume_cloud_agent_task(
 
     server_run_state: dict[str, Any] = {
         **(extra_run_state or {}),
+        **inference,
         **_sized_run_state(sandbox_size),
         # The same record the first run has, so that a lost workflow start is dispatched again
         # with the same PR and scope settings.
@@ -295,6 +313,16 @@ def list_cloud_agent_task_run_ids(*, team_id: int, task_id: UUID) -> list[UUID]:
         .order_by("created_at", "id")
         .values_list("id", flat=True)
     )
+
+
+def _refuse_inference_keys(extra_run_state: Mapping[str, object] | None) -> None:
+    # A key that was silently dropped here would turn a run on the user's own credential into a
+    # run on PostHog credits, so this is an error and not a filter.
+    carried = sorted(
+        key for key in (extra_run_state or {}) if key in INFERENCE_STATE_KEYS or key.endswith("_subscription_user_id")
+    )
+    if carried:
+        raise ValueError(f"Pass {', '.join(carried)} through inference_state, not extra_run_state")
 
 
 def _cloud_agent_tasks(team_id: int) -> QuerySet[Task]:

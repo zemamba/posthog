@@ -711,6 +711,62 @@ describe("buildSessionOptions", () => {
         remaining: "",
       });
     });
+
+    it("hands the owner's API key to the CLI on fd 3 and calls Anthropic without gateway headers or telemetry", async () => {
+      const apiKey = "sk-ant-api03-fake-test-key";
+      const options = buildSessionOptions({
+        ...makeParams(),
+        machineAuth: { apiKey },
+        traceparentHookNonce: "nonce",
+        gatewayEnv: {
+          anthropicBaseUrl: "https://gateway.example.com",
+          anthropicAuthToken: "gateway-token",
+          openaiBaseUrl: "https://gateway.example.com/v1",
+          openaiApiKey: "gateway-token",
+          anthropicCustomHeaders: "x-posthog-property-task_id: task-abc",
+          posthogProjectId: "42",
+        },
+      });
+
+      for (const key of STRIPPED_KEYS) {
+        expect(options.env?.[key]).toBeUndefined();
+      }
+      expect(JSON.stringify(options)).not.toMatch(
+        /x-posthog|gateway\.example|gateway-token|sk-ant-api03/i,
+      );
+      expect(options.extraArgs?.settings).toBeUndefined();
+      expect(options.settings).toMatchObject({
+        apiKeyHelper: "",
+        env: {
+          ANTHROPIC_BASE_URL: "https://api.anthropic.com",
+          ANTHROPIC_AUTH_TOKEN: "",
+          ANTHROPIC_CUSTOM_HEADERS: "",
+          CLAUDE_CODE_ENABLE_TELEMETRY: "",
+          OTEL_EXPORTER_OTLP_ENDPOINT: "",
+          CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR: "3",
+          CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: "",
+        },
+      });
+      const child = options.spawnClaudeCodeProcess?.({
+        command: process.execPath,
+        args: [
+          "-e",
+          `const fs = require("node:fs"); const key = fs.readFileSync("/dev/fd/3", "utf8"); process.stdout.write(JSON.stringify({ received: key === "${apiKey}", inEnvironment: Object.values(process.env).includes(key), descriptor: process.env.CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR, oauthDescriptor: process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR ?? null }));`,
+        ],
+        cwd: os.tmpdir(),
+        env: options.env ?? {},
+        signal: new AbortController().signal,
+      });
+      if (!child) throw new Error("Claude process did not start.");
+      let output = "";
+      for await (const chunk of child.stdout) output += chunk.toString();
+      expect(JSON.parse(output)).toEqual({
+        received: true,
+        inEnvironment: false,
+        descriptor: "3",
+        oauthDescriptor: null,
+      });
+    });
   });
 
   describe("per-session context wiki env", () => {

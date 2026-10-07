@@ -119,13 +119,23 @@ class TestSharedRoutingContract:
     )
     def test_resolve_matches_contract(self, case):
         assert (
-            resolve_sandbox_ai_product(case["origin_product"], case["ai_stage"], internal=case["internal"])
+            resolve_sandbox_ai_product(
+                case["origin_product"],
+                case["ai_stage"],
+                internal=case["internal"],
+                client_provenance=case["client_provenance"],
+            )
             == case["expected"]
         )
 
     @pytest.mark.parametrize("case", _CASES["routed"], ids=lambda c: f"{c['origin_product']}/{c['ai_stage']}")
     def test_routed_matches_contract(self, case):
-        ai_product = resolve_sandbox_ai_product(case["origin_product"], case["ai_stage"], internal=case["internal"])
+        ai_product = resolve_sandbox_ai_product(
+            case["origin_product"],
+            case["ai_stage"],
+            internal=case["internal"],
+            client_provenance=case["client_provenance"],
+        )
         assert sandbox_product_routed(ai_product, case["ai_stage"], case["allowlist"]) == case["expected"]
 
 
@@ -637,19 +647,40 @@ class TestProvisioningBoundaries:
             patch.object(utils, "ai_gateway_env_vars", return_value={"AI_GATEWAY_TOKEN": "phe"}) as env,
             patch.object(utils, "record_gateway_routing"),
         ):
-            out = utils.run_gateway_env_vars(self._ctx(), self._task())
+            task = self._task()
+            out = utils.run_gateway_env_vars(self._ctx(), task)
         assert out == {"AI_GATEWAY_TOKEN": "phe"}
         env.assert_called_once_with(
             team_id=7,
             origin_product="signals_scout",
             ai_stage="scout:logs",
             internal=True,
+            client_provenance=task.client_provenance,
             distinct_id="user-1",
             state={"ai_stage": "scout:logs"},
             model="claude-sonnet-5",
             runtime="acp",
             prior_slack_run=False,
         )
+
+    @pytest.mark.parametrize(
+        "client_provenance,expected_product",
+        [("cloud_agents", "cloud_agents"), (None, None), ("posthog_desktop", None)],
+    )
+    def test_cloud_agents_provenance_decides_the_minted_product(
+        self, mint_settings, client_provenance, expected_product
+    ):
+        mint_settings.SANDBOX_AI_GATEWAY_PRODUCTS = "cloud_agents,background_agents"
+        with patch(_CREDIT_LOOKUP, return_value=None), patch.object(utils, "mint_scoped_token", return_value="phe_x"):
+            env = ai_gateway_env_vars(
+                team_id=2,
+                origin_product="cloud_agents",
+                internal=True,
+                client_provenance=client_provenance,
+                runtime="acp",
+            )
+        assert env.get("AI_GATEWAY_PRODUCT") == expected_product
+        assert ("AI_GATEWAY_TOKEN" in env) is (expected_product is not None)
 
     def test_non_slack_origin_skips_the_prior_run_lookup(self, mint_settings):
         from products.tasks.backend.temporal.process_task import utils
@@ -677,14 +708,15 @@ class TestProvisioningBoundaries:
         assert env.call_args.kwargs["prior_slack_run"] is True
 
     @pytest.mark.django_db
+    @pytest.mark.parametrize("access", ["own-subscription", "own-key"])
     @pytest.mark.parametrize("access_field", ["claude_model_access", "codex_model_access"])
-    def test_subscription_run_does_not_mint_gateway_credentials(
-        self, mint_settings: Settings, test_task_run: TaskRun, access_field: str
+    def test_own_inference_run_does_not_mint_gateway_credentials(
+        self, mint_settings: Settings, test_task_run: TaskRun, access_field: str, access: str
     ) -> None:
         ctx = self._ctx()
         ctx.run_id = str(test_task_run.id)
         ctx.team_id = test_task_run.team_id
-        setattr(ctx, access_field, "own-subscription")
+        setattr(ctx, access_field, access)
         with patch.object(utils, "mint_scoped_token") as mint:
             assert utils.run_gateway_env_vars(ctx, self._task()) == {}
         mint.assert_not_called()
@@ -970,6 +1002,7 @@ class TestUserPinAndCapOverride:
             ("workflows", "75"),
             ("posthog_ai", "75"),
             ("posthog_code", "500"),
+            ("cloud_agents", "500"),
             ("signals_scout_suggestions", "10"),
         ],
     )
@@ -1222,6 +1255,7 @@ class TestMintRefusalScope:
         from ee.billing.quota_limiting import QuotaResource
 
         assert PRODUCT_CREDIT_BUCKET == {
+            "cloud_agents": "cloud_agents_credits",
             "posthog_ai": "ai_credits",
             "posthog_code": "posthog_code_credits",
             "slack_app": "ai_credits",
@@ -1230,16 +1264,26 @@ class TestMintRefusalScope:
         assert set(PRODUCT_CREDIT_BUCKET.values()) == {
             QuotaResource.AI_CREDITS.value,
             QuotaResource.POSTHOG_CODE_CREDITS.value,
+            QuotaResource.CLOUD_AGENTS_CREDITS.value,
         }
 
-    def test_posthog_code_refuses_on_its_own_bucket(self):
+    @pytest.mark.parametrize(
+        "ai_product,bucket",
+        [("posthog_code", "posthog_code_credits"), ("cloud_agents", "cloud_agents_credits")],
+    )
+    def test_customer_billed_product_refuses_on_its_own_bucket(self, ai_product, bucket):
         with (
             patch(_POSTHOG_CODE_GATE, return_value=None),
-            patch(_CREDIT_LOOKUP, return_value="posthog_code_credits_exhausted") as quota,
+            patch(_CREDIT_LOOKUP, return_value=f"{bucket}_exhausted") as quota,
         ):
-            refusal = mint_refusal("posthog_code", team_id=2, state=None, model=None, runtime="acp")
-        assert refusal == "posthog_code_credits_exhausted"
-        quota.assert_called_once_with(2, "posthog_code_credits")
+            refusal = mint_refusal(ai_product, team_id=2, state=None, model=None, runtime="acp")
+        assert refusal == f"{bucket}_exhausted"
+        quota.assert_called_once_with(2, bucket)
+
+    def test_cloud_agents_is_mintable_for_the_sandbox_lifetime(self):
+        assert "cloud_agents" in MINTABLE_PRODUCTS
+        assert "cloud_agents" in SANDBOX_BOUND_MINTABLE_PRODUCTS
+        assert "background_agents" not in MINTABLE_PRODUCTS
 
     def test_lookup_failure_names_the_bucket(self):
         with patch(_POSTHOG_CODE_GATE, return_value=None), patch(_CREDIT_LOOKUP, side_effect=RuntimeError("down")):

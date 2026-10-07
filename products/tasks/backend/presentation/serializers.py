@@ -56,6 +56,7 @@ from products.tasks.backend.facade.contracts import (
     WizardCloudRunDTO,
 )
 from products.tasks.backend.facade.enums import CHANNEL_WRITE_TYPE_CHOICES
+from products.tasks.backend.facade.inference import RunInferenceCredential
 from products.tasks.backend.facade.model_catalogue import TASK_RUN_GATEWAY_PRODUCT, ModelChoice, available_model_choices
 from products.tasks.backend.facade.run_config import (
     ALL_INITIAL_PERMISSION_MODE_CHOICES,
@@ -1337,6 +1338,26 @@ class TaskRunSubscriptionTokenRequestSerializer(serializers.Serializer):
         help_text="SHA-256 hex digest of the access token Codex rejected. The server refreshes only when this "
         "names its current token; otherwise it returns the newer token it already holds.",
     )
+    credential = serializers.ChoiceField(
+        choices=RunInferenceCredential.choices,
+        required=False,
+        default=RunInferenceCredential.CODEX.value,
+        help_text="Credential the run needs. 'codex' (the default) returns a ChatGPT access token. "
+        "'anthropic_api_key', 'openai_api_key' and 'claude_subscription' return the secret the run owner "
+        "stored, and only for a run that was started with that credential.",
+    )
+
+
+class TaskRunInferenceCredentialResponseSerializer(serializers.Serializer):
+    credential = serializers.ChoiceField(
+        choices=RunInferenceCredential.choices, help_text="Credential kind that `secret` holds"
+    )
+    # Never log this serializer's data or pass it to an exception: `secret` is a long-lived credential.
+    secret = serializers.CharField(
+        style={"input_type": "password"},
+        help_text="The run owner's stored API key or Claude subscription token. Keep it in memory only: "
+        "do not log it or write it to disk.",
+    )
 
 
 class TaskRunSubscriptionTokenResponseSerializer(serializers.Serializer):
@@ -1348,6 +1369,13 @@ class TaskRunSubscriptionTokenResponseSerializer(serializers.Serializer):
     expires_at = serializers.DateTimeField(
         help_text="When the access token expires. Request a new one before this time."
     )
+
+
+TaskRunSubscriptionTokenResultSerializer = PolymorphicProxySerializer(
+    component_name="TaskRunSubscriptionTokenResult",
+    serializers=[TaskRunSubscriptionTokenResponseSerializer, TaskRunInferenceCredentialResponseSerializer],
+    resource_type_field_name=None,
+)
 
 
 class TaskRunRelayMessageResponseSerializer(serializers.Serializer):

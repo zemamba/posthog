@@ -38,7 +38,12 @@ from products.tasks.backend.constants import (
 from products.tasks.backend.exceptions import CredentialUnavailableError
 from products.tasks.backend.facade.gateway import mint_private_gateway_token, revoke_private_gateway_token
 from products.tasks.backend.feature_flags import is_mcp_exec_skills_enabled
-from products.tasks.backend.logic.model_access import ModelAccess, resolve_model_access
+from products.tasks.backend.logic.model_access import (
+    OWN_MODEL_ACCESS_MODES,
+    ModelAccess,
+    ModelAccessMode,
+    resolve_model_access,
+)
 from products.tasks.backend.logic.services.gateway_model_pin import (
     FREE_TIER_PIN_KEY,
     GATEWAY_PRODUCT_STATE_KEY,
@@ -353,8 +358,8 @@ class RunState(BaseModel, extra="allow"):
     reasoning_effort: ReasoningEffort | None = None
     context_window: str | None = None
     fast_mode: bool | None = None
-    claude_model_access: Literal["posthog-gateway", "own-subscription"] | None = None
-    codex_model_access: Literal["posthog-gateway", "own-subscription"] | None = None
+    claude_model_access: ModelAccessMode | None = None
+    codex_model_access: ModelAccessMode | None = None
     resume_from_run_id: str | None = None
     resume_from_import_run: bool = False
     same_run_resume: bool = False
@@ -1364,6 +1369,10 @@ def get_sandbox_otel_env_vars() -> dict[str, str]:
     return env_vars
 
 
+def _uses_own_inference(ctx: TaskProcessingContext) -> bool:
+    return not OWN_MODEL_ACCESS_MODES.isdisjoint((ctx.claude_model_access, ctx.codex_model_access))
+
+
 def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, str]:
     """The gateway routing/mint env for one run, derived from its server-side context.
 
@@ -1374,7 +1383,7 @@ def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, st
     """
     if task.is_scout_experiment is True:
         ensure_scout_trial_capture_ready()
-        if "own-subscription" in (ctx.claude_model_access, ctx.codex_model_access):
+        if _uses_own_inference(ctx):
             raise GatewayNotConfiguredError("Scout trials require the AI gateway instead of subscription credentials")
         if ctx.task_runtime == "pi":
             raise GatewayNotConfiguredError("Scout trials require a runtime that supports the AI gateway")
@@ -1396,7 +1405,9 @@ def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, st
             "AI_GATEWAY_PRODUCT": "signals_scout",
             "AI_GATEWAY_AI_STAGE": (ctx.state or {}).get("ai_stage") or "scout",
         }
-    if "own-subscription" in (ctx.claude_model_access, ctx.codex_model_access):
+    # A run on the owner's plan or API key gets no gateway URL and no gateway token, so that
+    # nothing in its sandbox can spend PostHog credits.
+    if _uses_own_inference(ctx):
         record_gateway_routing(run_id=ctx.run_id, team_id=ctx.team_id, uses_gateway=False)
         return {}
     try:
@@ -1405,6 +1416,7 @@ def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, st
             origin_product=ctx.origin_product,
             ai_stage=(ctx.state or {}).get("ai_stage"),
             internal=task.internal,
+            client_provenance=task.client_provenance,
             prior_slack_run=_task_has_stamped_slack_run(task, ctx.origin_product, ctx.state),
             distinct_id=ctx.distinct_id,
             state=ctx.state,
@@ -1481,6 +1493,7 @@ def ai_gateway_env_vars(
     model: str | None = None,
     runtime: str | None = None,
     prior_slack_run: bool = False,
+    client_provenance: str | None = None,
 ) -> dict[str, str]:
     """Env vars routing listed products to the Go ai-gateway, shared by every
     injection site so the both-or-nothing guard cannot drift per site. Both
@@ -1503,7 +1516,9 @@ def ai_gateway_env_vars(
         "AI_GATEWAY_PRODUCTS": settings.SANDBOX_AI_GATEWAY_PRODUCTS,
     }
     if team_id is not None:
-        ai_product = resolve_sandbox_ai_product(origin_product, ai_stage, internal=internal)
+        ai_product = resolve_sandbox_ai_product(
+            origin_product, ai_stage, internal=internal, client_provenance=client_provenance
+        )
         if ai_product in MINTABLE_PRODUCTS and sandbox_product_routed(
             ai_product, ai_stage, settings.SANDBOX_AI_GATEWAY_PRODUCTS
         ):

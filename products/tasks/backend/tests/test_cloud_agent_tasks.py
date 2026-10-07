@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -5,6 +6,7 @@ from posthog.test.base import BaseTest
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
+from django.utils import timezone
 
 from parameterized import parameterized
 
@@ -302,6 +304,111 @@ class TestCloudAgentTasks(BaseTest):
             created.run.id,
             successor.id,
         ]
+
+    @parameterized.expand(
+        [
+            ("posthog_credits", None, "posthog-gateway", "relay", False),
+            ("posthog_decision", {}, "posthog-gateway", "relay", False),
+            ("own_key", {"claude_model_access": "own-key"}, "own-key", "relay", True),
+            (
+                "stored_subscription",
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                "own-subscription",
+                "server",
+                True,
+            ),
+        ]
+    )
+    def test_create_stamps_the_inference_mode_and_makes_the_caller_its_owner(
+        self, _name: str, inference_state: dict[str, Any] | None, access: str, source: str, has_owner: bool
+    ) -> None:
+        created = self._create(inference_state=inference_state)
+
+        assert created.run is not None
+        state = TaskRun.objects.get(id=created.run.id).state
+        assert state["claude_model_access"] == access
+        assert state["codex_model_access"] == "posthog-gateway"
+        assert state["claude_subscription_source"] == source
+        assert state.get("claude_subscription_user_id") == (self.user.id if has_owner else None)
+
+    @parameterized.expand(
+        [
+            ("model_access_in_extra_state", {"extra_run_state": {"claude_model_access": "own-key"}}),
+            ("source_in_extra_state", {"extra_run_state": {"claude_subscription_source": "server"}}),
+            ("owner_in_extra_state", {"extra_run_state": {"claude_subscription_user_id": 1}}),
+            ("owner_in_inference_state", {"inference_state": {"claude_subscription_user_id": 1}}),
+            ("unknown_mode", {"inference_state": {"claude_model_access": "free"}}),
+        ]
+    )
+    def test_inference_keys_outside_a_valid_inference_state_create_nothing(
+        self, _name: str, overrides: dict[str, Any]
+    ) -> None:
+        with self.assertRaises(ValueError):
+            self._create(**overrides)
+
+        assert not Task.objects.filter(team_id=self.team.id).exists()
+
+    @parameterized.expand(
+        [
+            ("replaced_by_posthog_credits", {}, "posthog-gateway", False),
+            ("kept_when_not_stated", None, "own-key", True),
+        ]
+    )
+    def test_resume_inference_mode_follows_the_new_decision_and_the_new_caller(
+        self, _name: str, inference_state: dict[str, Any] | None, access: str, has_owner: bool
+    ) -> None:
+        created = self._create(inference_state={"claude_model_access": "own-key"})
+        assert created.run is not None
+        self._finish(created.run.id)
+        other_member = User.objects.create_and_join(self.organization, "other@example.com", "password")
+
+        with patch("products.tasks.backend.facade.api._trigger_task_processing_workflow", return_value=None):
+            successor = self._resume(created, user_id=other_member.id, inference_state=inference_state)
+
+        state = TaskRun.objects.get(id=successor.id).state
+        assert state["claude_model_access"] == access
+        assert state.get("claude_subscription_user_id") == (other_member.id if has_owner else None)
+
+    @parameterized.expand(
+        [
+            ("own_key", {"claude_model_access": "own-key"}, True),
+            (
+                "stored_subscription",
+                {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
+                True,
+            ),
+            ("relayed_subscription", {"claude_model_access": "own-subscription"}, False),
+            ("posthog_credits", {}, True),
+        ]
+    )
+    def test_scheduled_run_is_allowed_unless_its_credential_needs_a_client(
+        self, _name: str, inference_state: dict[str, Any], allowed: bool
+    ) -> None:
+        created = self._create()
+        assert created.run is not None
+        self._finish(created.run.id)
+        task = Task.objects.get(id=created.task_id)
+
+        with patch("products.tasks.backend.facade.api._trigger_task_processing_workflow", return_value=None):
+            result = facade._run_resolved_task(
+                task,
+                self.team.id,
+                self.user.id,
+                validated_data={"mode": "background", "scheduled_at": timezone.now() + timedelta(days=1)},
+                server_run_state=inference_state,
+            )
+
+        assert result is not None
+        if allowed:
+            assert result.error is None
+            assert result.run_id is not None
+            assert TaskRun.objects.get(id=result.run_id).state.get("claude_model_access") == inference_state.get(
+                "claude_model_access"
+            )
+        else:
+            assert result.error is not None
+            assert result.error.detail == "Scheduled runs must use the PostHog gateway."
+            assert task.runs.count() == 1
 
     def test_resume_of_an_active_run_is_refused(self) -> None:
         created = self._create()

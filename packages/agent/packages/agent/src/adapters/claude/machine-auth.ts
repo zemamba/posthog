@@ -4,6 +4,37 @@ import * as path from "node:path";
 export interface MachineClaudeAuth {
   configDir?: string;
   oauthToken?: string;
+  /** The run owner's Anthropic API key, for a cloud run that does not use the PostHog gateway. */
+  apiKey?: string;
+}
+
+/** The env var that tells the Claude CLI which descriptor holds its credential. */
+export const CLAUDE_OAUTH_TOKEN_FD_ENV =
+  "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR";
+export const CLAUDE_API_KEY_FD_ENV = "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR";
+
+export interface ClaudeFdCredential {
+  secret: string;
+  fdEnv: typeof CLAUDE_OAUTH_TOKEN_FD_ENV | typeof CLAUDE_API_KEY_FD_ENV;
+}
+
+/**
+ * The credential a cloud session hands the Claude CLI on an inherited
+ * descriptor. The CLI reads the descriptor once at startup, so the secret is
+ * not in its argv, not in its environment, and not in a file. A process that
+ * the CLI starts has the same UID and can still read the CLI's memory where
+ * the kernel allows it, so this limits exposure and does not remove it.
+ */
+export function claudeFdCredential(
+  auth: MachineClaudeAuth | undefined,
+): ClaudeFdCredential | undefined {
+  if (auth?.oauthToken) {
+    return { secret: auth.oauthToken, fdEnv: CLAUDE_OAUTH_TOKEN_FD_ENV };
+  }
+  if (auth?.apiKey) {
+    return { secret: auth.apiKey, fdEnv: CLAUDE_API_KEY_FD_ENV };
+  }
+  return undefined;
 }
 
 /** Keys that pick the CLI's provider or its endpoint without ANTHROPIC_BASE_URL. */
@@ -81,7 +112,7 @@ export function applyMachineClaudeAuth(
   for (const key of MACHINE_AUTH_STRIPPED_KEYS) {
     delete env[key];
   }
-  if (auth.oauthToken) {
+  if (auth.oauthToken || auth.apiKey) {
     for (const key of CLOUD_AUTH_STRIPPED_KEYS) delete env[key];
     env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
     delete env.CLAUDE_CODE_OAUTH_TOKEN;
@@ -102,7 +133,8 @@ export function machineClaudeAuthShellEnv(auth: MachineClaudeAuth): {
   const unset: string[] = [
     ...MACHINE_AUTH_STRIPPED_KEYS,
     "CLAUDE_CODE_OAUTH_TOKEN",
-    "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+    CLAUDE_OAUTH_TOKEN_FD_ENV,
+    CLAUDE_API_KEY_FD_ENV,
   ];
   if (auth.configDir) {
     return { set: { CLAUDE_CONFIG_DIR: auth.configDir }, unset };

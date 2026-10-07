@@ -52,6 +52,8 @@ export interface CodexOptions {
   useMachineAuth?: boolean;
   chatgptAuthTokens?: ChatgptAuthTokens;
   refreshChatgptAuthTokens?: () => Promise<ChatgptAuthTokens>;
+  /** The run owner's OpenAI API key. Codex then calls the OpenAI API directly, not the PostHog gateway. */
+  ownApiKey?: string;
   /** Extra codex `-c key=value` config overrides. */
   configOverrides?: Record<string, string | number>;
   /**
@@ -74,6 +76,8 @@ export interface CodexAppServerProcessOptions {
   useMachineAuth?: boolean;
   /** Pins the ChatGPT login so an ambient API key cannot take over. */
   useChatgptAuthTokens?: boolean;
+  /** See {@link CodexOptions.ownApiKey}. */
+  ownApiKey?: string;
   /** Guidance appended to Codex's base prompt via `developer_instructions`. */
   developerInstructions?: string;
   /**
@@ -145,6 +149,12 @@ function tomlInlineTable(entries: Record<string, string>): string {
 }
 
 const BASE_URL_ARG = "model_providers.posthog.base_url=";
+
+export const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
+/** The provider id of a run on the owner's OpenAI API key. `openai` is built in and cannot be redefined. */
+export const OWN_KEY_PROVIDER_ID = "openai_own_key";
+/** The only env var Codex reads the owner's key from (`env_key` of the provider above). */
+export const OWN_KEY_ENV_VAR = "POSTHOG_CODEX_OWN_OPENAI_API_KEY";
 
 function redactBaseUrlArg(arg: string): string {
   return arg.startsWith(BASE_URL_ARG) ? `${BASE_URL_ARG}"[REDACTED]"` : arg;
@@ -256,6 +266,27 @@ export function buildAppServerArgs(
     }
   }
 
+  if (options.ownApiKey) {
+    if (options.apiBaseUrl) {
+      throw new Error(
+        "A Codex session cannot use the PostHog gateway and the owner's API key.",
+      );
+    }
+    // No `http_headers`: the PostHog attribution headers are for the gateway
+    // only and must not reach OpenAI.
+    const provider = `model_providers.${OWN_KEY_PROVIDER_ID}`;
+    args.push("-c", `model_provider="${OWN_KEY_PROVIDER_ID}"`);
+    args.push("-c", `${provider}.name="OpenAI"`);
+    args.push("-c", `${provider}.base_url="${OPENAI_API_BASE_URL}"`);
+    args.push("-c", `${provider}.wire_api="responses"`);
+    args.push("-c", `${provider}.env_key="${OWN_KEY_ENV_VAR}"`);
+    // Codex gives its environment to the shells its tools start. This keeps
+    // the key out of them. A tool process has the same UID as Codex and can
+    // still read the environment of the Codex process from /proc where the
+    // kernel allows it, so this limits exposure and does not remove it.
+    args.push("-c", `shell_environment_policy.exclude=["${OWN_KEY_ENV_VAR}"]`);
+  }
+
   // developer_instructions are set per-thread in thread/start (with the host's
   // task system prompt), not as a spawn-level global default.
 
@@ -296,8 +327,12 @@ export function spawnCodexAppServerProcess(
   delete env.OPENAI_API_KEY;
   delete env.OPENAI_API_BASE;
   delete env.OPENAI_BASE_URL;
+  delete env[OWN_KEY_ENV_VAR];
   if (options.apiKey) {
     env.POSTHOG_GATEWAY_API_KEY = options.apiKey;
+  }
+  if (options.ownApiKey) {
+    env[OWN_KEY_ENV_VAR] = options.ownApiKey;
   }
   if (options.codexHome) {
     if (!options.useMachineAuth) env.CODEX_HOME = options.codexHome;

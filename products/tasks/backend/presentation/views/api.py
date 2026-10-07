@@ -85,6 +85,7 @@ from products.tasks.backend.facade.client_provenance import (
 )
 from products.tasks.backend.facade.compute_quota import ComputeBillingLimitExceeded
 from products.tasks.backend.facade.contracts import TaskAnalysisError, TaskRunLogAppendUnserialized
+from products.tasks.backend.facade.inference import InferenceCredentialMissing, RunInferenceCredential
 from products.tasks.backend.facade.metrics import StreamTokenRoute, observe_stream_token_routed
 from products.tasks.backend.facade.model_catalogue import TASK_RUN_GATEWAY_PRODUCT, available_model_choices
 from products.tasks.backend.facade.run_config import (
@@ -157,6 +158,7 @@ from products.tasks.backend.presentation.serializers import (
     TaskRunCreateRequestSerializer,
     TaskRunDetailSerializer,
     TaskRunErrorResponseSerializer,
+    TaskRunInferenceCredentialResponseSerializer,
     TaskRunLivingArtifactChartRequestSerializer,
     TaskRunLivingArtifactChartResponseSerializer,
     TaskRunLivingArtifactCreateRequestSerializer,
@@ -178,6 +180,7 @@ from products.tasks.backend.presentation.serializers import (
     TaskRunStartRequestSerializer,
     TaskRunSubscriptionTokenRequestSerializer,
     TaskRunSubscriptionTokenResponseSerializer,
+    TaskRunSubscriptionTokenResultSerializer,
     TaskRunUpdateSerializer,
     TaskSearchQuerySerializer,
     TaskSearchResultSerializer,
@@ -2484,17 +2487,24 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.HEADER,
                 required=True,
-                description="Run-scoped Codex subscription token handed to the agent-server at launch",
+                description="Run-scoped credential token handed to the agent-server at launch",
             ),
         ],
         responses={
             200: OpenApiResponse(
-                response=TaskRunSubscriptionTokenResponseSerializer,
-                description="Short-lived ChatGPT access token for this run",
+                response=TaskRunSubscriptionTokenResultSerializer,
+                description="Short-lived ChatGPT access token for this run, or the stored credential the run selected",
             ),
             400: OpenApiResponse(description="Missing required header"),
-            403: OpenApiResponse(description="Caller is not this run's sandbox, or the run token is invalid"),
-            404: OpenApiResponse(description="Task run not found"),
+            403: OpenApiResponse(
+                description="Caller is not this run's sandbox, the run token is invalid, or the run does not "
+                "use the requested credential"
+            ),
+            404: OpenApiResponse(
+                response=TaskRunErrorResponseSerializer,
+                description="Task run not found, or credential_missing: the run owner has no stored credential "
+                "of the requested kind",
+            ),
             409: OpenApiResponse(
                 response=TaskRunErrorResponseSerializer,
                 description="reauth_required: the run owner must reconnect their ChatGPT account",
@@ -2504,10 +2514,12 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
                 description="openai_unavailable: OpenAI did not answer the token refresh",
             ),
         },
-        summary="Issue a ChatGPT access token for a Codex run",
-        description="Give the run's agent-server a short-lived ChatGPT access token from the run owner's connected "
-        "account. Only the run's sandbox may call this, and it must present the run token it received at "
-        "launch. Send the digest of a token Codex rejected so the server refreshes it early, once.",
+        summary="Issue the model credential of a run",
+        description="Give the run's agent-server the credential the run was started with: a short-lived ChatGPT "
+        "access token from the run owner's connected account, or the API key or Claude subscription token the "
+        "run owner stored. Only the run's sandbox may call this, and it must present the run token it received "
+        "at launch. A run on PostHog credits gets no credential. For 'codex', send the digest of a token Codex "
+        "rejected so the server refreshes it early, once.",
     )
     @action(
         detail=True,
@@ -2522,6 +2534,26 @@ class TaskRunViewSet(TeamAndOrgViewSetMixin, viewsets.GenericViewSet):
         run_token = request.headers.get("X-Task-Run-Token")
         if not run_token:
             raise ValidationError({"X-Task-Run-Token": "This header is required."})
+        credential = request.validated_data["credential"]
+        if credential != RunInferenceCredential.CODEX.value:
+            try:
+                credential_grant = tasks_facade.issue_run_inference_credential_grant(
+                    pk, task_id, self.team_id, run_token=run_token, credential=credential
+                )
+            except InferenceCredentialMissing:
+                return Response(
+                    TaskRunErrorResponseSerializer(
+                        {"error": "The run owner has no stored credential of this kind.", "code": "credential_missing"}
+                    ).data,
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if credential_grant is None:
+                raise PermissionDenied("The task run token is invalid")
+            return Response(
+                TaskRunInferenceCredentialResponseSerializer(
+                    {"credential": credential_grant.credential, "secret": credential_grant.secret}
+                ).data
+            )
         try:
             grant = tasks_facade.issue_codex_subscription_access_grant(
                 pk,
