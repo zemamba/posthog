@@ -23,11 +23,6 @@ export const TOKEN_RULES: TokenRule[] = [
     body: URL_SAFE_BODY,
   },
   {
-    label: "openai api key",
-    prefix: "sk-",
-    body: URL_SAFE_BODY,
-  },
-  {
     label: "openai project api key",
     prefix: "sk-proj-",
     body: URL_SAFE_BODY,
