@@ -910,6 +910,9 @@ class TestModalSandboxAgentServer:
                 {"claude_model_access": "own-subscription", "claude_subscription_source": "server"},
                 [" --claudeSubscription", " --claudeSubscriptionSource server"],
             ),
+            ({"claude_model_access": "own-key"}, [" --ownKey anthropic"]),
+            ({"claude_model_access": "own-key", "claude_subscription_source": "server"}, [" --ownKey anthropic"]),
+            ({"codex_model_access": "own-key"}, [" --ownKey openai"]),
             ({"codex_model_access": "own-subscription"}, [" --codexSubscription"]),
             ({"claude_model_access": "posthog-gateway", "claude_subscription_source": "server"}, []),
             ({"claude_model_access": None}, []),
@@ -932,7 +935,7 @@ class TestModalSandboxAgentServer:
 
         command = _agent_server_launch_command(mock_sandbox.execute)
         emitted = re.findall(
-            r" --(?:claudeSubscriptionSource \w+|claudeSubscription|codexSubscription)(?![A-Za-z])", command
+            r" --(?:claudeSubscriptionSource \w+|claudeSubscription|codexSubscription|ownKey \w+)(?![A-Za-z])", command
         )
         assert emitted == expected_flags
 

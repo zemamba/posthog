@@ -501,8 +501,8 @@ def _prepare_launch(ctx: TaskProcessingContext, scopes: PosthogMcpScopes, sandbo
             event_ingest_token = run_token
         if task.runtime == Task.Runtime.PI:
             task_run_session_token = run_token
-    # Minted for every run that pulls a credential from PostHog: a ChatGPT plan or a stored Claude
-    # plan token. The name is from the first of these.
+    # Minted for every run that pulls a credential from PostHog: a ChatGPT plan, the owner's API
+    # key, or a stored Claude plan token. The name is from the first of these.
     codex_run_token: str | None = None
     if ctx.model_access.credential_kind is not None:
         codex_run_token = create_codex_subscription_run_token(task_run, sandbox_id=sandbox_id)
@@ -707,7 +707,7 @@ def _enforce_subscription_support(sandbox: SandboxBase, ctx: TaskProcessingConte
                 f'To use PostHog credits instead, turn off "Use your {plan_name} for cloud tasks".'
             )
         else:
-            message = "This sandbox build cannot use your stored Claude subscription yet. Start a new run."
+            message = "This sandbox build cannot use your own model credentials yet. Start a new run."
         raise ProcessTaskFatalError(
             message,
             {"task_id": ctx.task_id, "run_id": ctx.run_id},

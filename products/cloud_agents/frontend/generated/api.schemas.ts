@@ -66,6 +66,7 @@ export interface CloudAgentModelApi {
 
 /**
  * * `auto` - Auto
+ * * `own_key` - Own Key
  * * `own_subscription` - Own Subscription
  * * `posthog` - PostHog
  */
@@ -73,6 +74,7 @@ export type InferenceModeEnumApi = (typeof InferenceModeEnumApi)[keyof typeof In
 
 export const InferenceModeEnumApi = {
     Auto: 'auto',
+    OwnKey: 'own_key',
     OwnSubscription: 'own_subscription',
     Posthog: 'posthog',
 } as const
@@ -183,9 +185,10 @@ export interface ProfileApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -289,9 +292,10 @@ export interface ProfileCreateApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -382,9 +386,10 @@ export interface PatchedProfileUpdateApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -495,9 +500,10 @@ export interface CloudAgentRunConfigApi {
     model: string | null
     /** Sandbox size of the run. It is fixed for the life of the run. */
     size: CloudAgentSizeApi
-    /** How the run pays for model usage: `posthog` for PostHog inference, `own_subscription` for the subscription of the user.
+    /** How the run pays for model usage: `posthog` for PostHog inference, `own_key` for the API key of the user, `own_subscription` for the subscription of the user.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference: InferenceModeEnumApi
@@ -548,12 +554,14 @@ export const BillingModeEnumApi = {
 
 /**
  * * `posthog` - PostHog
+ * * `own_key` - Own Key
  * * `own_subscription` - Own Subscription
  */
 export type InferenceBillingEnumApi = (typeof InferenceBillingEnumApi)[keyof typeof InferenceBillingEnumApi]
 
 export const InferenceBillingEnumApi = {
     Posthog: 'posthog',
+    OwnKey: 'own_key',
     OwnSubscription: 'own_subscription',
 } as const
 
@@ -565,7 +573,7 @@ export interface CloudAgentRunCostApi {
      */
     compute_usd: string | null
     /**
-     * Model usage cost in US dollars, as a decimal string. Null when the run uses your own subscription, because you pay the model provider directly.
+     * Model usage cost in US dollars, as a decimal string. Null when the run uses your own key or subscription, because you pay the model provider directly.
      * @nullable
      * @pattern ^-?\d{0,10}(?:\.\d{0,4})?$
      */
@@ -596,6 +604,7 @@ export interface CloudAgentRunCostApi {
     /** Who pays for the model usage of the run.
      *
      * * `posthog` - PostHog
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription */
     inference_billing: InferenceBillingEnumApi | null
     /** Whether the cost is final. The cost can still change for a short time after the run stops. */
@@ -777,9 +786,10 @@ export interface CloudAgentRunCreateApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -935,9 +945,10 @@ export interface CloudAgentSettingsApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -1022,9 +1033,10 @@ export interface PatchedCloudAgentSettingsUpdateApi {
      * * `8x32` - 8 vCPU, 32 GiB
      * * `16x64` - 16 vCPU, 64 GiB */
     size?: SizeNameEnumApi | null
-    /** How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.
+    /** How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.
      *
      * * `auto` - Auto
+     * * `own_key` - Own Key
      * * `own_subscription` - Own Subscription
      * * `posthog` - PostHog */
     inference?: InferenceModeEnumApi | null
@@ -1084,7 +1096,7 @@ export interface CloudAgentUsageTotalsApi {
      */
     compute_usd: string
     /**
-     * Model usage cost in US dollars, as a decimal string. Runs on your own subscription add nothing.
+     * Model usage cost in US dollars, as a decimal string. Runs on your own key or subscription add nothing.
      * @pattern ^-?\d{0,10}(?:\.\d{0,4})?$
      */
     inference_usd: string

@@ -24,6 +24,7 @@ from posthog.temporal.oauth import (
 
 from products.mcp_store.backend.facade.api import is_builtin_agent_enforcement_enabled
 from products.tasks.backend.exceptions import OAuthTokenError, TaskInvalidStateError
+from products.tasks.backend.logic.model_access import OWN_MODEL_ACCESS_MODES
 from products.tasks.backend.logic.services.run_actor import (
     get_task_run_credential_user,
     is_slack_interaction_state,
@@ -244,8 +245,9 @@ def create_oauth_access_token(
 
 
 def run_uses_own_subscription(run_state: dict[str, Any] | None) -> bool:
+    """Whether the run uses the owner's plan or API key for model calls, and not PostHog credits."""
     state = run_state or {}
-    return any(state.get(f"{adapter}_model_access") == "own-subscription" for adapter in ("claude", "codex"))
+    return any(state.get(f"{adapter}_model_access") in OWN_MODEL_ACCESS_MODES for adapter in ("claude", "codex"))
 
 
 def create_oauth_access_token_for_run(

@@ -31,12 +31,14 @@ class StopReason(LabeledStrEnum):
 
 class InferenceMode(LabeledStrEnum):
     AUTO = "auto"
+    OWN_KEY = "own_key"
     OWN_SUBSCRIPTION = "own_subscription"
     POSTHOG = "posthog", "PostHog"
 
 
 class InferenceBilling(LabeledStrEnum):
     POSTHOG = "posthog", "PostHog"
+    OWN_KEY = "own_key"
     OWN_SUBSCRIPTION = "own_subscription"
 
 

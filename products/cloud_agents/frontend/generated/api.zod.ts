@@ -70,13 +70,15 @@ export const CloudAgentsProfilesCreateBody = /* @__PURE__ */ zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_subscription', 'posthog'])
-                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()
@@ -190,13 +192,15 @@ export const CloudAgentsProfilesPartialUpdateBody = /* @__PURE__ */ zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_subscription', 'posthog'])
-                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()
@@ -315,13 +319,15 @@ export const CloudAgentsRunsCreateBody = /* @__PURE__ */ zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_subscription', 'posthog'])
-                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()
@@ -449,13 +455,15 @@ export const CloudAgentsSettingsPartialUpdateBody = /* @__PURE__ */ zod
         inference: zod
             .union([
                 zod
-                    .enum(['auto', 'own_subscription', 'posthog'])
-                    .describe('\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'),
+                    .enum(['auto', 'own_key', 'own_subscription', 'posthog'])
+                    .describe(
+                        '\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                    ),
                 zod.null(),
             ])
             .optional()
             .describe(
-                'How the agent pays for model usage. `auto` uses your own subscription when one is connected for the runtime, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
+                'How the agent pays for model usage. `auto` uses your own key or subscription when one is connected, and PostHog inference otherwise. Null uses the product default.\n\n\* `auto` - Auto\n\* `own_key` - Own Key\n\* `own_subscription` - Own Subscription\n\* `posthog` - PostHog'
             ),
         instructions: zod
             .string()

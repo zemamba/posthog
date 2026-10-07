@@ -41,7 +41,7 @@ class TestCatalogAndEstimate(TasksFakeMixin, CloudAgentsFlagMixin, APIBaseTest):
         for size in sizes.values():
             expected = size["vcpu"] * rate_card.vcpu_hour_usd + size["memory_gib"] * rate_card.memory_gib_hour_usd
             assert Decimal(size["price_per_hour_usd"]) == expected
-        assert body["inference_modes"] == ["auto", "own_subscription", "posthog"]
+        assert body["inference_modes"] == ["auto", "own_key", "own_subscription", "posthog"]
         assert body["limits"] == {"max_concurrent_runs": 12, "create_rate_per_hour": 60}
         assert [model["id"] for model in body["models"] if model["is_default"]] != []
         assert all(set(model) == {"id", "name", "runtime_adapter", "is_default"} for model in body["models"])

@@ -12,8 +12,12 @@ from temporalio import activity
 
 from posthog.dataclasses import frozen
 from posthog.models import Team
-from posthog.models.integration.claude_subscription import ClaudeSubscriptionStore, claude_subscription_storage_enabled
 from posthog.models.integration.codex import CodexUserIntegration
+from posthog.models.integration.inference_credentials import (
+    InferenceCredentialKind,
+    InferenceCredentialStore,
+    claude_subscription_storage_enabled,
+)
 from posthog.temporal.common.utils import asyncify, close_db_connections
 
 from products.context_layer.backend.facade import api as context_layer_facade
@@ -56,7 +60,13 @@ from products.tasks.backend.exceptions import (
 )
 from products.tasks.backend.facade.api import ensure_task_run_session
 from products.tasks.backend.feature_flags import is_agent_otel_telemetry_enabled
-from products.tasks.backend.logic.model_access import ModelAccess, ModelAccessMode, resolve_model_access
+from products.tasks.backend.logic.model_access import (
+    ModelAccess,
+    ModelAccessMode,
+    ServerHeldCredentialKind,
+    SubscriptionAdapter,
+    resolve_model_access,
+)
 from products.tasks.backend.logic.services.agent_instructions import agent_instructions_state_update
 from products.tasks.backend.logic.services.agentsh import (
     _get_debug_only_domains,
@@ -566,27 +576,54 @@ def _ensure_subscription_allowed(
         )
 
 
-def _ensure_stored_claude_subscription_present(
-    *, owner_id: int | None, task_runtime: str, team: Team, run_id: str
-) -> None:
-    """Refuse a run that needs a Claude subscription token the server does not hold for the owner.
+_ADAPTER_RUNTIME_NAMES: dict[SubscriptionAdapter, str] = {"claude": "Claude", "codex": "Codex"}
+_SERVER_HELD_CREDENTIAL_NAMES: dict[ServerHeldCredentialKind, str] = {
+    "anthropic_api_key": "Anthropic API key",
+    "openai_api_key": "OpenAI API key",
+    "claude_subscription": "Claude subscription",
+}
+# Codex calls the OpenAI API directly on a run that uses the owner's API key.
+OPENAI_API_KEY_EGRESS_DOMAINS: tuple[str, ...] = ("api.openai.com",)
 
-    The run never falls back to the PostHog gateway: the owner selected their own subscription, so a
+
+def _ensure_own_inference_credential_present(
+    *,
+    model_access: ModelAccess,
+    credential_kind: ServerHeldCredentialKind,
+    task_runtime: str,
+    team: Team,
+    run_id: str,
+) -> None:
+    """Refuse a run that needs a credential the server does not hold for the owner.
+
+    The run never falls back to the PostHog gateway: the owner selected their own credential, so a
     silent switch would spend PostHog credits that they did not agree to.
     """
+    assert model_access.adapter is not None
+    runtime_name = _ADAPTER_RUNTIME_NAMES[model_access.adapter]
+    credential_name = _SERVER_HELD_CREDENTIAL_NAMES[credential_kind]
     if task_runtime != Task.Runtime.ACP:
         raise ProcessTaskFatalError(
-            "Your Claude subscription requires the Claude runtime. Select Claude and try again.",
+            f"Your {credential_name} requires the {runtime_name} runtime. Select {runtime_name} and try again.",
             {"run_id": run_id},
-            cause=ValueError("Stored Claude subscription requested for a non-Claude runtime"),
+            cause=ValueError(f"Own inference credential requested for a non-{runtime_name} runtime"),
             capture=False,
         )
-    owner = team.all_users_with_access().filter(id=owner_id).first() if owner_id is not None else None
-    if owner is None or not claude_subscription_storage_enabled(owner) or not ClaudeSubscriptionStore.has(owner.id):
+    owner = (
+        team.all_users_with_access().filter(id=model_access.owner_id).first()
+        if model_access.owner_id is not None
+        else None
+    )
+    kind = InferenceCredentialKind(credential_kind)
+    # The stored Claude subscription token has its own rollout flag. An API key needs no flag.
+    storage_allowed = kind != InferenceCredentialKind.CLAUDE_SUBSCRIPTION or (
+        owner is not None and claude_subscription_storage_enabled(owner, team.organization_id)
+    )
+    if owner is None or not storage_allowed or not InferenceCredentialStore.has(owner.id, kind):
         raise ProcessTaskFatalError(
-            "Connect your Claude subscription in Cloud agents settings, then start the run again.",
+            f"Add your {credential_name} in Cloud agents settings, then start the run again.",
             {"run_id": run_id},
-            cause=ValueError("Run needs a stored Claude subscription that is not available"),
+            cause=ValueError(f"Run needs a stored {credential_kind} that is not available"),
             capture=False,
         )
 
@@ -1455,9 +1492,14 @@ def get_task_processing_context(input: GetTaskProcessingContextInput) -> TaskPro
         model_access = resolve_model_access(state)
     except ValueError as error:
         raise ProcessTaskFatalError(str(error), {"run_id": run_id}, cause=error, capture=False) from error
-    if model_access.uses_stored_claude_subscription:
-        _ensure_stored_claude_subscription_present(
-            owner_id=model_access.owner_id, task_runtime=task.runtime, team=team, run_id=run_id
+    server_held_credential_kind = model_access.server_held_credential_kind
+    if server_held_credential_kind is not None:
+        _ensure_own_inference_credential_present(
+            model_access=model_access,
+            credential_kind=server_held_credential_kind,
+            task_runtime=task.runtime,
+            team=team,
+            run_id=run_id,
         )
     elif model_access.adapter is not None:
         _ensure_subscription_allowed(
@@ -1510,10 +1552,15 @@ def get_task_processing_context(input: GetTaskProcessingContextInput) -> TaskPro
         f"use_modal_network_allowlist: {use_modal_network_allowlist} for this task run",
     )
 
-    if codex_model_access == "own-subscription" and allowed_domains is not None:
+    own_inference_domains: tuple[str, ...] = ()
+    if codex_model_access == "own-subscription":
+        own_inference_domains = CODEX_SUBSCRIPTION_EGRESS_DOMAINS
+    elif codex_model_access == "own-key":
+        own_inference_domains = OPENAI_API_KEY_EGRESS_DOMAINS
+    if own_inference_domains and allowed_domains is not None:
         allowed_domains = [
             *allowed_domains,
-            *(domain for domain in CODEX_SUBSCRIPTION_EGRESS_DOMAINS if domain not in allowed_domains),
+            *(domain for domain in own_inference_domains if domain not in allowed_domains),
         ]
 
     effective_network_policy: EffectiveNetworkPolicy | None = None

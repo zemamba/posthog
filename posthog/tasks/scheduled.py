@@ -1154,17 +1154,20 @@ def setup_periodic_tasks(sender: Celery, **kwargs: Any) -> None:
         name="cleanup deleted streamlit app zips",
     )
 
-    sender.add_periodic_task(
+    add_periodic_task_with_expiry(
+        sender,
         RECONCILE_RUNS_CRONTAB,
         reconcile_cloud_agent_runs.s(),
         name="reconcile cloud agent runs",
     )
-    sender.add_periodic_task(
+    add_periodic_task_with_expiry(
+        sender,
         STOP_RUNS_OVER_QUOTA_CRONTAB,
         stop_cloud_agent_runs_over_quota.s(),
         name="stop cloud agent runs over quota",
     )
-    sender.add_periodic_task(
+    add_periodic_task_with_expiry(
+        sender,
         DELETE_OLD_WEBHOOK_DELIVERIES_CRONTAB,
         delete_old_webhook_deliveries.s(),
         name="delete old cloud agents webhook deliveries",

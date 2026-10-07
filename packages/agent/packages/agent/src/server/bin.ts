@@ -181,6 +181,12 @@ program
   )
   .addOption(
     new Option(
+      "--ownKey <provider>",
+      "Run on the owner's API key for this provider; the run token arrives on fd 3",
+    ).choices(["anthropic", "openai"]),
+  )
+  .addOption(
+    new Option(
       "--claudeSubscriptionSource <source>",
       "Where the Claude subscription token comes from; 'server' needs the run token on fd 3",
     ).choices(["relay", "server"]),
@@ -244,8 +250,22 @@ program
     ) {
       program.error("--codexSubscription requires the Codex runtime");
     }
+    const ownKey: "anthropic" | "openai" | undefined = options.ownKey;
     const claudeSubscriptionSource: "relay" | "server" =
       options.claudeSubscriptionSource ?? "relay";
+    if (ownKey && (options.claudeSubscription || options.codexSubscription)) {
+      program.error("--ownKey cannot be combined with a subscription option");
+    }
+    if (
+      ownKey &&
+      (env.POSTHOG_AGENT_RUNTIME === "pi" ||
+        (ownKey === "openai") !==
+          (env.POSTHOG_CODE_RUNTIME_ADAPTER === "codex"))
+    ) {
+      program.error(
+        "--ownKey anthropic requires the Claude runtime and --ownKey openai requires the Codex runtime",
+      );
+    }
     if (claudeSubscriptionSource === "server" && !options.claudeSubscription) {
       program.error(
         "--claudeSubscriptionSource server requires --claudeSubscription",
@@ -254,9 +274,11 @@ program
     // Every mode that fetches a credential from PostHog needs the run token.
     const runTokenFlag = options.codexSubscription
       ? "--codexSubscription"
-      : claudeSubscriptionSource === "server"
-        ? "--claudeSubscriptionSource server"
-        : undefined;
+      : ownKey
+        ? "--ownKey"
+        : claudeSubscriptionSource === "server"
+          ? "--claudeSubscriptionSource server"
+          : undefined;
     const codexRunToken = runTokenFlag
       ? readCodexRunToken(runTokenFlag)
       : undefined;
@@ -359,12 +381,18 @@ program
       ),
       runtimeAdapter: env.POSTHOG_CODE_RUNTIME_ADAPTER,
       model: env.POSTHOG_CODE_MODEL,
-      claudeModelAccess: options.claudeSubscription
-        ? "own-subscription"
-        : "posthog-gateway",
-      codexModelAccess: options.codexSubscription
-        ? "own-subscription"
-        : "posthog-gateway",
+      claudeModelAccess:
+        ownKey === "anthropic"
+          ? "own-key"
+          : options.claudeSubscription
+            ? "own-subscription"
+            : "posthog-gateway",
+      codexModelAccess:
+        ownKey === "openai"
+          ? "own-key"
+          : options.codexSubscription
+            ? "own-subscription"
+            : "posthog-gateway",
       claudeSubscriptionSource,
       codexRunToken,
       reasoningEffort: env.POSTHOG_CODE_REASONING_EFFORT,

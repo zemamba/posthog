@@ -48,16 +48,6 @@ from posthog.api.integration import (
     validate_github_repository_name,
 )
 from posthog.api.mixins import ValidatedRequest, validated_request
-from posthog.api.user_integration_claude_subscription import (
-    UserClaudeSubscriptionConnectRequestSerializer,
-    UserClaudeSubscriptionSerializer,
-    connect_claude_subscription,
-    disconnect_claude_subscription,
-    ensure_claude_subscription_connect_enabled,
-    ensure_not_sandbox_claude_subscription_request,
-    get_claude_subscription,
-    get_own_user,
-)
 from posthog.api.user_integration_codex import (
     UserCodexConnectRequestSerializer,
     UserCodexIntegrationSerializer,
@@ -67,17 +57,29 @@ from posthog.api.user_integration_codex import (
     ensure_not_sandbox_request,
     get_codex_integration,
 )
+from posthog.api.user_integration_inference import (
+    INFERENCE_CREDENTIAL_KIND_URL_PATTERN,
+    UserInferenceCredentialConnectRequestSerializer,
+    UserInferenceCredentialListResponseSerializer,
+    UserInferenceCredentialSerializer,
+    connect_inference_credential,
+    disconnect_inference_credential,
+    ensure_not_sandbox_inference_request,
+    get_own_user,
+    list_inference_credentials,
+)
 from posthog.auth import OAuthAccessTokenAuthentication, PersonalAPIKeyAuthentication, SessionAuthentication
 from posthog.egress.github.transport import GitHubRateLimitError
 from posthog.exceptions_capture import capture_exception
 from posthog.models.integration import GITHUB_REPOSITORY_REFRESH_COOLDOWN_SECONDS, GitHubIntegrationError, Integration
 from posthog.models.integration.github_audit import GitHubAudit
+from posthog.models.integration.inference_credentials import InferenceCredentialKind
 from posthog.models.user import User
 from posthog.models.user_integration import GitHubInstallRequest, UserGitHubIntegration, UserIntegration
 from posthog.permissions import APIScopePermission, TimeSensitiveActionPermission
 from posthog.rate_limit import (
-    ClaudeSubscriptionConnectUserThrottle,
     CodexConnectUserThrottle,
+    InferenceCredentialConnectUserThrottle,
     UserAuthenticationThrottle,
 )
 from posthog.user_permissions import UserPermissions
@@ -314,7 +316,7 @@ class UserIntegrationViewSet(viewsets.GenericViewSet):
         "github_install_requests",
         "slack_linkable",
         "codex",
-        "claude_subscription",
+        "inference_credentials",
     ]
     scope_object_write_actions = [
         "create",
@@ -331,8 +333,8 @@ class UserIntegrationViewSet(viewsets.GenericViewSet):
         "slack_destroy",
         "codex_connect",
         "codex_destroy",
-        "claude_subscription_connect",
-        "claude_subscription_destroy",
+        "inference_credentials_connect",
+        "inference_credentials_destroy",
     ]
 
     authentication_classes = [OAuthAccessTokenAuthentication, PersonalAPIKeyAuthentication, SessionAuthentication]
@@ -346,8 +348,8 @@ class UserIntegrationViewSet(viewsets.GenericViewSet):
         throttles = super().get_throttles()
         if self.action == "codex_connect":
             throttles.append(CodexConnectUserThrottle())
-        if self.action == "claude_subscription_connect":
-            throttles.append(ClaudeSubscriptionConnectUserThrottle())
+        if self.action == "inference_credentials_connect":
+            throttles.append(InferenceCredentialConnectUserThrottle())
         return throttles
 
     def handle_exception(self, exc: Exception) -> Response:
@@ -920,54 +922,78 @@ class UserIntegrationViewSet(viewsets.GenericViewSet):
         return disconnect_codex_integration(user)
 
     @extend_schema(
-        summary="Show the Claude subscription stored for cloud agent runs",
-        description="Shows the last 4 characters of the stored token. No response carries the token.",
+        summary="List the user's stored inference credentials",
+        description=(
+            "The Anthropic API key, OpenAI API key and Claude subscription token the user stored for cloud agent "
+            "runs. Each item shows the last 4 characters of the secret. No response carries a secret."
+        ),
         responses={
-            200: UserClaudeSubscriptionSerializer,
-            403: OpenApiResponse(description="A cloud agent sandbox token cannot read the stored subscription."),
+            200: UserInferenceCredentialListResponseSerializer,
+            403: OpenApiResponse(description="A cloud agent sandbox token cannot read inference credentials."),
         },
     )
-    @action(methods=["GET"], detail=False, url_path="claude_subscription")
-    def claude_subscription(self, request: Request, **_kwargs) -> Response:
-        ensure_not_sandbox_claude_subscription_request(request)
+    @action(methods=["GET"], detail=False, url_path="inference_credentials", pagination_class=None)
+    def inference_credentials(self, request: Request, **_kwargs) -> Response:
+        ensure_not_sandbox_inference_request(request)
         user = get_own_user(request, self.kwargs.get("parent_lookup_uuid"))
-        return get_claude_subscription(user)
+        return list_inference_credentials(user)
 
     @validated_request(
-        request_serializer=UserClaudeSubscriptionConnectRequestSerializer,
+        request_serializer=UserInferenceCredentialConnectRequestSerializer,
         responses={
-            200: OpenApiResponse(response=UserClaudeSubscriptionSerializer, description="The token is stored."),
-            400: OpenApiResponse(description="The token does not have the format of a Claude subscription token."),
-            403: OpenApiResponse(description="A cloud agent sandbox token cannot store a subscription."),
-            404: OpenApiResponse(description="Claude subscriptions for cloud agents are not available to this user."),
+            201: OpenApiResponse(response=UserInferenceCredentialSerializer, description="The credential is stored."),
+            400: OpenApiResponse(
+                description="The secret has the wrong format for its kind, or the provider did not accept the key."
+            ),
+            403: OpenApiResponse(
+                description=(
+                    "A cloud agent sandbox token cannot store a credential, or Claude subscription storage is not "
+                    "available for the user's organization."
+                )
+            ),
+            502: OpenApiResponse(description="The provider could not be reached, so the key was not stored."),
         },
-        summary="Store a Claude subscription for cloud agent runs",
+        summary="Store an inference credential",
         description=(
-            "Submit the token that `claude setup-token` prints on the user's machine. PostHog stores it encrypted "
-            "and uses it for the user's cloud agent runs on the Claude runtime. It replaces any stored token. Only "
-            "the owning user can connect. No response carries the token."
+            "Store the user's own Anthropic API key, OpenAI API key or Claude subscription token for cloud agent "
+            "runs. PostHog checks an API key with the provider before it stores the key. The secret is stored "
+            "encrypted and replaces any stored credential of the same kind. No response carries a secret."
         ),
     )
-    @claude_subscription.mapping.post
-    def claude_subscription_connect(self, request: ValidatedRequest, **_kwargs) -> Response:
-        ensure_not_sandbox_claude_subscription_request(request)
+    @inference_credentials.mapping.post
+    def inference_credentials_connect(self, request: ValidatedRequest, **_kwargs) -> Response:
+        ensure_not_sandbox_inference_request(request)
         user = get_own_user(request, self.kwargs.get("parent_lookup_uuid"))
-        ensure_claude_subscription_connect_enabled(user)
-        return connect_claude_subscription(user, request.validated_data["token"])
+        return connect_inference_credential(
+            user, InferenceCredentialKind(request.validated_data["kind"]), request.validated_data["secret"]
+        )
 
     @extend_schema(
-        summary="Delete the Claude subscription stored for cloud agent runs",
-        description="Deletes the stored token. Idempotent.",
+        summary="Delete a stored inference credential",
+        description="Deletes the stored credential of the given kind. Idempotent.",
+        parameters=[
+            OpenApiParameter(
+                name="kind",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+                enum=InferenceCredentialKind.values,
+                description="The kind of the credential to delete.",
+            ),
+        ],
         responses={
-            204: OpenApiResponse(description="No token is stored any more."),
-            403: OpenApiResponse(description="A cloud agent sandbox token cannot delete the stored subscription."),
+            204: OpenApiResponse(description="No credential of this kind is stored any more."),
+            403: OpenApiResponse(description="A cloud agent sandbox token cannot delete a credential."),
         },
     )
-    @claude_subscription.mapping.delete
-    def claude_subscription_destroy(self, request: Request, **_kwargs) -> Response:
-        ensure_not_sandbox_claude_subscription_request(request)
+    @action(
+        methods=["DELETE"],
+        detail=False,
+        url_path=rf"inference_credentials/(?P<kind>{INFERENCE_CREDENTIAL_KIND_URL_PATTERN})",
+    )
+    def inference_credentials_destroy(self, request: Request, kind: str, **_kwargs) -> Response:
+        ensure_not_sandbox_inference_request(request)
         user = get_own_user(request, self.kwargs.get("parent_lookup_uuid"))
-        return disconnect_claude_subscription(user)
+        return disconnect_inference_credential(user, InferenceCredentialKind(kind))
 
 
 def _resolve_team_for_github_start(user: User, request: Request):

@@ -91,8 +91,8 @@ class RunDefaultsSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text=(
-            "How the agent pays for model usage. `auto` uses your own subscription when one is connected "
-            "for the runtime, and PostHog inference otherwise. Null uses the product default."
+            "How the agent pays for model usage. `auto` uses your own key or subscription when one is "
+            "connected, and PostHog inference otherwise. Null uses the product default."
         ),
     )
     instructions = serializers.CharField(
@@ -137,6 +137,16 @@ class RunDefaultsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Cost limit of a run in US dollars. Reserved. Not enforced yet. Null sets no cost limit.",
     )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        errors = {
+            field: "This option is reserved and cannot be set until it is enforced."
+            for field in ("pr_mode", "max_duration_minutes", "max_cost_usd")
+            if attrs.get(field) is not None
+        }
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
 
 
 class ProfileWriteFieldsSerializer(RunDefaultsSerializer):
@@ -353,11 +363,10 @@ class CloudAgentRunMessageSerializer(serializers.Serializer):
 class CloudAgentRunListQuerySerializer(serializers.Serializer):
     status = LabeledEnumField(CloudAgentRunStatus, required=False, help_text="Return only the runs with this status.")
     profile_id = serializers.UUIDField(required=False, help_text="Return only the runs that used this profile.")
-    repository = serializers.RegexField(
-        REPOSITORY_REGEX,
+    repository = serializers.CharField(
         max_length=255,
         required=False,
-        help_text="Return only the runs in this repository, in the format `owner/name`.",
+        help_text="Return runs whose repository contains this text.",
     )
     tag = serializers.CharField(max_length=50, required=False, help_text="Return only the runs that have this tag.")
     created_after = serializers.DateTimeField(
@@ -394,8 +403,8 @@ class CloudAgentRunConfigSerializer(serializers.Serializer):
         InferenceMode,
         source="config.inference",
         help_text=(
-            "How the run pays for model usage: `posthog` for PostHog inference, `own_subscription` for the "
-            "subscription of the user."
+            "How the run pays for model usage: `posthog` for PostHog inference, `own_key` for the API key "
+            "of the user, `own_subscription` for the subscription of the user."
         ),
     )
     create_pr = serializers.BooleanField(
@@ -447,8 +456,8 @@ class CloudAgentRunCostSerializer(serializers.Serializer):
         allow_null=True,
     )
     inference_usd = _usd_field(
-        "Model usage cost in US dollars, as a decimal string. Null when the run uses your own subscription, "
-        "because you pay the model provider directly.",
+        "Model usage cost in US dollars, as a decimal string. Null when the run uses your own key or "
+        "subscription, because you pay the model provider directly.",
         allow_null=True,
     )
     total_usd = _usd_field(
@@ -663,7 +672,7 @@ class CloudAgentUsageTotalsSerializer(serializers.Serializer):
     runs = serializers.IntegerField(help_text="Number of runs.")
     compute_usd = _usd_field("Compute cost in US dollars, as a decimal string.")
     inference_usd = _usd_field(
-        "Model usage cost in US dollars, as a decimal string. Runs on your own subscription add nothing."
+        "Model usage cost in US dollars, as a decimal string. Runs on your own key or subscription add nothing."
     )
     total_usd = _usd_field("Sum of the compute cost and the model usage cost, as a decimal string.")
     vcpu_seconds = _seconds_field("vCPU seconds used.")

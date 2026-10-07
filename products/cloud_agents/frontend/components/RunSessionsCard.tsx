@@ -33,7 +33,7 @@ export function RunSessionsCard({ sessions }: { sessions: CloudAgentAgentSession
                         return (
                             <li key={session.index} className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-medium">Session {session.index + 1}</span>
+                                    <span className="font-medium">Session {session.index}</span>
                                     <RunStatusTag status={session.status} />
                                 </div>
                                 <div className="text-secondary text-xs">

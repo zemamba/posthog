@@ -425,7 +425,7 @@ class AgentServerLaunchMixin(SandboxBase):
 
     def _stage_codex_run_token(self, codex_run_token: str) -> None:
         # The name is from the first user of this token. Every run that pulls a credential from
-        # PostHog gets one: a ChatGPT plan or a stored Claude plan token.
+        # PostHog gets one: a ChatGPT plan, the owner's API key, or a stored Claude plan token.
         self._write_required_file(CODEX_RUN_TOKEN_FILE, codex_run_token.encode())
         # Best effort: a child process must not read the token out of the agent-server's memory.
         # agentsh still traces its own descendants under scope 1. Kernels without Yama ignore this,

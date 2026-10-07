@@ -18,7 +18,9 @@ export function RunTimelineRow({ row }: { row: TimelineRow }): JSX.Element {
                     }
                     translate="no"
                 >
-                    <LemonMarkdown lowKeyHeadings>{row.body ?? ''}</LemonMarkdown>
+                    <LemonMarkdown lowKeyHeadings disableImages="all">
+                        {row.body ?? ''}
+                    </LemonMarkdown>
                 </div>
             </div>
         )

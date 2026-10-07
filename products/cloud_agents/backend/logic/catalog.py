@@ -5,6 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Final
 
+from posthog.models import Team
+from posthog.models.integration.inference_credentials import CLAUDE_SUBSCRIPTION_STORAGE_FEATURE_FLAG
+from posthog.permissions import posthog_feature_flag_enabled
+
 from products.tasks.backend.facade.model_catalogue import offered_model_choices
 from products.tasks.backend.facade.pricing import estimate_cloud_agents_compute_usd, get_cloud_agents_rate_card
 from products.tasks.backend.facade.run_config import RuntimeAdapter, get_default_model_for_runtime_adapter
@@ -20,6 +24,16 @@ _USD_PLACES: Final = Decimal("0.0001")
 def get_catalog(team_id: int) -> CatalogDTO:
     rate_card = get_cloud_agents_rate_card()
     default_model = get_default_model_for_runtime_adapter(RuntimeAdapter.CLAUDE.value)
+    team = Team.objects.select_related("organization").get(id=team_id)
+    subscription_storage_enabled = posthog_feature_flag_enabled(
+        CLAUDE_SUBSCRIPTION_STORAGE_FEATURE_FLAG,
+        team.api_token,
+        organization_id=team.organization_id,
+        team_id=team.id,
+    )
+    inference_modes = [
+        mode for mode in InferenceMode if mode != InferenceMode.OWN_SUBSCRIPTION or subscription_storage_enabled
+    ]
     return CatalogDTO(
         sizes=[size_spec(size) for size in SizeName],
         models=[
@@ -31,7 +45,7 @@ def get_catalog(team_id: int) -> CatalogDTO:
             )
             for choice in offered_model_choices()
         ],
-        inference_modes=list(InferenceMode),
+        inference_modes=inference_modes,
         rates=RateCardDTO(
             vcpu_hour_usd=rate_card.vcpu_hour_usd,
             memory_gib_hour_usd=rate_card.memory_gib_hour_usd,

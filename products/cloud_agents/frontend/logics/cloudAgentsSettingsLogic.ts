@@ -175,9 +175,9 @@ export const cloudAgentsSettingsLogic = kea<cloudAgentsSettingsLogicType>([
             },
         },
     })),
-    listeners(({ actions }) => ({
+    listeners(({ actions, values }) => ({
         loadSettingsSuccess: ({ settings }) => {
-            if (settings) {
+            if (settings && !values.teamDefaultsChanged) {
                 actions.resetTeamDefaults(toForm(settings))
             }
         },

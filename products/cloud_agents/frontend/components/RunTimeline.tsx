@@ -23,11 +23,7 @@ export function RunTimeline(): JSX.Element {
         <LemonCard hoverEffect={false} className="flex flex-col gap-3 p-4" data-attr="cloud-agents-run-timeline">
             <div className="flex items-center justify-between gap-2">
                 <h3 className="m-0 text-base font-semibold">Timeline</h3>
-                {isActive && (
-                    <span className="text-secondary flex items-center gap-1 text-xs">
-                        <Spinner /> Updates every few seconds
-                    </span>
-                )}
+                {isActive && <span className="text-secondary text-xs">Updates every few seconds</span>}
             </div>
             {runEvents === null && runEventsLoadFailed ? (
                 <LoadErrorBanner what="the timeline" onRetry={loadRunEvents} retrying={runEventsLoading} />
@@ -35,12 +31,6 @@ export function RunTimeline(): JSX.Element {
                 <div className="text-secondary flex items-center gap-2">
                     <Spinner /> Loading the timeline
                 </div>
-            ) : visibleTimelineRows.length === 0 ? (
-                <p className="m-0 text-secondary">
-                    {isActive
-                        ? 'No events yet. They show here when the agent starts work.'
-                        : 'This run has no stored events.'}
-                </p>
             ) : (
                 <>
                     {eventsTruncated && (
@@ -48,7 +38,13 @@ export function RunTimeline(): JSX.Element {
                             This run has more events than this page can load, so the latest ones are missing.
                         </LemonBanner>
                     )}
-                    {hiddenTimelineRowCount > 0 && (
+                    {visibleTimelineRows.length === 0 ? (
+                        <p className="m-0 text-secondary">
+                            {isActive
+                                ? 'No events yet. They show here when the agent starts work.'
+                                : 'This run has no stored events.'}
+                        </p>
+                    ) : hiddenTimelineRowCount > 0 ? (
                         <LemonButton
                             type="secondary"
                             size="small"
@@ -58,12 +54,14 @@ export function RunTimeline(): JSX.Element {
                         >
                             Show earlier ({hiddenTimelineRowCount} more)
                         </LemonButton>
+                    ) : null}
+                    {visibleTimelineRows.length > 0 && (
+                        <div className="flex flex-col gap-3">
+                            {visibleTimelineRows.map((row) => (
+                                <RunTimelineRow key={row.key} row={row} />
+                            ))}
+                        </div>
                     )}
-                    <div className="flex flex-col gap-3">
-                        {visibleTimelineRows.map((row) => (
-                            <RunTimelineRow key={row.key} row={row} />
-                        ))}
-                    </div>
                 </>
             )}
         </LemonCard>

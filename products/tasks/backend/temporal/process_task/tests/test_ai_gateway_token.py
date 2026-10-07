@@ -727,10 +727,10 @@ class TestProvisioningBoundaries:
             else:
                 assert utils.run_gateway_env_vars(ctx, task) == ({} if isinstance(env, Exception) else env)
 
-    def test_billed_cloud_agents_run_on_its_own_subscription_needs_no_token(self, mint_settings):
+    def test_billed_cloud_agents_run_on_its_own_credential_needs_no_token(self, mint_settings):
         ctx = self._ctx()
         ctx.origin_product = "cloud_agents"
-        ctx.claude_model_access = "own-subscription"
+        ctx.claude_model_access = "own-key"
         task = self._task()
         task.client_provenance = "cloud_agents"
         with patch.object(utils, "record_gateway_routing"):
@@ -762,14 +762,15 @@ class TestProvisioningBoundaries:
         assert env.call_args.kwargs["prior_slack_run"] is True
 
     @pytest.mark.django_db
+    @pytest.mark.parametrize("access", ["own-subscription", "own-key"])
     @pytest.mark.parametrize("access_field", ["claude_model_access", "codex_model_access"])
-    def test_subscription_run_does_not_mint_gateway_credentials(
-        self, mint_settings: Settings, test_task_run: TaskRun, access_field: str
+    def test_own_inference_run_does_not_mint_gateway_credentials(
+        self, mint_settings: Settings, test_task_run: TaskRun, access_field: str, access: str
     ) -> None:
         ctx = self._ctx()
         ctx.run_id = str(test_task_run.id)
         ctx.team_id = test_task_run.team_id
-        setattr(ctx, access_field, "own-subscription")
+        setattr(ctx, access_field, access)
         with patch.object(utils, "mint_scoped_token") as mint:
             assert utils.run_gateway_env_vars(ctx, self._task()) == {}
         mint.assert_not_called()

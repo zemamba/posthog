@@ -38,7 +38,12 @@ from products.tasks.backend.constants import (
 from products.tasks.backend.exceptions import BilledInferenceUnavailableError, CredentialUnavailableError
 from products.tasks.backend.facade.gateway import mint_private_gateway_token, revoke_private_gateway_token
 from products.tasks.backend.feature_flags import is_mcp_exec_skills_enabled
-from products.tasks.backend.logic.model_access import ModelAccess, ModelAccessMode, resolve_model_access
+from products.tasks.backend.logic.model_access import (
+    OWN_MODEL_ACCESS_MODES,
+    ModelAccess,
+    ModelAccessMode,
+    resolve_model_access,
+)
 from products.tasks.backend.logic.services.gateway_model_pin import (
     FREE_TIER_PIN_KEY,
     GATEWAY_PRODUCT_STATE_KEY,
@@ -1366,6 +1371,10 @@ def get_sandbox_otel_env_vars() -> dict[str, str]:
     return env_vars
 
 
+def _uses_own_inference(ctx: TaskProcessingContext) -> bool:
+    return not OWN_MODEL_ACCESS_MODES.isdisjoint((ctx.claude_model_access, ctx.codex_model_access))
+
+
 def _is_billed_cloud_agents_run(ctx: TaskProcessingContext, task: Task) -> bool:
     # Every Cloud Agents task has this origin. Only the billed ones carry the provenance stamp.
     return ctx.origin_product == CLOUD_AGENTS_ORIGIN and task.client_provenance == CLOUD_AGENTS_ORIGIN
@@ -1381,7 +1390,7 @@ def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, st
     """
     if task.is_scout_experiment is True:
         ensure_scout_trial_capture_ready()
-        if "own-subscription" in (ctx.claude_model_access, ctx.codex_model_access):
+        if _uses_own_inference(ctx):
             raise GatewayNotConfiguredError("Scout trials require the AI gateway instead of subscription credentials")
         if ctx.task_runtime == "pi":
             raise GatewayNotConfiguredError("Scout trials require a runtime that supports the AI gateway")
@@ -1403,7 +1412,9 @@ def run_gateway_env_vars(ctx: TaskProcessingContext, task: Task) -> dict[str, st
             "AI_GATEWAY_PRODUCT": "signals_scout",
             "AI_GATEWAY_AI_STAGE": (ctx.state or {}).get("ai_stage") or "scout",
         }
-    if "own-subscription" in (ctx.claude_model_access, ctx.codex_model_access):
+    # A run on the owner's plan or API key gets no gateway URL and no gateway token, so that
+    # nothing in its sandbox can spend PostHog credits.
+    if _uses_own_inference(ctx):
         record_gateway_routing(run_id=ctx.run_id, team_id=ctx.team_id, uses_gateway=False)
         return {}
     routing_error: Exception | None = None

@@ -49,6 +49,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("auto", "Auto"),
+                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                             ("posthog", "PostHog"),
                         ],
@@ -188,6 +189,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("posthog", "PostHog"),
+                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                         ],
                         max_length=32,
@@ -361,6 +363,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("auto", "Auto"),
+                            ("own_key", "Own Key"),
                             ("own_subscription", "Own Subscription"),
                             ("posthog", "PostHog"),
                         ],
@@ -429,6 +432,22 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name="cloudagentrun",
             index=models.Index(fields=["team", "status"], name="cloud_agents_run_team_status"),
+        ),
+        migrations.AddIndex(
+            model_name="cloudagentrun",
+            index=models.Index(
+                condition=models.Q(("status__in", ["queued", "running"])),
+                fields=["last_synced_at"],
+                name="cloud_agents_run_active_sync",
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="cloudagentrun",
+            index=models.Index(
+                condition=models.Q(("cost_final", False)),
+                fields=["completed_at"],
+                name="cloud_agents_run_cost_pending",
+            ),
         ),
         migrations.AddConstraint(
             model_name="cloudagentrun",

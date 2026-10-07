@@ -562,7 +562,11 @@ class Organization(ModelActivityMixin, UUIDTModel):
     def _project_llm_gateway_quota_if_ai(self, resource: "QuotaResource") -> None:
         from ee.billing.quota_limiting import QuotaResource, _project_llm_gateway_quota_for_org
 
-        if resource in (QuotaResource.AI_CREDITS, QuotaResource.POSTHOG_CODE_CREDITS):
+        if resource in (
+            QuotaResource.AI_CREDITS,
+            QuotaResource.POSTHOG_CODE_CREDITS,
+            QuotaResource.CLOUD_AGENTS_CREDITS,
+        ):
             _project_llm_gateway_quota_for_org(self)
 
     def get_limited_products(self) -> dict[str, dict[str, Any]]:

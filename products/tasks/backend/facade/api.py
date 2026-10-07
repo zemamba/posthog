@@ -104,7 +104,13 @@ from products.tasks.backend.feature_flags import (
 from products.tasks.backend.github_repository_access import (
     inaccessible_repositories_via_integration as _inaccessible_repositories_via_integration,
 )
-from products.tasks.backend.logic.model_access import INFERENCE_STATE_KEYS, InvalidModelAccess, resolve_model_access
+from products.tasks.backend.logic.model_access import (
+    INFERENCE_STATE_KEYS,
+    OWN_MODEL_ACCESS_MODES,
+    InvalidModelAccess,
+    ServerHeldCredentialKind,
+    resolve_model_access,
+)
 from products.tasks.backend.logic.services.gateway_model_pin import GATEWAY_PRODUCT_STATE_KEY, pinned_run_allows_model
 from products.tasks.backend.logic.services.gateway_usage import refresh_task_run_cost
 from products.tasks.backend.logic.services.image_builder import (
@@ -113,8 +119,8 @@ from products.tasks.backend.logic.services.image_builder import (
     read_spec_from_builder_sandbox,
 )
 from products.tasks.backend.logic.services.inference_resolution import (
-    ClaudeSubscriptionGrant,
-    issue_run_claude_subscription,
+    InferenceCredentialGrant,
+    issue_run_inference_credential,
 )
 from products.tasks.backend.logic.services.network_policy import (
     MAX_SANDBOX_ALLOWED_DOMAINS,
@@ -3875,14 +3881,14 @@ def _delete_task_session_object(task_session_id: UUID, object_storage_key: str) 
 
 
 def ensure_subscription_owner(state: dict[str, Any] | None, actor_user_id: int | None) -> None:
-    """Refuse anyone but the owner of the plan a run bills to. A run on PostHog credits allows everyone."""
+    """Refuse anyone but the owner of the plan or API key a run bills to. A run on PostHog credits allows everyone."""
     run_state = state or {}
     for adapter, plan_name in SUBSCRIPTION_PLAN_NAMES.items():
-        if (
-            run_state.get(f"{adapter}_model_access") == "own-subscription"
-            and run_state.get(f"{adapter}_subscription_user_id") != actor_user_id
-        ):
-            raise PermissionDenied(f"Only the user who started this run can use its {plan_name}.")
+        access = run_state.get(f"{adapter}_model_access")
+        if access not in OWN_MODEL_ACCESS_MODES or run_state.get(f"{adapter}_subscription_user_id") == actor_user_id:
+            continue
+        credential_name = "API key" if access == "own-key" else plan_name
+        raise PermissionDenied(f"Only the user who started this run can use its {credential_name}.")
 
 
 def validate_task_run_sandbox_token(
@@ -3947,23 +3953,24 @@ def issue_codex_subscription_access_grant(
     return grant
 
 
-def issue_run_claude_subscription_grant(
+def issue_run_inference_credential_grant(
     run_id: str | UUID,
     task_id: str | UUID,
     team_id: int,
     *,
     run_token: str,
-) -> ClaudeSubscriptionGrant | None:
-    """The run owner's stored Claude plan token, for a run that selected it.
+    credential: ServerHeldCredentialKind,
+) -> InferenceCredentialGrant | None:
+    """The run owner's stored API key or Claude plan token, for a run that selected it.
 
     None when the run token does not authorize this run, or when the run state does not select
-    the stored token: a run on PostHog credits and a run on another credential get nothing.
-    Raises ``ClaudeSubscriptionMissing`` when the run selected it and the owner has no usable one.
+    ``credential``: a run on PostHog credits and a run on another credential get nothing. Raises
+    ``InferenceCredentialMissing`` when the run selected it and the owner has no usable one.
     """
     state = _run_state_for_credential_run_token(run_id, task_id, team_id, run_token=run_token)
     if state is None:
         return None
-    return issue_run_claude_subscription(state, team_id=team_id)
+    return issue_run_inference_credential(state, team_id=team_id, credential=credential)
 
 
 def _run_state_for_credential_run_token(
@@ -3983,8 +3990,8 @@ def _run_state_for_credential_run_token(
         return None
     if claims.run_id != str(run_id) or claims.task_id != str(task_id) or claims.team_id != team_id:
         return None
-    run = TaskRun.objects.filter(id=run_id, task_id=task_id, team_id=team_id).only("id", "state").first()
-    if run is None:
+    run = TaskRun.objects.filter(id=run_id, task_id=task_id, team_id=team_id).only("id", "state", "status").first()
+    if run is None or run.status in _TERMINAL_TASK_RUN_STATUSES:
         return None
     state = run.state or {}
     if state.get("sandbox_id") != claims.sandbox_id:
@@ -8726,7 +8733,7 @@ def warm_task_resume_sandbox(
         return None
 
     previous_state = parse_run_state(previous_run.state)
-    if previous_state.run_source == RunSource.AGENT or previous_state.model_access.kind == "own-subscription":
+    if previous_state.run_source == RunSource.AGENT or previous_state.model_access.kind != "posthog-gateway":
         return None
     resolved_runtime_adapter = runtime_adapter or previous_state.runtime_adapter
     resolved_model = model or previous_state.model
@@ -9032,12 +9039,12 @@ def _run_resolved_task(
     codex_model_access = model_access.access_for("codex") if "codex_model_access" in access_state else None
 
     # A scheduled run starts with no client attached. The relayed Claude token needs a client to
-    # answer the credential request, and the ChatGPT plan keeps its refusal. A Claude token that
-    # the server stores for the owner needs no client.
+    # answer the credential request, and the ChatGPT plan keeps its refusal. A credential that the
+    # server stores for the owner needs neither.
     if (
         scheduled_at is not None
         and model_access.kind == "own-subscription"
-        and not model_access.uses_stored_claude_subscription
+        and model_access.server_held_credential_kind is None
     ):
         return contracts.TaskRunResult(
             error=contracts.TaskValidationError(
@@ -9057,7 +9064,8 @@ def _run_resolved_task(
         else _idling_warm_run_for_task(task)
     )
     # A warm sandbox was started before the plan choice, so it holds no run-scoped subscription token.
-    if warm_run is not None and model_access.kind == "own-subscription":
+    # It also holds gateway credentials, which a run on the owner's plan or API key must not have.
+    if warm_run is not None and model_access.kind != "posthog-gateway":
         warm_run = None
     if warm_run is not None:
         _warm_retry_message_id(warm_retry_token, warm_run)

@@ -1678,7 +1678,11 @@ def update_all_orgs_billing_quotas(
         # Re-project every team limited before or after this run: the blob TTL is the limit's end,
         # which can move for a team that stays limited.
         changed_ai_tokens: set[str] = set()
-        for resource in (QuotaResource.AI_CREDITS, QuotaResource.POSTHOG_CODE_CREDITS):
+        for resource in (
+            QuotaResource.AI_CREDITS,
+            QuotaResource.POSTHOG_CODE_CREDITS,
+            QuotaResource.CLOUD_AGENTS_CREDITS,
+        ):
             changed_ai_tokens |= set(previously_quota_limited_team_tokens[resource.value]) | set(
                 quota_limited_teams[resource.value]
             )

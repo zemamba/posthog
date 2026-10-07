@@ -1553,21 +1553,6 @@ export const UsersHedgehogConfigPartialUpdateBody = /* @__PURE__ */ zod.object({
 })
 
 /**
- * Submit the token that `claude setup-token` prints on the user's machine. PostHog stores it encrypted and uses it for the user's cloud agent runs on the Claude runtime. It replaces any stored token. Only the owning user can connect. No response carries the token.
- * @summary Store a Claude subscription for cloud agent runs
- */
-export const usersIntegrationsClaudeSubscriptionCreateBodyTokenMax = 1024
-
-export const UsersIntegrationsClaudeSubscriptionCreateBody = /* @__PURE__ */ zod.object({
-    token: zod
-        .string()
-        .max(usersIntegrationsClaudeSubscriptionCreateBodyTokenMax)
-        .describe(
-            'The token that `claude setup-token` prints. It starts with `sk-ant-oat`. PostHog stores it encrypted, and no response returns it. A new token replaces the stored one.'
-        ),
-})
-
-/**
  * Submit the `tokens` object of the `auth.json` that `codex login` wrote on the user's machine. PostHog refreshes the chain once to prove it works, stores the rotated tokens encrypted, and from then on refreshes them for the user's Codex cloud runs. Only the owning user can connect. No response carries a token.
  * @summary Connect a ChatGPT account for Codex cloud tasks
  */
@@ -1628,6 +1613,29 @@ export const UsersIntegrationsGithubStartCreateBody = /* @__PURE__ */ zod.object
         .string()
         .optional()
         .describe('Optional client hint (e.g. posthog_code) for return routing after OAuth.'),
+})
+
+/**
+ * Store the user's own Anthropic API key, OpenAI API key or Claude subscription token for cloud agent runs. PostHog checks an API key with the provider before it stores the key. The secret is stored encrypted and replaces any stored credential of the same kind. No response carries a secret.
+ * @summary Store an inference credential
+ */
+export const usersIntegrationsInferenceCredentialsCreateBodySecretMax = 1024
+
+export const UsersIntegrationsInferenceCredentialsCreateBody = /* @__PURE__ */ zod.object({
+    kind: zod
+        .enum(['anthropic_api_key', 'openai_api_key', 'claude_subscription'])
+        .describe(
+            '\* `anthropic_api_key` - Anthropic API key\n\* `openai_api_key` - OpenAI API key\n\* `claude_subscription` - Claude subscription'
+        )
+        .describe(
+            'Which credential to store. `anthropic_api_key` and `openai_api_key` are API keys from the provider console. `claude_subscription` is the token that `claude setup-token` prints. A user has at most one credential of each kind, so a new one replaces the stored one.\n\n\* `anthropic_api_key` - Anthropic API key\n\* `openai_api_key` - OpenAI API key\n\* `claude_subscription` - Claude subscription'
+        ),
+    secret: zod
+        .string()
+        .max(usersIntegrationsInferenceCredentialsCreateBodySecretMax)
+        .describe(
+            'The API key or subscription token. PostHog checks an API key with the provider, then stores the secret encrypted. No response returns it.'
+        ),
 })
 
 /**

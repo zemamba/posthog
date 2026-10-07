@@ -239,13 +239,12 @@ export const cloudAgentRunLogic = kea<cloudAgentRunLogicType>([
                 actions.loadRun()
                 actions.loadRunEvents()
             },
-            loadRunSuccess: schedulePoll,
+            loadRunEventsSuccess: schedulePoll,
+            // A run that is still active must keep its poll after one failed event read.
+            loadRunEventsFailure: schedulePoll,
             setRunSuccess: () => {
                 actions.loadRunEvents()
-                schedulePoll()
             },
-            // A run that is still active must keep its poll after one failed read.
-            loadRunFailure: schedulePoll,
             cancelRun: async () => {
                 // pinned: analytics event name. A rename breaks the dashboards that read it.
                 posthog.capture('cloud_agents_cancel_clicked')

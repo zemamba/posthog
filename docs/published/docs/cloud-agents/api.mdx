@@ -67,7 +67,7 @@ It does not wait for the agent.
 | `branch`       | string           | The repository's default branch | Base branch for the work.                                                                                                                  |
 | `model`        | string           | Selected by PostHog             | Model ID from the [catalog](#box-sizes-and-pricing).                                                                                       |
 | `size`         | string           | `4x16`                          | Sandbox size, as `<vCPU>x<memory in GiB>`. See [box sizes and pricing](#box-sizes-and-pricing).                                            |
-| `inference`    | string           | `auto`                          | Who pays for model usage: `auto`, `own_subscription` or `posthog`. See [inference](#inference).                                            |
+| `inference`    | string           | `auto`                          | Who pays for model usage: `auto`, `own_key`, `own_subscription` or `posthog`. See [inference](#inference).                                 |
 | `instructions` | string           | None                            | Instructions that the agent gets before the prompt. Up to 20,000 characters.                                                               |
 | `create_pr`    | boolean          | `true`                          | Whether the agent opens a pull request when it finishes.                                                                                   |
 | `tags`         | array of strings | `[]`                            | Up to 20 tags of up to 50 characters each. The tags of the profile are added to them.                                                      |
@@ -127,7 +127,7 @@ Without the header, every request starts a new run.
       "memory_gib": 16,
       "price_per_hour_usd": "0.368"
     },
-    "inference": "own_subscription",
+    "inference": "own_key",
     "create_pr": true,
     "pr_mode": "draft",
     "max_duration_minutes": 60,
@@ -146,7 +146,7 @@ Without the header, every request starts a new run.
     "vcpu_seconds": "4400.000",
     "gib_seconds": "17600.000",
     "billing_mode": "billed",
-    "inference_billing": "own_subscription",
+    "inference_billing": "own_key",
     "final": true
   },
   "agent_sessions": [
@@ -408,11 +408,11 @@ The size of a run is fixed for the life of the run, including later agent sessio
 | Field                                   | Description                                                                                        |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `cost.compute_usd`                      | Compute cost, as a decimal string. `null` until the first sandbox reports usage.                   |
-| `cost.inference_usd`                    | Model usage cost through PostHog. `null` when the run uses your own subscription.                  |
+| `cost.inference_usd`                    | Model usage cost through PostHog. `null` when the run uses your own key or subscription.           |
 | `cost.total_usd`                        | Sum of the two. `null` until the compute cost is known.                                            |
 | `cost.vcpu_seconds`, `cost.gib_seconds` | The compute that the run used.                                                                     |
 | `cost.billing_mode`                     | `billed` when the project pays for the run, `unbilled` when it does not.                           |
-| `cost.inference_billing`                | Who pays for model usage: `posthog` or `own_subscription`.                                         |
+| `cost.inference_billing`                | Who pays for model usage: `posthog`, `own_key` or `own_subscription`.                              |
 | `cost.final`                            | `false` while the cost can still change. The cost can change for a short time after the run stops. |
 
 Wait for `cost.final` to be `true` before you record the cost of a run.
@@ -457,7 +457,7 @@ GET /api/projects/:project_id/cloud_agents/runs/:id/usage/
     "vcpu_seconds": "4400.000",
     "gib_seconds": "17600.000",
     "billing_mode": "billed",
-    "inference_billing": "own_subscription",
+    "inference_billing": "own_key",
     "final": true
   },
   "sessions": [
@@ -491,46 +491,62 @@ The response has `totals` and `buckets`, each with `runs`, `compute_usd`, `infer
 
 `inference` sets who pays for the model usage of a run.
 
-| Mode               | Who pays                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `auto`             | Your own subscription when one is connected for the runtime, and PostHog otherwise. The default. |
-| `own_subscription` | Your own subscription with the model provider. The provider bills you.                           |
-| `posthog`          | PostHog. Model usage uses your AI credits.                                                       |
+| Mode               | Who pays                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `auto`             | Your own credential when you have one stored, and PostHog otherwise. This is the default. |
+| `own_key`          | Your own API key for the model provider. The provider bills you.                          |
+| `own_subscription` | Your own subscription with the model provider. The provider bills you.                    |
+| `posthog`          | PostHog. Model usage uses your AI credits.                                                |
 
-A Codex run uses your ChatGPT subscription, and a Claude run uses your Claude subscription.
+`auto` checks in this order: your API key for the provider of the model, then your subscription, then PostHog.
 The run object shows the result in `config.inference` and `cost.inference_billing`.
 
-An explicit `own_subscription` never falls back to PostHog billing.
-If you have no usable subscription for the runtime, the request fails with `400` and a message that says what to connect.
+An explicit `own_key` or `own_subscription` never falls back to PostHog billing.
+If you have no usable credential of that kind, the request fails with `400` and a message that says what to add.
 
-### Connect a subscription
+### Store a credential
 
-A subscription belongs to a user, not to a project.
-You connect it in the PostHog app, not through this API.
+Inference credentials belong to a user, not to a project.
+The endpoints need the `user:read` scope to list and the `user:write` scope to change.
 
-1. In PostHog, open **Cloud agents** and select the **Settings** tab.
-2. In **Bring your own subscription**, select **Connect Codex** to connect your ChatGPT subscription, or **Connect Claude** to connect your Claude subscription.
-3. Follow the steps in the dialog. It gives you a command to run in a terminal, and you paste the result.
+```bash
+curl --request POST "https://us.posthog.com/api/users/@me/integrations/inference_credentials/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data "{\"kind\": \"anthropic_api_key\", \"secret\": \"$ANTHROPIC_API_KEY\"}"
+```
 
-The ChatGPT subscription is the same connection that **Settings > AI > Bring your own subscription** shows.
-PostHog stores the sign-in encrypted, and no response returns it.
-You can disconnect at any time from the same section.
+`kind` is `anthropic_api_key`, `openai_api_key` or `claude_subscription`.
+PostHog checks an API key with the provider, then stores the secret encrypted.
+A user has at most one credential of each kind, so a new one replaces the stored one.
+No response returns the secret.
+The list shows only the last 4 characters.
+
+```bash
+# List your stored credentials
+curl "https://us.posthog.com/api/users/@me/integrations/inference_credentials/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+
+# Delete one
+curl --request DELETE "https://us.posthog.com/api/users/@me/integrations/inference_credentials/anthropic_api_key/" \
+  --header "Authorization: Bearer $POSTHOG_PERSONAL_API_KEY"
+```
 
 Subscriptions are in limited availability.
-The section shows only the subscriptions that are enabled for your organization.
+Storing a `claude_subscription` token returns `403` until it is enabled for your organization.
 
 ### Who can continue a run
 
-A run on `own_subscription` uses the subscription of the user who started it.
+A run on `own_key` or `own_subscription` uses the credential of the user who started it.
 Only that user can send it a message.
 Another user gets `403` with the code `credential_owner_required`.
 Other users can still read and cancel the run.
 
 ### Security
 
-The agent uses your subscription inside the sandbox to call the model provider.
-Code that the agent runs in the sandbox, including code from the repository, may be able to read that sign-in.
-Run agents only on repositories that you trust, and disconnect the subscription if you think that the sign-in is exposed.
+The agent uses your credential inside the sandbox to call the model provider.
+Code that the agent runs in the sandbox, including code from the repository, may be able to read that credential.
+Use a key that you can revoke, set a spend limit on it with your provider, and run agents only on repositories that you trust.
 
 ## Webhooks
 
@@ -719,7 +735,7 @@ Errors use the standard PostHog error body.
 | `too_many_webhook_endpoints` | 400    | The project already has 5 webhook endpoints.                                                        |
 | `permission_denied`          | 403    | Cloud agents is not available for this organization, or the API key lacks the scope.                |
 | `organization_deactivated`   | 403    | The organization is deactivated. Contact support.                                                   |
-| `credential_owner_required`  | 403    | The run uses the subscription of the user who started it. Only that user can send it a message.     |
+| `credential_owner_required`  | 403    | The run uses the model credential of the user who started it. Only that user can send it a message. |
 | `run_not_found`              | 404    | The run does not exist in this project.                                                             |
 | `profile_not_found`          | 404    | The profile does not exist in this project.                                                         |
 | `webhook_endpoint_not_found` | 404    | The webhook endpoint does not exist in this project.                                                |
