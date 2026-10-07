@@ -230,6 +230,7 @@ class TestSetupPlanCaching(APIBaseTest):
             self.client.get(f"{self.url}?refresh=true")
 
         assert build.call_count == 2
+        assert build.call_args.kwargs["refresh_source_scan"] is True
 
     def test_a_different_window_is_a_different_question(self):
         with patch(_PLAN_TARGET, return_value=_clean_plan()) as build:

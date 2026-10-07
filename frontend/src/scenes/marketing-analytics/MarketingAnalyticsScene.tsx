@@ -29,6 +29,7 @@ import { dataNodeCollectionLogic } from '~/queries/nodes/DataNode/dataNodeCollec
 import { ProductKey } from '~/queries/schema/schema-general'
 
 import { sourcesDataLogic } from 'products/data_warehouse/frontend/shared/logics/sourcesDataLogic'
+import { DetectedSources } from 'products/marketing_analytics/frontend/dashboard/DetectedSources'
 import { NewMarketingAnalyticsDashboard } from 'products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard'
 import { marketingAnalyticsEmptyState } from 'products/marketing_analytics/frontend/emptyState/marketingAnalyticsEmptyState'
 import { SearchPerformanceTab } from 'products/marketing_analytics/frontend/search/SearchPerformanceTab'
@@ -122,14 +123,21 @@ const MarketingAnalyticsDashboardSkeleton = (): JSX.Element => (
 
 const MarketingAnalyticsDashboard = (): JSX.Element => {
     const { featureFlags } = useValues(featureFlagLogic)
-    const { hasSources, hasNoConfiguredSources, loading, isAdPerformance, includeConversionGoals } =
-        useValues(marketingAnalyticsLogic)
+    const {
+        hasSources,
+        hasSyncedMarketingSources,
+        nativeSources,
+        validExternalTables,
+        loading,
+        isAdPerformance,
+        includeConversionGoals,
+    } = useValues(marketingAnalyticsLogic)
     const { setAdPerformanceConversionGoals } = useActions(marketingAnalyticsLogic)
     const { loadSources } = useActions(sourcesDataLogic)
     const { conversion_goals } = useValues(marketingAnalyticsSettingsLogic)
     const { tiles: marketingTiles } = useValues(marketingAnalyticsTilesLogic)
-    const { showOnboarding, currentStep } = useValues(marketingOnboardingLogic)
-    const { completeOnboarding, resetOnboarding } = useActions(marketingOnboardingLogic)
+    const { showOnboarding } = useValues(marketingOnboardingLogic)
+    const { completeOnboarding } = useActions(marketingOnboardingLogic)
 
     // Reload sources on every navigation to this scene so newly configured
     // data warehouse sources are picked up without a full page refresh
@@ -137,28 +145,13 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
         loadSources()
     }, [loadSources])
 
-    // Auto-complete onboarding if user already has sources and conversion goals configured,
-    // but only when not actively on the conversion-goals step (let the user click "Continue")
+    const hasConfiguredSources = nativeSources.length > 0 || validExternalTables.length > 0
+
     useEffect(() => {
-        if (
-            !isAdPerformance &&
-            !loading &&
-            hasSources &&
-            conversion_goals.length > 0 &&
-            showOnboarding &&
-            currentStep !== 'conversion-goals'
-        ) {
+        if (!isAdPerformance && !loading && hasConfiguredSources && showOnboarding) {
             completeOnboarding()
         }
-    }, [loading, hasSources, conversion_goals, showOnboarding, currentStep, completeOnboarding, isAdPerformance])
-
-    // Reset onboarding if user truly has no configured sources (handles session/project changes).
-    // Uses hasNoConfiguredSources which guards against premature evaluation while tables are loading.
-    useEffect(() => {
-        if (!isAdPerformance && hasNoConfiguredSources && !showOnboarding) {
-            resetOnboarding()
-        }
-    }, [loading, hasSources, showOnboarding, resetOnboarding, isAdPerformance]) // oxlint-disable-line react-hooks/exhaustive-deps
+    }, [loading, hasConfiguredSources, showOnboarding, completeOnboarding, isAdPerformance])
 
     const feedbackBanner = (
         <LemonBanner
@@ -195,7 +188,7 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
         )
     }
 
-    if (!isAdPerformance && showOnboarding) {
+    if (!isAdPerformance && !hasConfiguredSources && showOnboarding) {
         return (
             <>
                 {feedbackBanner}
@@ -218,11 +211,20 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
             )}
             <LegacyOAuthReconnectBanner />
             <MarketingAnalyticsSourceStatusBanner />
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
-                {marketingTiles?.map((tile, i) => (
-                    <QueryTileItem key={i} tile={tile} />
-                ))}
-            </div>
+            <DetectedSources />
+            {!hasSources || !hasSyncedMarketingSources ? (
+                <LemonBanner type="info" className="mt-4">
+                    {hasConfiguredSources
+                        ? 'Your marketing sources are connected. Spend and ad performance will appear after the first sync finishes. You can connect other sources in setup while you wait.'
+                        : 'Connect a marketing source in setup to see spend and ad performance.'}
+                </LemonBanner>
+            ) : (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
+                    {marketingTiles?.map((tile, i) => (
+                        <QueryTileItem key={i} tile={tile} />
+                    ))}
+                </div>
+            )}
         </>
     )
 }

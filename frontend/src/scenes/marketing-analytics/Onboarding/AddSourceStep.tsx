@@ -1,5 +1,4 @@
 import { useActions, useValues } from 'kea'
-import { router } from 'kea-router'
 
 import { IconArrowRight, IconCheckCircle, IconInfo } from '@posthog/icons'
 import { LemonButton, LemonCard, Link, Tooltip } from '@posthog/lemon-ui'
@@ -15,6 +14,7 @@ import { ProductIntentContext, ProductKey } from '~/queries/schema/schema-genera
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
 
 import { marketingAnalyticsLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
+import { setupPlanLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 import {
     VALID_NON_NATIVE_MARKETING_SOURCES,
     VALID_SELF_MANAGED_MARKETING_SOURCES,
@@ -34,6 +34,7 @@ interface AddSourceStepProps {
 
 export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): JSX.Element {
     const { validExternalTables, validNativeSources } = useValues(marketingAnalyticsLogic)
+    const { setupPlanLoading } = useValues(setupPlanLogic)
     const { featureFlags } = useValues(featureFlagLogic)
     const { reportMarketingAnalyticsDataSourceConnected } = useActions(eventUsageLogic)
     const { addProductIntent } = useActions(teamLogic)
@@ -65,7 +66,11 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
             intent_context: ProductIntentContext.MARKETING_ANALYTICS_DATA_SOURCE_CONNECTED,
             metadata: { source_type: sourceId },
         })
-        router.actions.push(urls.dataWarehouseSourceNew(sourceId, urls.marketingAnalyticsApp(), 'Marketing analytics'))
+        window.open(
+            urls.dataWarehouseSourceNew(sourceId, urls.marketingAnalyticsApp(), 'Marketing analytics'),
+            '_blank',
+            'noopener'
+        )
     }
 
     const nativeSources = allSources.filter((s) => s.category === 'native')
@@ -90,7 +95,7 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
                 </div>
 
                 {/* Native Sources */}
-                {nativeSources.length > 0 && (
+                {!setupPlanLoading && nativeSources.length > 0 && (
                     <div>
                         <div className="text-xs font-medium text-muted mb-1.5">Native integrations (recommended)</div>
                         <div className="flex flex-wrap gap-2">
@@ -102,7 +107,7 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
                 )}
 
                 {/* External Sources */}
-                {externalSources.length > 0 && (
+                {!setupPlanLoading && externalSources.length > 0 && (
                     <div>
                         <div className="text-xs font-medium text-muted mb-1.5 flex items-center gap-1">
                             Data warehouse
@@ -122,7 +127,7 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
                 )}
 
                 {/* Self-managed Sources */}
-                {selfManagedSources.length > 0 && (
+                {!setupPlanLoading && selfManagedSources.length > 0 && (
                     <div>
                         <div className="text-xs font-medium text-muted mb-1.5 flex items-center gap-1">
                             Self-managed
@@ -155,9 +160,9 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
                         size="small"
                         onClick={onContinue}
                         sideIcon={<IconArrowRight />}
-                        disabledReason={!hasSources ? 'Connect at least one source' : undefined}
+                        data-attr="marketing-onboarding-continue"
                     >
-                        Continue
+                        Continue to dashboard
                     </LemonButton>
                 </div>
             </div>

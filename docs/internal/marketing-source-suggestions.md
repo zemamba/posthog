@@ -44,3 +44,13 @@ Enable `destination_url_performance_report` in the Bing Ads source settings and 
 The view groups search distribution metrics by destination URL and currency, with clicks, impressions, spend, and platform-attributed conversions.
 The connector uses `ConversionsQualified` because Microsoft deprecated `Conversions` for this report.
 Keyword reporting continues to use `keyword_performance_report`.
+
+## Source onboarding
+
+Marketing analytics skips source onboarding when a marketing source is configured, including sources whose first sync is still running.
+For projects without sources, onboarding scans UTM-tagged events and suggests matching ad platforms.
+Users can continue to the dashboard at any time, connect more platforms while a sync runs, or choose from all supported sources when no platform is detected.
+The event scan is cached for seven days per project and lookback window; source connection and sync health continue to use current configuration.
+Use **Scan events again** in Setup → Sources to bypass the event cache.
+The dashboard keeps pending source suggestions and sync status visible so missing spend data is not mistaken for zero spend.
+Conversion goals are configured within the product rather than as an onboarding step.

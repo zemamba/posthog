@@ -394,6 +394,7 @@ export interface marketingAnalyticsLogicValues {
     externalTables: ExternalTable[]
     hasNoConfiguredSources: boolean
     hasSources: boolean
+    hasSyncedMarketingSources: boolean
     includeConversionGoals: boolean
     initialized: boolean
     integrationFilter: IntegrationFilter
@@ -1401,6 +1402,14 @@ export const marketingAnalyticsLogic = kea<marketingAnalyticsLogicType>([
                 }
                 return validExternalTables.length === 0 && validNativeSources.length === 0
             },
+        ],
+        hasSyncedMarketingSources: [
+            (s) => [s.validExternalTables, s.nativeSources],
+            (externalTables: ExternalTable[], nativeSources: ExternalDataSource[]): boolean =>
+                externalTables.length > 0 ||
+                nativeSources.some((source) =>
+                    source.schemas.some((schema) => schema.should_sync && !!schema.last_synced_at)
+                ),
         ],
         hasSources: [
             (s) => [s.validExternalTables, s.validNativeSources],

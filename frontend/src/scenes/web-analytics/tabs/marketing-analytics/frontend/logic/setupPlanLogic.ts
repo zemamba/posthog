@@ -6,6 +6,7 @@ import api from 'lib/api'
 import { lemonToast } from 'lib/lemon-ui/LemonToast/LemonToast'
 import { teamLogic } from 'scenes/teamLogic'
 
+import { marketingAnalyticsSetupPlanRetrieve } from 'products/marketing_analytics/frontend/generated/api'
 import type {
     CapabilityReadinessApi,
     SetupPlanResponseApi,
@@ -274,19 +275,16 @@ export const setupPlanLogic = kea<setupPlanLogicType>([
         setupPlan: [
             null as SetupPlanResponse | null,
             {
-                /** `refresh` forces a fresh scan past the server's short cache.
+                /** `refresh` forces a fresh scan past the server's event scan cache.
                  *
                  * The mount-time load is happy with a cached plan — that's the whole
                  * point of the cache, so switching sections doesn't re-run six
                  * ClickHouse queries. An explicit Rescan click is a request for
                  * current data and has to mean it, or the button looks broken. */
                 loadSetupPlan: async ({ refresh } = { refresh: false }) => {
-                    // nosemgrep: prefer-codegen-api -- Legacy raw API call with a hand-written URL and an unchecked response type. No generated function covers this endpoint yet. Find out why the generated client skips it (no schema, no product tag, or excluded from the spec) and fix that first.
-                    const response = await api.get(
-                        `api/projects/${values.currentTeamId}/marketing_analytics/setup_plan${
-                            refresh ? '?refresh=true' : ''
-                        }`
-                    )
+                    const response = await marketingAnalyticsSetupPlanRetrieve(String(values.currentTeamId), {
+                        refresh,
+                    })
                     return response as SetupPlanResponse
                 },
             },

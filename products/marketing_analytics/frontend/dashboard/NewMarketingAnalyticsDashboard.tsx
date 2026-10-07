@@ -7,6 +7,8 @@ import { LemonBanner, LemonButton, LemonCard, LemonCollapse, LemonSelect, LemonS
 import { CompareFilter } from 'lib/components/CompareFilter/CompareFilter'
 import { DateFilter } from 'lib/components/DateFilter/DateFilter'
 import { useLocalStorage } from 'lib/hooks/useLocalStorage'
+import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
+import { Onboarding } from 'scenes/marketing-analytics/Onboarding/Onboarding'
 import { suggestionsForSection } from 'scenes/marketing-analytics/Setup/sectionRouting'
 import { SuggestionRow } from 'scenes/marketing-analytics/Setup/SuggestionRow'
 import { teamLogic } from 'scenes/teamLogic'
@@ -37,6 +39,7 @@ import {
 import { ChartDisplayType } from '~/types'
 
 import { CustomerAcquisitionCards } from './CustomerAcquisitionCards'
+import { DetectedSources } from './DetectedSources'
 import { marketingAcquisitionLogic } from './marketingAcquisitionLogic'
 import { MarketingQueryError } from './MarketingQueryError'
 import { marketingTrafficQueryContext } from './marketingTrafficQueryContext'
@@ -87,6 +90,9 @@ const SECTIONS = [
 // Scaffold for the redesigned marketing analytics dashboard, gated behind the
 // `new-marketing-analytics-dashboard` feature flag.
 export function NewMarketingAnalyticsDashboard(): JSX.Element {
+    const { nativeSources, validExternalTables, loading } = useValues(marketingAnalyticsLogic)
+    const { showOnboarding } = useValues(marketingOnboardingLogic)
+    const { completeOnboarding } = useActions(marketingOnboardingLogic)
     const [selectedSection, setSelectedSection] = useState('acquisition')
     const [trafficBreakdown, setTrafficBreakdown] = useState(WebStatsBreakdown.InitialChannelType)
     const { currentTeam, currentTeamLoading } = useValues(teamLogic)
@@ -167,6 +173,10 @@ export function NewMarketingAnalyticsDashboard(): JSX.Element {
     const customerOverview = customerResponse as WebOverviewQueryResponse | undefined
     const reviewCustomerGoals = (): void => openSetup(SetupSection.CONVERSION_GOALS, 'dashboard_customer_cards')
 
+    if (!loading && nativeSources.length === 0 && validExternalTables.length === 0 && showOnboarding) {
+        return <Onboarding completeOnboarding={completeOnboarding} />
+    }
+
     return (
         <div className="mt-4 flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -194,6 +204,7 @@ export function NewMarketingAnalyticsDashboard(): JSX.Element {
                 )}
             </div>
             <MarketingAnalyticsSourceStatusBanner />
+            <DetectedSources />
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] items-start gap-2 empty:hidden">
                 {sourceSuggestions.length > 0 && (
                     <div className="border rounded relative">

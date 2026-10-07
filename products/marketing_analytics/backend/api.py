@@ -1655,6 +1655,7 @@ class MarketingAnalyticsViewSet(TeamAndOrgViewSetMixin, GenericViewSet):
                 self.team,
                 date_from=date_from,
                 user=user,
+                refresh_source_scan=request.validated_query_data["refresh"],
             )
             # `model_dump(mode="json")` so the Pydantic op models inside each suggestion
             # come out as plain JSON — the serializer exposes them as JSONField.
