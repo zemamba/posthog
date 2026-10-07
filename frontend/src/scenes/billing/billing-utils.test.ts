@@ -15,6 +15,8 @@ describe('getUsageTypeOptions', () => {
             'sandbox_compute_credits_used_in_period',
             'sandbox_compute_cpu_millicore_seconds_in_period',
             'sandbox_compute_memory_mib_seconds_in_period',
+            'cloud_agents_token_credits_used_in_period',
+            'cloud_agents_compute_credits_used_in_period',
         ]
 
         for (const usageType of componentTypes) {

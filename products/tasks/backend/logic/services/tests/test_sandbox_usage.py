@@ -12,7 +12,11 @@ from posthog.models.scoping import team_scope
 from posthog.models.team.team import Team
 
 from products.tasks.backend.logic.services.sandbox import Sandbox, SandboxConfig
-from products.tasks.backend.logic.services.sandbox_pricing import ComputeRateCard, ComputeRateCardConfigurationError
+from products.tasks.backend.logic.services.sandbox_pricing import (
+    CLOUD_AGENTS_RATE_CARD,
+    ComputeRateCard,
+    ComputeRateCardConfigurationError,
+)
 from products.tasks.backend.logic.services.sandbox_usage import (
     close_sandbox_session,
     get_billable_sandbox_compute_usage_by_team,
@@ -20,6 +24,7 @@ from products.tasks.backend.logic.services.sandbox_usage import (
     measure_task_run_cpu_attribution,
     open_sandbox_session,
     record_task_run_user_activity,
+    waive_run_sandbox_sessions,
 )
 from products.tasks.backend.models import Loop, SandboxSession, Task, TaskClientProvenance, TaskRun
 
@@ -403,6 +408,57 @@ class TestSandboxUsageAggregation(SandboxUsageBase):
         assert usage.cpu_millicore_seconds == [(self.team.id, 14_400_000)]
         assert usage.memory_mib_seconds == [(self.team.id, 58_982_400)]
         assert usage.credits == [(self.team.id, 2016)]
+
+    def _cloud_agents_session(
+        self, *, client_provenance: TaskClientProvenance | None = TaskClientProvenance.CLOUD_AGENTS, **overrides
+    ) -> SandboxSession:
+        task = Task.objects.create(
+            team=self.team,
+            title="cloud agent",
+            description="",
+            origin_product=Task.OriginProduct.CLOUD_AGENTS,
+            internal=True,
+            client_provenance=client_provenance,
+        )
+        start = CLOUD_AGENTS_RATE_CARD.effective_at + timedelta(days=1, hours=1)
+        return self._session(
+            task_run=TaskRun.objects.create(task=task, team=self.team),
+            origin_product=Task.OriginProduct.CLOUD_AGENTS,
+            client_provenance=client_provenance,
+            created_at=start,
+            user_attributed_at=start,
+            ended_at=start + timedelta(hours=1),
+            **overrides,
+        )
+
+    def test_each_product_aggregates_only_its_own_sessions_at_its_own_price(self):
+        begin = CLOUD_AGENTS_RATE_CARD.effective_at + timedelta(days=1)
+        end = begin + timedelta(days=1)
+        # The burstable floor must not lower the Cloud Agents price: one hour of 4x16 is $0.368.
+        self._cloud_agents_session(burstable=True, cpu_request_cores=0.5, memory_request_mb=1024)
+        self._cloud_agents_session(client_provenance=None)
+        waived = self._cloud_agents_session()
+        desktop = self._session(
+            client_provenance=TaskClientProvenance.POSTHOG_DESKTOP,
+            created_at=begin + timedelta(hours=1),
+            user_attributed_at=begin + timedelta(hours=1),
+            ended_at=begin + timedelta(hours=2),
+        )
+        assert waive_run_sandbox_sessions(waived.task_run_id, self.team.id, "SandboxProvisionError") == 1
+        assert waive_run_sandbox_sessions(desktop.task_run_id, self.team.id, "SandboxProvisionError") == 0
+
+        cloud_agents = get_billable_sandbox_compute_usage_by_team(begin, end, product="cloud_agents")
+        default = get_billable_sandbox_compute_usage_by_team(begin, end)
+        desktop_only = get_billable_sandbox_compute_usage_by_team(begin, end, product="posthog_code")
+
+        assert cloud_agents.credits == [(self.team.id, 37)]
+        assert cloud_agents.cpu_millicore_seconds == [(self.team.id, 14_400_000)]
+        assert cloud_agents.memory_mib_seconds == [(self.team.id, 58_982_400)]
+        # 4 vCPU and 16 GiB for one hour at the PostHog Desktop card.
+        assert default.credits == [(self.team.id, 154)]
+        assert default == desktop_only
+        desktop.refresh_from_db()
+        assert desktop.waived_at is None
 
     def test_billable_compute_includes_user_loops_and_excludes_internal_loops(self):
         self._loop_session(internal=False)

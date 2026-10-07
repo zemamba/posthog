@@ -3869,6 +3869,12 @@ class SandboxSession(TeamScopedRootMixin, UUIDModel):
     provider_usage_measured_at = models.DateTimeField(
         null=True, blank=True, help_text="When provider resource usage was sampled"
     )
+    waived_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the charge for this session was waived; NULL while it bills as usual"
+    )
+    waived_reason = models.CharField(
+        max_length=64, null=True, blank=True, help_text="Why the charge was waived, e.g. the infrastructure error type"
+    )
 
     class Meta:
         db_table = "posthog_task_sandbox_session"

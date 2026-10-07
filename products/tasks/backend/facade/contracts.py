@@ -16,6 +16,7 @@ their data results.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID
@@ -1070,3 +1071,51 @@ class LivingArtifactVersionContent:
 class LivingArtifactVersionDownload:
     url: str | None
     error: Literal["not_found", "not_stored", "unavailable"] | None
+
+
+InferenceBilling = Literal["posthog", "own_key", "own_subscription"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class SandboxSessionUsageDTO:
+    """One sandbox of a task and its compute charge. A waived session has a zero charge."""
+
+    cpu_cores: float
+    memory_gb: float
+    started_at: datetime
+    ended_at: datetime | None
+    seconds: int
+    cost_cents: int
+    waived: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskRunBillingDTO:
+    """Compute and inference charges for all runs of one task, in integer USD cents.
+
+    A cost is None while its source is unavailable or incomplete. ``inference_cost_cents`` is
+    also None when the task owner pays the model provider directly. ``vcpu_seconds`` and
+    ``gib_seconds`` exclude waived sessions. ``waived`` is True when at least one session was
+    waived. ``settled`` is True when no later change to the figures is expected.
+    """
+
+    compute_cost_cents: int | None
+    inference_cost_cents: int | None
+    vcpu_seconds: Decimal
+    gib_seconds: Decimal
+    billable: bool
+    inference_billing: InferenceBilling
+    rate_card_version: str | None
+    waived: bool
+    settled: bool
+    sessions: tuple[SandboxSessionUsageDTO, ...]
+
+
+@dataclass(frozen=True, kw_only=True)
+class CloudAgentsRateCardDTO:
+    """The public Cloud Agents compute price, per vCPU-hour and per GiB-hour of the box size."""
+
+    version: str
+    effective_at: datetime
+    vcpu_hour_usd: Decimal
+    memory_gib_hour_usd: Decimal

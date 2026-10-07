@@ -53,6 +53,7 @@ export const SPEND_TYPES = [
     { label: 'Self-driving inbox credits', value: 'signals_credits_used_in_period' },
     { label: 'PostHog Desktop credits', value: 'posthog_code_credits_used_in_period' },
     { label: 'Replay vision credits', value: 'replay_vision_credits_used_in_period' },
+    { label: 'Cloud agents credits', value: 'cloud_agents_credits_used_in_period' },
     { label: 'Workflow emails', value: 'workflow_emails_sent_in_period' },
     { label: 'Workflow destinations', value: 'workflow_billable_invocations_in_period' },
     { label: 'Logs ingested (MB)', value: 'logs_mb_in_period' },
@@ -65,6 +66,8 @@ export const USAGE_ONLY_TYPES = [
     { label: 'Cloud compute spend (USD)', value: 'sandbox_compute_credits_used_in_period' },
     { label: 'Cloud compute CPU (core-seconds)', value: 'sandbox_compute_cpu_millicore_seconds_in_period' },
     { label: 'Cloud compute memory (GiB-seconds)', value: 'sandbox_compute_memory_mib_seconds_in_period' },
+    { label: 'Cloud agents token spend (USD)', value: 'cloud_agents_token_credits_used_in_period' },
+    { label: 'Cloud agents compute spend (USD)', value: 'cloud_agents_compute_credits_used_in_period' },
 ] as const
 
 export const USAGE_TYPES = [...SPEND_TYPES, ...USAGE_ONLY_TYPES] as const

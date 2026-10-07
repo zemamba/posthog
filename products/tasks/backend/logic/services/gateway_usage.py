@@ -2,7 +2,7 @@ import re
 import time
 import asyncio
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -17,8 +17,23 @@ from asgiref.sync import async_to_sync
 
 from posthog.dataclasses import frozen
 
-from products.tasks.backend.facade.contracts import TaskRunCost
-from products.tasks.backend.logic.services.sandbox_pricing import COMPUTE_RATE_CARDS, calculate_sandbox_compute_cost
+from products.tasks.backend.facade.contracts import (
+    InferenceBilling,
+    SandboxSessionUsageDTO,
+    TaskRunBillingDTO,
+    TaskRunCost,
+)
+from products.tasks.backend.logic.model_access import InvalidModelAccess, inference_billing_for_state
+from products.tasks.backend.logic.services.compute_quota import (
+    BillingProduct,
+    compute_pricing_product,
+    task_billing_product,
+)
+from products.tasks.backend.logic.services.sandbox_pricing import (
+    SandboxComputeCost,
+    calculate_sandbox_compute_cost,
+    compute_pricing,
+)
 from products.tasks.backend.models import SandboxSession, TaskRun
 
 if TYPE_CHECKING:
@@ -189,7 +204,7 @@ def get_task_run_cost(*, run_id: UUID, team_id: int) -> TaskRunCost:
 
 
 def get_task_cost(*, team_id: int, task_id: UUID) -> TaskRunCost:
-    runs = list(TaskRun.objects.filter(team_id=team_id, task_id=task_id))
+    runs = list(TaskRun.objects.select_related("task").filter(team_id=team_id, task_id=task_id))
     if not runs:
         return TaskRunCost(token_cost=None, compute_cost=None)
     sessions_by_run: dict[UUID, list[SandboxSession]] = {}
@@ -248,17 +263,41 @@ async def _fetch_gateway_cost(request_id: str) -> GatewayRequestCost | None:
 
 def _cost_sources(run: TaskRun, *, sessions: list[SandboxSession] | None = None) -> _CostSources:
     return _CostSources(
-        token_cost_microusd=sum(bucket.get("cost_microusd", 0) for bucket in _cost_buckets(run.state or {}))
-        if gateway_usage_enabled(run)
-        and not (run.state or {}).get("token_cost_incomplete")
-        and not (run.state or {}).get("unprocessed_request_ids")
-        else None,
+        token_cost_microusd=_token_cost_microusd(run),
         compute_cost_usd=_compute_cost_source(run, sessions=sessions),
     )
 
 
+def _token_cost_microusd(run: TaskRun) -> int | None:
+    if (
+        gateway_usage_enabled(run)
+        and not (run.state or {}).get("token_cost_incomplete")
+        and not (run.state or {}).get("unprocessed_request_ids")
+    ):
+        return sum(bucket.get("cost_microusd", 0) for bucket in _cost_buckets(run.state or {}))
+    return None
+
+
+def _session_compute_cost(
+    session: SandboxSession, product: BillingProduct, now: datetime
+) -> tuple[SandboxComputeCost, bool]:
+    """The session's cost to date at the product's price, and whether its charge is waived."""
+    pricing = compute_pricing(product)
+    cost = calculate_sandbox_compute_cost(
+        session,
+        pricing.rate_cards[0].effective_at,
+        now,
+        calculated_at=now,
+        rate_cards=pricing.rate_cards,
+        resource_policy=pricing.resource_policy,
+    )
+    return cost, product == "cloud_agents" and session.waived_at is not None
+
+
 def _compute_cost_source(run: TaskRun, *, sessions: list[SandboxSession] | None = None) -> Decimal | None:
-    if run.environment != TaskRun.Environment.CLOUD or not COMPUTE_RATE_CARDS:
+    # An unbilled run is priced too, so a reader can show what the run would cost.
+    product = compute_pricing_product(run.task.origin_product)
+    if run.environment != TaskRun.Environment.CLOUD or not compute_pricing(product).rate_cards:
         return None
     if sessions is None:
         sessions = list(SandboxSession.objects.for_team(run.team_id).filter(task_run=run))
@@ -266,17 +305,98 @@ def _compute_cost_source(run: TaskRun, *, sessions: list[SandboxSession] | None 
         return None
     now = timezone.now()
     try:
-        return sum(
-            (
-                calculate_sandbox_compute_cost(
-                    session, COMPUTE_RATE_CARDS[0].effective_at, now, calculated_at=now, rate_cards=COMPUTE_RATE_CARDS
-                ).total_cost_usd
-                for session in sessions
-            ),
-            Decimal(0),
-        )
+        total = Decimal(0)
+        for session in sessions:
+            cost, waived = _session_compute_cost(session, product, now)
+            if not waived:
+                total += cost.total_cost_usd
+        return total
     except ValueError:
         return None
+
+
+def _task_inference_billing(runs: list[TaskRun]) -> InferenceBilling:
+    # A resumed run inherits the access mode of its task, so the newest run speaks for all of them.
+    newest = max(runs, key=lambda run: run.created_at)
+    try:
+        return inference_billing_for_state(newest.state or {})
+    except InvalidModelAccess:
+        return "posthog"
+
+
+def get_task_run_billing(*, team_id: int, task_id: UUID) -> TaskRunBillingDTO:
+    runs = list(TaskRun.objects.select_related("task__loop").filter(team_id=team_id, task_id=task_id))
+    if not runs:
+        return TaskRunBillingDTO(
+            compute_cost_cents=None,
+            inference_cost_cents=None,
+            vcpu_seconds=Decimal(0),
+            gib_seconds=Decimal(0),
+            billable=False,
+            inference_billing="posthog",
+            rate_card_version=None,
+            waived=False,
+            settled=True,
+            sessions=(),
+        )
+    task = runs[0].task
+    product = compute_pricing_product(task.origin_product)
+    pricing = compute_pricing(product)
+    billable = task_billing_product(task) is not None
+    rate_card_version = pricing.rate_cards[-1].version if pricing.rate_cards else None
+    inference_billing = _task_inference_billing(runs)
+
+    sessions = list(SandboxSession.objects.for_team(team_id).filter(task_run__in=runs).order_by("created_at", "id"))
+    now = timezone.now()
+    session_rows: list[SandboxSessionUsageDTO] = []
+    compute_usd: Decimal | None = Decimal(0) if sessions and pricing.rate_cards else None
+    vcpu_seconds = Decimal(0)
+    gib_seconds = Decimal(0)
+    for session in sessions:
+        cost: SandboxComputeCost | None = None
+        waived = product == "cloud_agents" and session.waived_at is not None
+        if pricing.rate_cards:
+            try:
+                cost, waived = _session_compute_cost(session, product, now)
+            except ValueError:
+                compute_usd = None
+        if cost is not None and not waived:
+            vcpu_seconds += cost.cpu_core_seconds
+            gib_seconds += cost.memory_gib_seconds
+            if compute_usd is not None:
+                compute_usd += cost.total_cost_usd
+        session_rows.append(
+            SandboxSessionUsageDTO(
+                cpu_cores=session.cpu_cores,
+                memory_gb=session.memory_gb,
+                started_at=session.user_attributed_at or session.created_at,
+                ended_at=session.ended_at,
+                seconds=int(cost.billable_seconds) if cost is not None else 0,
+                cost_cents=_cents(cost.total_cost_usd) if cost is not None and not waived else 0,
+                waived=waived,
+            )
+        )
+
+    token_costs = [_token_cost_microusd(run) for run in runs]
+    inference_cost_cents: int | None = None
+    if inference_billing == "posthog" and all(cost is not None for cost in token_costs):
+        inference_cost_cents = _cents(Decimal(sum(cost or 0 for cost in token_costs)) / 1_000_000)
+
+    # The calculator ends an unstamped session at its TTL, so such a session is closed after it.
+    sessions_closed = all(session.ended_at is not None or session.ttl_expires_at <= now for session in sessions)
+    gateway_usage_pending = inference_billing == "posthog" and any(_pending_ids(run.state or {}) for run in runs)
+    return TaskRunBillingDTO(
+        compute_cost_cents=_cents(compute_usd) if compute_usd is not None else None,
+        inference_cost_cents=inference_cost_cents,
+        vcpu_seconds=vcpu_seconds,
+        gib_seconds=gib_seconds,
+        billable=billable,
+        inference_billing=inference_billing,
+        rate_card_version=rate_card_version,
+        waived=any(row.waived for row in session_rows),
+        settled=all(run.is_terminal for run in runs) and sessions_closed and not gateway_usage_pending,
+        sessions=tuple(session_rows),
+    )
 
 
 def _cents(value: Decimal) -> int:
