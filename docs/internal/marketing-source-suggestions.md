@@ -64,3 +64,9 @@ The connection notice or detected-source suggestions explain what needs to be co
 
 Source health refreshes on window focus without replacing the resolved dashboard or cached event suggestions with a loading screen.
 The initial source check uses a compact loading state; projects without sources show a connection card instead of empty metric placeholders.
+
+Source setup uses a consistent panel for connection checks, event scanning, suggestions, empty results, and recoverable errors.
+Detected platforms show concise evidence with expandable details.
+Configured connections show their first-sync status beside pending platforms.
+The manual catalog supports search and returning to suggestions.
+The current dashboard shows metric filters only once marketing data is available; beta feedback is available in the scene header.

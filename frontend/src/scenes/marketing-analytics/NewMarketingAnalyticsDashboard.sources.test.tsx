@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { marketingOnboardingLogic } from 'scenes/marketing-analytics/Onboarding/marketingOnboardingLogic'
 import {
@@ -21,7 +21,7 @@ jest.mock('scenes/web-analytics/tabs/marketing-analytics/frontend/components/Att
     AttributionTab: () => null,
 }))
 
-it('reuses source suggestions, remembers collapse and opens their review in Setup', async () => {
+it('keeps suggestions visible without data and opens their review in Setup', async () => {
     useMocks({
         get: {
             '/api/projects/:team_id/marketing_analytics/setup_plan': () => [
@@ -57,34 +57,16 @@ it('reuses source suggestions, remembers collapse and opens their review in Setu
     const unmountSetup = setupPlanLogic.mount()
     const view = render(<NewMarketingAnalyticsDashboard />)
     try {
-        await screen.findByText('Suggested ad sources (1)')
-        expect(
-            screen.getByText('Suggested ad sources (1)').closest('[aria-expanded]')?.getAttribute('aria-expanded')
-        ).toBe('false')
-        fireEvent.click(screen.getByText('Suggested ad sources (1)'))
-        await within(screen.getByText('Suggested ad sources (1)').closest('.LemonCollapse')!).findByText(
-            'Connect Google Ads'
-        )
-        fireEvent.click(screen.getByText('Suggested ad sources (1)'))
-        expect(localStorage.getItem('marketing-source-suggestions-expanded')).toBe('false')
+        await screen.findByText('Connect your ad platforms')
+        expect(screen.getByText('Google Ads')).not.toBeNull()
         view.unmount()
         render(<NewMarketingAnalyticsDashboard />)
-        expect(
-            screen.getByText('Suggested ad sources (1)').closest('[aria-expanded]')?.getAttribute('aria-expanded')
-        ).toBe('false')
-        fireEvent.click(screen.getByText('Suggested ad sources (1)'))
-        fireEvent.click(
-            within(screen.getByText('Suggested ad sources (1)').closest('.LemonCollapse')!).getByText('Connect', {
-                exact: true,
-            })
-        )
+        expect(screen.getByText('Google Ads')).not.toBeNull()
+        fireEvent.click(screen.getByText('Review in setup'))
         await waitFor(() => expect(marketingAnalyticsLogic.values.activeTab).toBe(MarketingAnalyticsTab.SETUP))
         expect(marketingAnalyticsLogic.values.setupSection).toBe(SetupSection.SOURCES)
-        expect(setupPlanLogic.values.reviewingSuggestion?.id).toBe('connect_source:GoogleAds')
-        fireEvent.click(
-            within(screen.getByText('Suggested ad sources (1)').closest('.LemonCollapse')!).getByText('Dismiss')
-        )
-        await waitFor(() => expect(screen.queryByText('Suggested ad sources (1)')).toBeNull())
+        fireEvent.click(screen.getByText('Dismiss'))
+        await waitFor(() => expect(screen.queryByText('Google Ads')).toBeNull())
     } finally {
         cleanup()
         setupPlanLogic.actions.restoreAllDismissed()

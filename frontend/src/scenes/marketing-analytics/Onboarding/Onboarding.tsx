@@ -45,10 +45,14 @@ export function Onboarding({ completeOnboarding }: { completeOnboarding: () => v
         <div className="space-y-4">
             <MarketingAnalyticsSourceStatusBanner />
             {showManualSources ? (
-                <AddSourceStep onContinue={handleComplete} hasSources={hasSources} />
+                <AddSourceStep
+                    onContinue={handleComplete}
+                    hasSources={hasSources}
+                    onBack={() => setShowManualSources(false)}
+                />
             ) : (
                 <SourceOnboardingScan
-                    loading={setupPlanLoading}
+                    loading={setupPlanLoading && !setupPlan}
                     failed={!setupPlan && !setupPlanLoading}
                     suggestions={visibleSuggestions.filter(
                         (suggestion) =>

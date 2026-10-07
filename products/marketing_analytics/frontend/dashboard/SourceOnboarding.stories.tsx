@@ -13,7 +13,7 @@ import { marketingAnalyticsLogic } from 'scenes/web-analytics/tabs/marketing-ana
 import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
 import { mswDecorator, useStorybookMocks } from '~/mocks/browser'
-import { NodeKind } from '~/queries/schema/schema-general'
+import { MARKETING_INTEGRATION_CONFIGS, NodeKind } from '~/queries/schema/schema-general'
 
 import { expect, userEvent } from 'storybook/test'
 
@@ -113,7 +113,7 @@ export function ScanFailed(): JSX.Element {
     return <SourceOnboardingScan {...scanProps} failed suggestions={[]} />
 }
 export function ManualSelection(): JSX.Element {
-    return <AddSourceStep onContinue={() => {}} hasSources={false} />
+    return <AddSourceStep onContinue={() => {}} onBack={() => {}} hasSources={false} />
 }
 export function Narrow(): JSX.Element {
     return (
@@ -134,15 +134,42 @@ SkipDuringScan.play = async ({ canvasElement }: { canvasElement: HTMLElement }):
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('button', { name: 'Skip and add manually' }))
     await expect(canvas.findByText('Native integrations (recommended)')).resolves.toBeVisible()
-    expect(canvas.queryByText('Scanning events from the last 7 days')).not.toBeInTheDocument()
+    expect(canvas.queryByText('Finding your ad platforms')).not.toBeInTheDocument()
 }
 
-function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = [], scanFailed = false): void {
+function useDashboardWithoutSourcesMocks(
+    suggestions: SuggestionApi[] = [],
+    scanFailed = false,
+    dataReady = false
+): void {
     useStorybookMocks({
         get: {
             '/api/projects/:team_id/marketing_analytics/setup_plan/': () =>
                 scanFailed ? [500, { detail: 'Could not scan events.' }] : [200, { ...plan, suggestions }],
-            '/api/environments/:team_id/external_data_sources/': () => [200, { results: [] }],
+            '/api/environments/:team_id/external_data_sources/': () => [
+                200,
+                {
+                    results: dataReady
+                        ? [
+                              {
+                                  id: 'demo-google-ready',
+                                  source_type: 'GoogleAds',
+                                  status: 'Completed',
+                                  schemas: [
+                                      MARKETING_INTEGRATION_CONFIGS.GoogleAds.campaignTableName,
+                                      MARKETING_INTEGRATION_CONFIGS.GoogleAds.statsTableName,
+                                  ].map((name) => ({
+                                      id: `demo-${name}`,
+                                      name,
+                                      should_sync: true,
+                                      status: 'Completed',
+                                      last_synced_at: '2026-09-16T09:00:00Z',
+                                  })),
+                              },
+                          ]
+                        : [],
+                },
+            ],
             '/api/projects/:team_id/marketing_analytics/source_validation/': () => [200, { errors_by_source: {} }],
             '/api/projects/:team_id/marketing_analytics/utm_audit/': () => [
                 200,
@@ -159,6 +186,68 @@ function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = [], scan
         post: {
             '/api/environments/:team_id/query/:kind/': async ({ request }) => {
                 const { query } = (await request.json()) as { query: { kind: string } }
+                if (query.kind === NodeKind.MarketingAnalyticsAggregatedQuery) {
+                    return [
+                        200,
+                        {
+                            results: {
+                                'Total cost': { value: 1250, previous: null, kind: 'currency' },
+                                'Total clicks': { value: 2400, previous: null, kind: 'unit' },
+                                'Cost per click': { value: 0.52, previous: null, kind: 'currency' },
+                                'Click-through rate': { value: 4.8, previous: null, kind: 'percentage' },
+                                'Total impressions': { value: 50000, previous: null, kind: 'unit' },
+                                'Reported conversions': { value: 96, previous: null, kind: 'unit' },
+                            },
+                        },
+                    ]
+                }
+                if (query.kind === NodeKind.MarketingAnalyticsTableQuery && dataReady) {
+                    const columns = [
+                        'ID',
+                        'Campaign',
+                        'Source',
+                        'Cost',
+                        'Clicks',
+                        'Impressions',
+                        'CPC',
+                        'CTR',
+                        'Reported Conversions',
+                        'Reported Conversion Value',
+                        'Reported ROAS',
+                        'Cost per Reported Conversions',
+                    ]
+                    const values = [
+                        'demo-campaign',
+                        'Example campaign',
+                        'Google Ads',
+                        1250,
+                        2400,
+                        50000,
+                        0.52,
+                        4.8,
+                        96,
+                        4800,
+                        3.84,
+                        13.02,
+                    ]
+                    return [
+                        200,
+                        {
+                            columns,
+                            results: [
+                                values.map((value, index) => ({
+                                    key: columns[index],
+                                    value,
+                                    kind: [3, 6, 9, 11].includes(index)
+                                        ? 'currency'
+                                        : index === 7
+                                          ? 'percentage'
+                                          : 'unit',
+                                })),
+                            ],
+                        },
+                    ]
+                }
                 if (query.kind === NodeKind.DatabaseSchemaQuery) {
                     return [200, { tables: {} }]
                 }
@@ -180,7 +269,7 @@ function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = [], scan
                         {
                             results: [
                                 {
-                                    label: 'Visitors',
+                                    label: dataReady ? 'Cost' : 'Visitors',
                                     days: [
                                         '2026-09-10',
                                         '2026-09-11',
@@ -190,7 +279,9 @@ function useDashboardWithoutSourcesMocks(suggestions: SuggestionApi[] = [], scan
                                         '2026-09-15',
                                         '2026-09-16',
                                     ],
-                                    data: [18, 17, 20, 19, 16, 18, 20],
+                                    data: dataReady
+                                        ? [150, 175, 180, 165, 200, 185, 195]
+                                        : [18, 17, 20, 19, 16, 18, 20],
                                 },
                             ],
                         },
@@ -225,7 +316,7 @@ export function DashboardWithoutSources(): JSX.Element {
 DashboardWithoutSources.parameters = { mockDate: '2026-09-16' }
 DashboardWithoutSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText(/Connect a marketing source to see spend and ad performance/)).resolves.toBeVisible()
+    await expect(canvas.findByText('Choose an ad platform')).resolves.toBeVisible()
     expect((await canvas.findAllByText('128'))[0]).toBeVisible()
     expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
 }
@@ -242,7 +333,7 @@ AdPerformanceWithoutSources.parameters = {
 }
 AdPerformanceWithoutSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText('Connect your ad platforms')).resolves.toBeVisible()
+    await expect(canvas.findByText('Choose an ad platform')).resolves.toBeVisible()
     expect(canvas.getByText(/No ad platforms were detected/)).toBeVisible()
     expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
     expect(canvas.queryByRole('button', { name: 'Continue to dashboard' })).not.toBeInTheDocument()
@@ -257,10 +348,10 @@ export function AdPerformanceWithDetectedSources(): JSX.Element {
 AdPerformanceWithDetectedSources.parameters = AdPerformanceWithoutSources.parameters
 AdPerformanceWithDetectedSources.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText('We detected these ad sources (2)')).resolves.toBeVisible()
+    await expect(canvas.findByText('Connect your ad platforms')).resolves.toBeVisible()
     marketingAnalyticsLogic.actions.loadSources()
-    expect(canvas.getByText('We detected these ad sources (2)')).toBeVisible()
-    expect(canvas.queryByText('Checking your marketing sources')).not.toBeInTheDocument()
+    expect(canvas.getByText('Connect your ad platforms')).toBeVisible()
+    expect(canvas.queryByText('Checking your connections')).not.toBeInTheDocument()
     expect(canvas.queryByText('Visitors over time')).not.toBeInTheDocument()
 }
 
@@ -273,7 +364,19 @@ export function AdPerformanceScanFailed(): JSX.Element {
 AdPerformanceScanFailed.parameters = AdPerformanceWithoutSources.parameters
 AdPerformanceScanFailed.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText(/We could not check your events for marketing sources/)).resolves.toBeVisible()
-    expect(canvas.getByText('Connect a source')).toBeVisible()
+    await expect(canvas.findByText('Could not check your events')).resolves.toBeVisible()
+    expect(canvas.getByText('Browse integrations')).toBeVisible()
     expect(canvas.getByText('Try again')).toBeVisible()
+}
+
+export function AdPerformanceDataAvailable(): JSX.Element {
+    useDashboardWithoutSourcesMocks([plan.suggestions[1]], false, true)
+    return <MarketingAnalyticsScene />
+}
+AdPerformanceDataAvailable.parameters = { ...AdPerformanceWithoutSources.parameters, mockDate: '2026-09-16' }
+AdPerformanceDataAvailable.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText('1 suggested connection')).resolves.toBeVisible()
+    await expect(canvas.findByText('Total clicks')).resolves.toBeVisible()
+    expect(canvas.queryByText('Checking your connections')).not.toBeInTheDocument()
 }

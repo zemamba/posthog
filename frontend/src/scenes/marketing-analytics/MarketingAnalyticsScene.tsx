@@ -3,7 +3,7 @@ import { BindLogic, useActions, useValues } from 'kea'
 import { useEffect } from 'react'
 
 import { IconGear, IconSparkles } from '@posthog/icons'
-import { LemonBanner, LemonButton, LemonSwitch, LemonTabs, Link, Spinner } from '@posthog/lemon-ui'
+import { LemonBanner, LemonButton, LemonSwitch, LemonTabs, Link } from '@posthog/lemon-ui'
 
 import { FEATURE_FLAGS } from 'lib/constants'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
@@ -31,6 +31,7 @@ import { ProductKey } from '~/queries/schema/schema-general'
 import { sourcesDataLogic } from 'products/data_warehouse/frontend/shared/logics/sourcesDataLogic'
 import { DetectedSources } from 'products/marketing_analytics/frontend/dashboard/DetectedSources'
 import { NewMarketingAnalyticsDashboard } from 'products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard'
+import { SourceSetupPanel } from 'products/marketing_analytics/frontend/dashboard/SourceSetupPanel'
 import { marketingAnalyticsEmptyState } from 'products/marketing_analytics/frontend/emptyState/marketingAnalyticsEmptyState'
 import { SearchPerformanceTab } from 'products/marketing_analytics/frontend/search/SearchPerformanceTab'
 import { useAttachedContext } from 'products/posthog_ai/frontend/api/logics'
@@ -126,24 +127,9 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
         }
     }, [loading, hasConfiguredSources, showOnboarding, completeOnboarding, isAdPerformance])
 
-    const feedbackBanner = (
-        <LemonBanner
-            type="info"
-            action={{
-                children: 'Send feedback',
-                id: 'marketing-analytics-feedback-button',
-            }}
-            className="mt-4"
-        >
-            Marketing analytics is in beta. Please let us know what you'd like to see here and/or report any issues
-            directly to us!
-        </LemonBanner>
-    )
-
     if (!isAdPerformance && !featureFlags[FEATURE_FLAGS.WEB_ANALYTICS_MARKETING]) {
         return (
             <>
-                {feedbackBanner}
                 <LemonBanner type="info">
                     You can enable marketing analytics in the feature preview settings{' '}
                     <Link to="https://app.posthog.com/settings/user-feature-previews#marketing-analytics">here</Link>.
@@ -155,11 +141,7 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
     if (loading && !dataWarehouseSources) {
         return (
             <>
-                {feedbackBanner}
-                <div role="status" className="flex items-center gap-3 py-8">
-                    <Spinner />
-                    <span>Checking your marketing sources</span>
-                </div>
+                <SourceSetupPanel state="checking" />
             </>
         )
     }
@@ -167,7 +149,6 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
     if (!isAdPerformance && !hasConfiguredSources && showOnboarding) {
         return (
             <>
-                {feedbackBanner}
                 <Onboarding completeOnboarding={completeOnboarding} />
             </>
         )
@@ -175,7 +156,6 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
 
     return (
         <>
-            {feedbackBanner}
             {isAdPerformance && conversion_goals.length > 0 && (
                 <LemonSwitch
                     className="mt-4"
@@ -186,16 +166,9 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
                 />
             )}
             <LegacyOAuthReconnectBanner />
-            <MarketingAnalyticsSourceStatusBanner />
+            {hasSyncedMarketingSources && <MarketingAnalyticsSourceStatusBanner />}
             <DetectedSources />
-            {!hasSources || !hasSyncedMarketingSources ? (
-                hasConfiguredSources ? (
-                    <LemonBanner type="info" className="mt-4">
-                        Your marketing sources are connected. Spend and ad performance will appear after the first sync
-                        finishes. You can connect other sources in setup while you wait.
-                    </LemonBanner>
-                ) : null
-            ) : (
+            {hasSources && hasSyncedMarketingSources && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
                     {marketingTiles?.map((tile, i) => (
                         <QueryTileItem key={i} tile={tile} />
@@ -208,7 +181,7 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
 
 const MarketingAnalyticsContent = (): JSX.Element => {
     const { featureFlags } = useValues(featureFlagLogic)
-    const { activeTab } = useValues(marketingAnalyticsLogic)
+    const { activeTab, hasSyncedMarketingSources } = useValues(marketingAnalyticsLogic)
     const { setActiveTab, setSetupSection } = useActions(marketingAnalyticsLogic)
     const { integrationSettingsModal } = useValues(marketingAnalyticsSettingsLogic)
     const { closeIntegrationSettingsModal } = useActions(marketingAnalyticsSettingsLogic)
@@ -221,7 +194,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                 <NewMarketingAnalyticsDashboard />
             ) : (
                 <>
-                    <MarketingAnalyticsFilters tabs={<></>} />
+                    {hasSyncedMarketingSources && <MarketingAnalyticsFilters tabs={<></>} />}
                     <MarketingAnalyticsDashboard />
                 </>
             )}
@@ -270,7 +243,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                       label: 'Ad performance',
                       content: (
                           <>
-                              <MarketingAnalyticsFilters tabs={<></>} />
+                              {hasSyncedMarketingSources && <MarketingAnalyticsFilters tabs={<></>} />}
                               <MarketingAnalyticsDashboard />
                               {featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] && (
                                   <div className="mt-8">
@@ -483,6 +456,9 @@ export function MarketingAnalyticsScene(): JSX.Element {
                         }}
                         actions={
                             <>
+                                <LemonButton type="tertiary" size="small" id="marketing-analytics-feedback-button">
+                                    Send feedback
+                                </LemonButton>
                                 <LemonButton
                                     to="https://posthog.com/docs/web-analytics/marketing-analytics"
                                     type="secondary"

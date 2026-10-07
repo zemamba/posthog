@@ -1,10 +1,9 @@
 import { useActions, useValues } from 'kea'
 
 import { IconArrowRight, IconCheckCircle, IconInfo } from '@posthog/icons'
-import { LemonButton, LemonCard, Link, Tooltip } from '@posthog/lemon-ui'
+import { LemonButton, LemonCard, LemonInput, Link, Tooltip } from '@posthog/lemon-ui'
 
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
-import { cn } from 'lib/utils/css-classes'
 import { eventUsageLogic } from 'lib/utils/eventUsageLogic'
 import { teamLogic } from 'scenes/teamLogic'
 import { urls } from 'scenes/urls'
@@ -18,7 +17,9 @@ import {
     VALID_NON_NATIVE_MARKETING_SOURCES,
     VALID_SELF_MANAGED_MARKETING_SOURCES,
     getEnabledNativeMarketingSources,
+    nativeSourceDisplayLabel,
 } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/utils'
+import { marketingOnboardingLogic } from './marketingOnboardingLogic'
 
 interface MarketingSource {
     id: string
@@ -29,9 +30,12 @@ interface MarketingSource {
 interface AddSourceStepProps {
     onContinue: () => void
     hasSources: boolean
+    onBack?: () => void
 }
 
-export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): JSX.Element {
+export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepProps): JSX.Element {
+    const { manualSourceSearch } = useValues(marketingOnboardingLogic)
+    const { setManualSourceSearch } = useActions(marketingOnboardingLogic)
     const { validExternalTables, validNativeSources } = useValues(marketingAnalyticsLogic)
     const { featureFlags } = useValues(featureFlagLogic)
     const { reportMarketingAnalyticsDataSourceConnected } = useActions(eventUsageLogic)
@@ -71,27 +75,53 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
         )
     }
 
-    const nativeSources = allSources.filter((s) => s.category === 'native')
-    const externalSources = allSources.filter((s) => s.category === 'external')
-    const selfManagedSources = allSources.filter((s) => s.category === 'self-managed')
+    const nativeSources = allSources.filter(
+        (s) =>
+            nativeSourceDisplayLabel(s.id).toLowerCase().includes(manualSourceSearch.toLowerCase()) &&
+            s.category === 'native'
+    )
+    const externalSources = allSources.filter(
+        (s) =>
+            nativeSourceDisplayLabel(s.id).toLowerCase().includes(manualSourceSearch.toLowerCase()) &&
+            s.category === 'external'
+    )
+    const selfManagedSources = allSources.filter(
+        (s) =>
+            nativeSourceDisplayLabel(s.id).toLowerCase().includes(manualSourceSearch.toLowerCase()) &&
+            s.category === 'self-managed'
+    )
 
     const totalConnected = validNativeSources.length + validExternalTables.length
 
     return (
-        <LemonCard hoverEffect={false}>
+        <LemonCard hoverEffect={false} className="max-w-3xl mt-6">
             <div className="space-y-3">
+                {onBack && (
+                    <LemonButton type="tertiary" onClick={onBack}>
+                        Back to suggestions
+                    </LemonButton>
+                )}
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
                         <h3 className="text-base font-semibold mb-0.5">Connect your marketing sources</h3>
                         <p className="text-xs text-muted-alt">
                             {hasSources
-                                ? `${totalConnected} source${totalConnected !== 1 ? 's' : ''} connected — click to add more`
-                                : 'Select a platform to connect (opens data warehouse setup)'}
+                                ? `${totalConnected} source${totalConnected !== 1 ? 's' : ''} connected. Choose another platform to connect.`
+                                : 'Choose a platform to start importing spend data.'}
                         </p>
                     </div>
                 </div>
 
+                <LemonInput
+                    type="search"
+                    placeholder="Search integrations"
+                    value={manualSourceSearch}
+                    onChange={setManualSourceSearch}
+                />
+                {!nativeSources.length && !externalSources.length && !selfManagedSources.length && (
+                    <p className="text-secondary">No integrations match your search.</p>
+                )}
                 {/* Native Sources */}
                 {nativeSources.length > 0 && (
                     <div>
@@ -170,20 +200,14 @@ export function AddSourceStep({ onContinue, hasSources }: AddSourceStepProps): J
 
 function SourceChip({ source, onSelect }: { source: MarketingSource; onSelect: (id: string) => void }): JSX.Element {
     return (
-        <button
-            type="button"
-            className={cn(
-                'flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-all',
-                source.isConnected
-                    ? 'border-success bg-success-lightest'
-                    : 'border-primary bg-bg-light hover:border-primary-dark hover:bg-fill-button-tertiary-hover',
-                'cursor-pointer'
-            )}
+        <LemonButton
+            type="secondary"
+            icon={<SourceIcon type={source.id} size="small" disableTooltip />}
             onClick={() => onSelect(source.id)}
+            data-attr="marketing-manual-connect-source"
         >
-            <SourceIcon type={source.id} size="xsmall" disableTooltip />
-            <span className="text-sm font-medium">{source.id}</span>
-            {source.isConnected && <IconCheckCircle className="w-3.5 h-3.5 text-success" />}
-        </button>
+            {nativeSourceDisplayLabel(source.id)}
+            {source.isConnected && <IconCheckCircle className="ml-2 text-success" />}
+        </LemonButton>
     )
 }
