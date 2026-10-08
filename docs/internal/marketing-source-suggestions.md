@@ -96,3 +96,6 @@ Search connections appear as a separate card below both the source suggestions a
 
 The integration catalog opened inside the dashboard has no continue action because the user is already on the dashboard.
 The initial onboarding catalog offers **Skip for now** when no sources are connected.
+
+The integration catalog places its back action in the same footer as the browse action in suggestions.
+The separate search connection card offers Google Ads, Bing Ads, and Google Search Console with their connection states.

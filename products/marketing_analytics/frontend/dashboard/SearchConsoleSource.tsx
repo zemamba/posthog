@@ -20,12 +20,14 @@ export function SearchConsoleSource(): JSX.Element | null {
     if (!featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS]) {
         return null
     }
-    const connected = dataWarehouseSources?.results.some((source) => source.source_type === 'GoogleSearchConsole')
-    const hasGoogleAds = dataWarehouseSources?.results.some((source) => source.source_type === 'GoogleAds')
     const sources = [
-        ...(!connected && !hasGoogleAds ? [{ type: 'GoogleAds', name: 'Google Ads', connected: false }] : []),
-        { type: 'GoogleSearchConsole', name: 'Google Search Console', connected: !!connected },
-    ]
+        { type: 'GoogleAds', name: 'Google Ads' },
+        { type: 'BingAds', name: 'Bing Ads' },
+        { type: 'GoogleSearchConsole', name: 'Google Search Console' },
+    ].map((source) => ({
+        ...source,
+        connected: dataWarehouseSources?.results.some((connection) => connection.source_type === source.type),
+    }))
     return (
         <LemonCard
             hoverEffect={false}
@@ -36,8 +38,8 @@ export function SearchConsoleSource(): JSX.Element | null {
                 <h3 className="mb-2">Connect your search sources</h3>
                 <p className="text-secondary text-sm mb-0">
                     Google Search Console shows organic queries, landing pages and average positions. Connect Google Ads
-                    too to compare paid keywords with organic queries and use spend and conversion data to guide your
-                    search ad decisions.
+                    or Bing Ads to compare paid keywords with organic queries and use spend and conversion data to guide
+                    your search ad decisions.
                 </p>
             </div>
             <div className="divide-y">

@@ -94,13 +94,8 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
     const totalConnected = validNativeSources.length + validExternalTables.length
 
     return (
-        <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6">
-            <div className="space-y-3">
-                {onBack && (
-                    <LemonButton type="tertiary" onClick={onBack}>
-                        Back to suggestions
-                    </LemonButton>
-                )}
+        <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6 !p-0 overflow-hidden">
+            <div className="p-6 space-y-3">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
@@ -173,28 +168,31 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
                         </div>
                     </div>
                 )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-3 border-t border-primary">
-                    <Link
-                        to="https://posthog.com/docs/web-analytics/marketing-analytics"
-                        target="_blank"
-                        className="text-xs"
+            </div>
+            <div className="border-t p-4 flex flex-wrap items-center justify-between gap-3 bg-bg-light">
+                {onBack && (
+                    <LemonButton type="secondary" size="small" onClick={onBack}>
+                        Back to suggestions
+                    </LemonButton>
+                )}
+                <Link
+                    to="https://posthog.com/docs/web-analytics/marketing-analytics"
+                    target="_blank"
+                    className="text-xs"
+                >
+                    View docs
+                </Link>
+                {onContinue && (
+                    <LemonButton
+                        type="primary"
+                        size="small"
+                        onClick={onContinue}
+                        sideIcon={<IconArrowRight />}
+                        data-attr="marketing-onboarding-continue"
                     >
-                        View docs
-                    </Link>
-                    {onContinue && (
-                        <LemonButton
-                            type="primary"
-                            size="small"
-                            onClick={onContinue}
-                            sideIcon={<IconArrowRight />}
-                            data-attr="marketing-onboarding-continue"
-                        >
-                            {hasSources ? 'Continue to dashboard' : 'Skip for now'}
-                        </LemonButton>
-                    )}
-                </div>
+                        {hasSources ? 'Continue to dashboard' : 'Skip for now'}
+                    </LemonButton>
+                )}
             </div>
         </LemonCard>
     )
