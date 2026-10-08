@@ -53,7 +53,6 @@ export function DetectedSources({ compact = false }: { compact?: boolean }): JSX
         return (
             <AddSourceStep
                 hasSources={connections.length > 0 || hasSyncedMarketingSources}
-                onContinue={() => setShowIntegrations(false)}
                 onBack={() => setShowIntegrations(false)}
             />
         )

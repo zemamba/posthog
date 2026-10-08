@@ -7,6 +7,7 @@ import { teamLogic } from 'scenes/teamLogic'
 import { ProductIntentContext, ProductKey } from '~/queries/schema/schema-general'
 
 import { detectedSourcesLogic } from 'products/marketing_analytics/frontend/dashboard/detectedSourcesLogic'
+import { SearchConsoleSource } from 'products/marketing_analytics/frontend/dashboard/SearchConsoleSource'
 import { SourceOnboardingScan } from 'products/marketing_analytics/frontend/dashboard/SourceOnboardingScan'
 
 import { MarketingAnalyticsSourceStatusBanner } from '../../web-analytics/tabs/marketing-analytics/frontend/components/MarketingAnalyticsSourceStatusBanner'
@@ -65,6 +66,7 @@ export function Onboarding({ completeOnboarding }: { completeOnboarding: () => v
                     rescanDisabledReason={sourceScanDisabledReason}
                 />
             )}
+            {(!setupPlanLoading || setupPlan) && <SearchConsoleSource />}
         </div>
     )
 }

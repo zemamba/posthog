@@ -11,8 +11,6 @@ import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/f
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
 
-import { SearchConsoleSource } from './SearchConsoleSource'
-
 export interface SourceSetupPanelProps {
     state: 'checking' | 'scanning' | 'suggestions' | 'empty' | 'error' | 'waiting'
     suggestions?: Suggestion[]
@@ -91,7 +89,7 @@ export function SourceSetupPanel({
                     </div>
                 </div>
                 {state === 'empty' && (
-                    <p className="text-secondary text-sm mb-0">
+                    <p className="text-secondary text-sm mb-4">
                         Make sure your ad links include UTM parameters, such as utm_source and utm_medium, and that
                         PostHog captures them.
                     </p>
@@ -216,7 +214,6 @@ export function SourceSetupPanel({
                     </div>
                 )}
             </div>
-            {!busy && !compact && <SearchConsoleSource />}
             {footer && (
                 <div className="border-t p-4 flex flex-wrap items-center justify-between gap-3 bg-bg-light">
                     {footer}

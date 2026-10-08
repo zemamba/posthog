@@ -19,6 +19,7 @@ import { expect, userEvent } from 'storybook/test'
 
 import type { SuggestionApi } from '../generated/api.schemas'
 import { NewMarketingAnalyticsDashboard } from './NewMarketingAnalyticsDashboard'
+import { SearchConsoleSource } from './SearchConsoleSource'
 import { SourceOnboardingScan, SourceOnboardingScanProps } from './SourceOnboardingScan'
 
 const suggestion = (kind: string, integration: string): SuggestionApi => ({
@@ -114,7 +115,12 @@ export function ScanFailed(): JSX.Element {
     return <SourceOnboardingScan {...scanProps} failed suggestions={[]} />
 }
 export function ManualSelection(): JSX.Element {
-    return <AddSourceStep onContinue={() => {}} onBack={() => {}} hasSources={false} />
+    return (
+        <>
+            <AddSourceStep onContinue={() => {}} onBack={() => {}} hasSources={false} />
+            <SearchConsoleSource />
+        </>
+    )
 }
 export function Narrow(): JSX.Element {
     return (
@@ -430,7 +436,7 @@ AdPerformanceDataAvailable.play = async ({ canvasElement }: { canvasElement: HTM
 }
 
 export function ManualSelectionWithSearchConsole(): JSX.Element {
-    return <AddSourceStep onContinue={() => {}} onBack={() => {}} hasSources={false} />
+    return <ManualSelection />
 }
 ManualSelectionWithSearchConsole.parameters = {
     featureFlags: [FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS, FEATURE_FLAGS.MARKETING_ANALYTICS_SETUP],
@@ -438,7 +444,9 @@ ManualSelectionWithSearchConsole.parameters = {
 ManualSelectionWithSearchConsole.play = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
     const canvas = within(canvasElement)
     await expect(canvas.findByText('Google Search Console')).resolves.toBeVisible()
-    expect(canvas.getByText('Also available: organic search')).toBeVisible()
+    expect(canvas.getByText('Connect your search sources')).toBeVisible()
+    await userEvent.type(canvas.getByPlaceholderText('Search integrations'), 'Meta')
+    expect(canvas.getByText('Google Search Console')).toBeVisible()
 }
 
 export function DashboardWithSearchConsoleOnly(): JSX.Element {

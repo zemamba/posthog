@@ -6,6 +6,7 @@ import { FEATURE_FLAGS } from 'lib/constants'
 
 import { mswDecorator } from '~/mocks/browser'
 
+import { SearchConsoleSource } from './SearchConsoleSource'
 import { SourceSetupPanel } from './SourceSetupPanel'
 
 const meta: Meta<typeof SourceSetupPanel> = {
@@ -107,6 +108,14 @@ export const Narrow: Story = {
 }
 
 export const DetectedPlatformsWithSearchConsole: Story = {
+    decorators: [
+        (Story) => (
+            <>
+                <Story />
+                <SearchConsoleSource />
+            </>
+        ),
+    ],
     args: DetectedPlatforms.args,
     parameters: { featureFlags: [FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] },
 }

@@ -31,6 +31,7 @@ import { ProductKey } from '~/queries/schema/schema-general'
 import { sourcesDataLogic } from 'products/data_warehouse/frontend/shared/logics/sourcesDataLogic'
 import { DetectedSources } from 'products/marketing_analytics/frontend/dashboard/DetectedSources'
 import { NewMarketingAnalyticsDashboard } from 'products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard'
+import { SearchConsoleSource } from 'products/marketing_analytics/frontend/dashboard/SearchConsoleSource'
 import { SourceSetupPanel } from 'products/marketing_analytics/frontend/dashboard/SourceSetupPanel'
 import { marketingAnalyticsEmptyState } from 'products/marketing_analytics/frontend/emptyState/marketingAnalyticsEmptyState'
 import { SearchPerformanceTab } from 'products/marketing_analytics/frontend/search/SearchPerformanceTab'
@@ -171,6 +172,7 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
             <LegacyOAuthReconnectBanner />
             {hasSyncedMarketingSources && <MarketingAnalyticsSourceStatusBanner />}
             <DetectedSources compact={hasSearchConsole && !hasSyncedMarketingSources} />
+            {!hasSearchConsole && <SearchConsoleSource />}
             {hasSources && hasSyncedMarketingSources && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-x-4 gap-y-12">
                     {marketingTiles?.map((tile, i) => (

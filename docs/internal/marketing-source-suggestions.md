@@ -87,3 +87,12 @@ When no platforms are detected, the panel explains how UTM parameters on ad link
 With Search performance enabled, a connected Google Search Console source also skips onboarding.
 The current dashboard shows Search performance below a compact ad-source connection panel when no ad data is ready.
 Search Console does not unlock ad spend metrics; its sync and data readiness remain independent.
+
+The Search Console connection card explains how connecting Google Ads adds paid keyword, spend, and conversion data alongside organic search queries.
+
+When neither Google Ads nor Google Search Console is connected, the enabled Search performance flag shows a separate search connection card with both integrations.
+
+Search connections appear as a separate card below both the source suggestions and the manual integration catalog.
+
+The integration catalog opened inside the dashboard has no continue action because the user is already on the dashboard.
+The initial onboarding catalog offers **Skip for now** when no sources are connected.

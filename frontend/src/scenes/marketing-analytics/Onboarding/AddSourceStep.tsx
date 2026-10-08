@@ -11,7 +11,6 @@ import { urls } from 'scenes/urls'
 import { ProductIntentContext, ProductKey } from '~/queries/schema/schema-general'
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
-import { SearchConsoleSource } from 'products/marketing_analytics/frontend/dashboard/SearchConsoleSource'
 
 import { marketingAnalyticsLogic } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 import {
@@ -29,7 +28,7 @@ interface MarketingSource {
 }
 
 interface AddSourceStepProps {
-    onContinue: () => void
+    onContinue?: () => void
     hasSources: boolean
     onBack?: () => void
 }
@@ -175,8 +174,6 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
                     </div>
                 )}
 
-                <SearchConsoleSource search={manualSourceSearch} />
-
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 border-t border-primary">
                     <Link
@@ -186,15 +183,17 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
                     >
                         View docs
                     </Link>
-                    <LemonButton
-                        type="primary"
-                        size="small"
-                        onClick={onContinue}
-                        sideIcon={<IconArrowRight />}
-                        data-attr="marketing-onboarding-continue"
-                    >
-                        Continue to dashboard
-                    </LemonButton>
+                    {onContinue && (
+                        <LemonButton
+                            type="primary"
+                            size="small"
+                            onClick={onContinue}
+                            sideIcon={<IconArrowRight />}
+                            data-attr="marketing-onboarding-continue"
+                        >
+                            {hasSources ? 'Continue to dashboard' : 'Skip for now'}
+                        </LemonButton>
+                    )}
                 </div>
             </div>
         </LemonCard>
