@@ -20,6 +20,7 @@ const meta: Meta<typeof SourceSetupPanel> = {
                     200,
                     {
                         GoogleAds: { iconPath: '/static/services/google-ads.png' },
+                        BingAds: { iconPath: '/static/services/bing-ads.svg' },
                         MetaAds: { iconPath: '/static/services/meta-ads.png' },
                         GoogleSearchConsole: { iconPath: '/static/services/google-search-console.svg' },
                     },
