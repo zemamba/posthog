@@ -1,7 +1,9 @@
 import { useValues } from 'kea'
 
+import * as magnifyingGlass from '@posthog/brand/hoggies/png/magnifying-glass'
 import { LemonButton, LemonCard, LemonTag } from '@posthog/lemon-ui'
 
+import { pngHoggie } from 'lib/brand/hoggies'
 import { RestrictionScope, useRestrictedArea } from 'lib/components/RestrictedArea'
 import { FEATURE_FLAGS, TeamMembershipLevel } from 'lib/constants'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
@@ -9,6 +11,8 @@ import { urls } from 'scenes/urls'
 import { marketingAnalyticsLogic } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic'
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
+
+const HedgehogMagnifyingGlass = pngHoggie(magnifyingGlass)
 
 export function SearchConsoleSource(): JSX.Element | null {
     const { featureFlags } = useValues(featureFlagLogic)
@@ -32,13 +36,16 @@ export function SearchConsoleSource(): JSX.Element | null {
         <section className="max-w-3xl w-full mx-auto mt-8 mb-6">
             <h2 className="mb-4">Search performance</h2>
             <LemonCard hoverEffect={false} className="space-y-4" data-attr="marketing-search-console-extra">
-                <div>
-                    <h3 className="mb-2">Connect your search sources</h3>
-                    <p className="text-secondary text-sm mb-0">
-                        Google Search Console shows organic queries, landing pages and average positions. Connect Google
-                        Ads or Bing Ads to compare paid keywords with organic queries and use spend and conversion data
-                        to guide your search ad decisions.
-                    </p>
+                <div className="flex items-start gap-4">
+                    <div className="min-w-0 flex-1">
+                        <h3 className="mb-2">Connect your search sources</h3>
+                        <p className="text-secondary text-sm mb-0">
+                            Google Search Console shows organic queries, landing pages and average positions. Connect
+                            Google Ads or Bing Ads to compare paid keywords with organic queries and use spend and
+                            conversion data to guide your search ad decisions.
+                        </p>
+                    </div>
+                    <HedgehogMagnifyingGlass className="w-20 shrink-0" />
                 </div>
                 <div className="divide-y">
                     {sources.map((source) => (

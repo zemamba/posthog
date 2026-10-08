@@ -103,3 +103,5 @@ The separate search connection card offers Google Ads, Bing Ads, and Google Sear
 The legacy dashboard and ad performance tab show search tables only after a search source is connected. Without one, the connection card remains visible without empty filter controls.
 
 Dashboard sections keep the Ad performance and Search performance headings outside their setup cards. The cards retain titles that describe the current setup state.
+
+The empty ad setup card uses the money hedgehog illustration. The search connection card uses the magnifying glass hedgehog. Both sit to the right of their headings and descriptions.

@@ -1,15 +1,19 @@
 import { useValues } from 'kea'
 import type { ReactNode } from 'react'
 
+import * as moneyPng from '@posthog/brand/hoggies/png/money'
 import { IconCheckCircle, IconInfo } from '@posthog/icons'
 import { LemonButton, LemonCard, LemonCollapse, LemonTag, Spinner } from '@posthog/lemon-ui'
 
+import { pngHoggie } from 'lib/brand/hoggies'
 import { FEATURE_FLAGS } from 'lib/constants'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { urls } from 'scenes/urls'
 import type { Suggestion } from 'scenes/web-analytics/tabs/marketing-analytics/frontend/logic/setupPlanLogic'
 
 import { SourceIcon } from 'products/data_warehouse/frontend/shared/components/SourceIcon'
+
+const HedgehogMoney = pngHoggie(moneyPng)
 
 export interface SourceSetupPanelProps {
     state: 'checking' | 'scanning' | 'suggestions' | 'empty' | 'error' | 'waiting'
@@ -76,12 +80,13 @@ export function SourceSetupPanel({
         >
             <div className={compact ? 'p-4 space-y-3' : 'p-6 space-y-5'}>
                 {(state === 'scanning' || state === 'suggestions') && <LemonTag type="muted">Last 7 days</LemonTag>}
-                <div className="flex items-start gap-3" role={busy ? 'status' : undefined}>
+                <div className="flex items-start gap-4" role={busy ? 'status' : undefined}>
                     {busy ? <Spinner className="mt-1 shrink-0" /> : null}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <h3 className="text-xl mb-2">{title}</h3>
                         <p className="text-secondary mb-0 max-w-xl">{description}</p>
                     </div>
+                    {state === 'empty' && !compact && <HedgehogMoney className="w-20 shrink-0" />}
                 </div>
                 {state === 'empty' && (
                     <p className="text-secondary text-sm mb-4">
