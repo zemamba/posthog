@@ -250,16 +250,14 @@ export interface autoresearchPipelineLogicValues {
     defaultTab: AutoresearchPipelineTab
     detailRequested: boolean
     expandedRunId: string | null
+    firstCheck: dayjs.Dayjs | null
+    latestChampionPerformance: OnlinePerformanceRowApi | null
     lifecycleSteps: LifecycleStep[] | null
     modelByTrainingRun: Record<string, AutoresearchModelApi>
     models: AutoresearchModelApi[]
     modelsError: boolean
     modelsLoaded: boolean
     modelsLoading: boolean
-    latestChampionPerformance: OnlinePerformanceRowApi | null
-    realizedAucPoints: RealizedAucPoint[]
-    segmentCalibration: SegmentCalibration[]
-    firstCheck: dayjs.Dayjs | null
     onlinePerformance: OnlinePerformanceRowApi[]
     onlinePerformanceError: boolean
     onlinePerformanceLoading: boolean
@@ -271,6 +269,7 @@ export interface autoresearchPipelineLogicValues {
     probabilityDistributionError: boolean
     probabilityDistributionLoading: boolean
     probabilityHistogram: ProbabilityBucket[] | null
+    realizedAucPoints: RealizedAucPoint[]
     reportByRun: Record<string, string | null>
     reportByRunLoading: boolean
     runs: AutoresearchRunApi[]
@@ -280,6 +279,7 @@ export interface autoresearchPipelineLogicValues {
     scoreResult: AutoresearchRunApi | null
     scoreResultLoading: boolean
     scoringCoverage: ScoringCoverage | null
+    segmentCalibration: SegmentCalibration[]
     selectedTab: AutoresearchPipelineTab | null
     startTrainingResult: AutoresearchTrainingRunApi | null
     startTrainingResultLoading: boolean
@@ -369,6 +369,21 @@ export interface autoresearchPipelineLogicActions {
         models: AutoresearchModelApi[]
         payload?: any
     }
+    loadOnlinePerformance: () => any
+    loadOnlinePerformanceFailure: (
+        error: string,
+        errorObject?: any
+    ) => {
+        error: string
+        errorObject?: any
+    }
+    loadOnlinePerformanceSuccess: (
+        onlinePerformance: OnlinePerformanceRowApi[],
+        payload?: any
+    ) => {
+        onlinePerformance: OnlinePerformanceRowApi[]
+        payload?: any
+    }
     loadPipeline: () => any
     loadPipelineFailure: (
         error: string,
@@ -446,21 +461,6 @@ export interface autoresearchPipelineLogicActions {
         payload?: {
             runId: string
         }
-    }
-    loadOnlinePerformance: () => any
-    loadOnlinePerformanceFailure: (
-        error: string,
-        errorObject?: any
-    ) => {
-        error: string
-        errorObject?: any
-    }
-    loadOnlinePerformanceSuccess: (
-        onlinePerformance: OnlinePerformanceRowApi[],
-        payload?: any
-    ) => {
-        onlinePerformance: OnlinePerformanceRowApi[]
-        payload?: any
     }
     loadRuns: () => any
     loadRunsFailure: (
