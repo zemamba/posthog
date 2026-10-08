@@ -99,3 +99,5 @@ The initial onboarding catalog offers **Skip for now** when no sources are conne
 
 The integration catalog places its back action in the same footer as the browse action in suggestions.
 The separate search connection card offers Google Ads, Bing Ads, and Google Search Console with their connection states.
+
+The legacy dashboard and ad performance tab show search tables only after a search source is connected. Without one, the connection card remains visible without empty filter controls.

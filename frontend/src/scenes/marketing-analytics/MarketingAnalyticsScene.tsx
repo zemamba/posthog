@@ -191,9 +191,11 @@ const MarketingAnalyticsContent = (): JSX.Element => {
     const { integrationSettingsModal } = useValues(marketingAnalyticsSettingsLogic)
     const { closeIntegrationSettingsModal } = useActions(marketingAnalyticsSettingsLogic)
 
-    const hasSearchConsole =
+    const hasConnectedSearchSource =
         !!featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] &&
-        !!dataWarehouseSources?.results.some((source) => source.source_type === 'GoogleSearchConsole')
+        !!dataWarehouseSources?.results.some((source) =>
+            ['GoogleAds', 'BingAds', 'GoogleSearchConsole'].includes(source.source_type)
+        )
 
     // The redesigned dashboard replaces the current one under the same "Dashboard" tab when its flag is
     // on, so the eventual cutover is just flipping the flag — no tab rename, no extra tab key to strand.
@@ -205,7 +207,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                 <>
                     {hasSyncedMarketingSources && <MarketingAnalyticsFilters tabs={<></>} />}
                     <MarketingAnalyticsDashboard />
-                    {hasSearchConsole && (
+                    {hasConnectedSearchSource && (
                         <div className="mt-8">
                             <SearchPerformanceTab showSourceSuggestions={hasSyncedMarketingSources} />
                         </div>
@@ -259,7 +261,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
                           <>
                               {hasSyncedMarketingSources && <MarketingAnalyticsFilters tabs={<></>} />}
                               <MarketingAnalyticsDashboard />
-                              {featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS] && (
+                              {hasConnectedSearchSource && (
                                   <div className="mt-8">
                                       <SearchPerformanceTab showSourceSuggestions={hasSyncedMarketingSources} />
                                   </div>
