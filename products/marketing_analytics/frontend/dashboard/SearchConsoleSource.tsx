@@ -29,45 +29,44 @@ export function SearchConsoleSource(): JSX.Element | null {
         connected: dataWarehouseSources?.results.some((connection) => connection.source_type === source.type),
     }))
     return (
-        <LemonCard
-            hoverEffect={false}
-            className="max-w-3xl w-full mx-auto mt-4 mb-6 space-y-4"
-            data-attr="marketing-search-console-extra"
-        >
-            <div>
-                <h3 className="mb-2">Connect your search sources</h3>
-                <p className="text-secondary text-sm mb-0">
-                    Google Search Console shows organic queries, landing pages and average positions. Connect Google Ads
-                    or Bing Ads to compare paid keywords with organic queries and use spend and conversion data to guide
-                    your search ad decisions.
-                </p>
-            </div>
-            <div className="divide-y">
-                {sources.map((source) => (
-                    <div key={source.type} className="flex flex-wrap items-center justify-between gap-3 py-2">
-                        <div className="min-w-0 flex items-center gap-3">
-                            <SourceIcon type={source.type} size="small" disableTooltip />
-                            <strong>{source.name}</strong>
-                            {source.connected && <LemonTag type="info">Connected</LemonTag>}
+        <section className="max-w-3xl w-full mx-auto mt-8 mb-6">
+            <h2 className="mb-4">Search performance</h2>
+            <LemonCard hoverEffect={false} className="space-y-4" data-attr="marketing-search-console-extra">
+                <div>
+                    <h3 className="mb-2">Connect your search sources</h3>
+                    <p className="text-secondary text-sm mb-0">
+                        Google Search Console shows organic queries, landing pages and average positions. Connect Google
+                        Ads or Bing Ads to compare paid keywords with organic queries and use spend and conversion data
+                        to guide your search ad decisions.
+                    </p>
+                </div>
+                <div className="divide-y">
+                    {sources.map((source) => (
+                        <div key={source.type} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                            <div className="min-w-0 flex items-center gap-3">
+                                <SourceIcon type={source.type} size="small" disableTooltip />
+                                <strong>{source.name}</strong>
+                                {source.connected && <LemonTag type="info">Connected</LemonTag>}
+                            </div>
+                            {!source.connected && (
+                                <LemonButton
+                                    type="secondary"
+                                    size="small"
+                                    disabledReason={restrictedReason}
+                                    to={urls.dataWarehouseSourceNew(
+                                        source.type,
+                                        urls.marketingAnalyticsApp(),
+                                        'Marketing analytics'
+                                    )}
+                                    targetBlank
+                                >
+                                    Connect
+                                </LemonButton>
+                            )}
                         </div>
-                        {!source.connected && (
-                            <LemonButton
-                                type="secondary"
-                                size="small"
-                                disabledReason={restrictedReason}
-                                to={urls.dataWarehouseSourceNew(
-                                    source.type,
-                                    urls.marketingAnalyticsApp(),
-                                    'Marketing analytics'
-                                )}
-                                targetBlank
-                            >
-                                Connect
-                            </LemonButton>
-                        )}
-                    </div>
-                ))}
-            </div>
-        </LemonCard>
+                    ))}
+                </div>
+            </LemonCard>
+        </section>
     )
 }

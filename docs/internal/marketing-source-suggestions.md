@@ -101,3 +101,5 @@ The integration catalog places its back action in the same footer as the browse 
 The separate search connection card offers Google Ads, Bing Ads, and Google Search Console with their connection states.
 
 The legacy dashboard and ad performance tab show search tables only after a search source is connected. Without one, the connection card remains visible without empty filter controls.
+
+Dashboard sections keep the Ad performance and Search performance headings outside their setup cards. The cards retain titles that describe the current setup state.

@@ -75,16 +75,11 @@ export function SourceSetupPanel({
             }
         >
             <div className={compact ? 'p-4 space-y-3' : 'p-6 space-y-5'}>
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-secondary text-xs font-semibold">Marketing sources</span>
-                    {state === 'scanning' || state === 'suggestions' ? (
-                        <LemonTag type="muted">Last 7 days</LemonTag>
-                    ) : null}
-                </div>
+                {(state === 'scanning' || state === 'suggestions') && <LemonTag type="muted">Last 7 days</LemonTag>}
                 <div className="flex items-start gap-3" role={busy ? 'status' : undefined}>
                     {busy ? <Spinner className="mt-1 shrink-0" /> : null}
                     <div className="min-w-0">
-                        <h2 className="text-xl mb-2">{title}</h2>
+                        <h3 className="text-xl mb-2">{title}</h3>
                         <p className="text-secondary mb-0 max-w-xl">{description}</p>
                     </div>
                 </div>

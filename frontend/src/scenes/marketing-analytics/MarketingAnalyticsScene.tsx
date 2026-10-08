@@ -171,6 +171,13 @@ const MarketingAnalyticsDashboard = (): JSX.Element => {
             )}
             <LegacyOAuthReconnectBanner />
             {hasSyncedMarketingSources && <MarketingAnalyticsSourceStatusBanner />}
+            <h2
+                className={
+                    hasSyncedMarketingSources || hasSearchConsole ? 'mt-6 mb-0' : 'max-w-3xl w-full mx-auto mt-6 mb-0'
+                }
+            >
+                Ad performance
+            </h2>
             <DetectedSources compact={hasSearchConsole && !hasSyncedMarketingSources} />
             {!hasSearchConsole && <SearchConsoleSource />}
             {hasSources && hasSyncedMarketingSources && (
