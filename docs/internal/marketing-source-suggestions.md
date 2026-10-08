@@ -111,3 +111,6 @@ The money hedgehog stays in the manual integration catalog so switching from sug
 Integration buttons show the external-link icon because their connection panels open in a new tab.
 
 The native integration catalog uses a consistent display order: Google Ads, Meta Ads, Bing Ads, LinkedIn Ads, TikTok Ads, Reddit Ads, Pinterest Ads, Snapchat Ads, OpenAI Ads, Apple Ads, Amazon Ads, Rokt Ads, and X Ads. Google Search Console stays in the search section.
+
+The separate Ad performance tab is available only with `new-marketing-analytics-dashboard` enabled.
+Enabling Search performance alone keeps paid and organic reporting inside the current Dashboard tab.

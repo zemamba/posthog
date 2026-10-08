@@ -258,8 +258,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
 
     const tabs = [
         { key: MarketingAnalyticsTab.DASHBOARD, label: 'Dashboard', content: dashboard },
-        ...(featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_NEW_DASHBOARD] ||
-        featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS]
+        ...(featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_NEW_DASHBOARD]
             ? [
                   {
                       key: MarketingAnalyticsTab.AD_PERFORMANCE,
@@ -348,6 +347,7 @@ const MarketingAnalyticsContent = (): JSX.Element => {
         if (!tabIsRendered && !absorbed) {
             setActiveTab(
                 activeTab === MarketingAnalyticsTab.SEARCH_PERFORMANCE &&
+                    featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_NEW_DASHBOARD] &&
                     featureFlags[FEATURE_FLAGS.MARKETING_ANALYTICS_ORGANIC_KEYWORDS]
                     ? MarketingAnalyticsTab.AD_PERFORMANCE
                     : MarketingAnalyticsTab.DASHBOARD
