@@ -86,7 +86,9 @@ export function SourceSetupPanel({
                         <h3 className="text-xl mb-2">{title}</h3>
                         <p className="text-secondary mb-0 max-w-xl">{description}</p>
                     </div>
-                    {state === 'empty' && !compact && <HedgehogMoney className="w-20 shrink-0" />}
+                    {(state === 'empty' || state === 'suggestions') && !compact && (
+                        <HedgehogMoney className="w-20 shrink-0" />
+                    )}
                 </div>
                 {state === 'empty' && (
                     <p className="text-secondary text-sm mb-4">

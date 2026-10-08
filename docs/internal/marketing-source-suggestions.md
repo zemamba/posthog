@@ -114,3 +114,5 @@ The native integration catalog uses a consistent display order: Google Ads, Meta
 
 The separate Ad performance tab is available only with `new-marketing-analytics-dashboard` enabled.
 Enabling Search performance alone keeps paid and organic reporting inside the current Dashboard tab.
+
+Detected-source suggestions keep the money hedgehog in the header, matching the empty state and manual catalog.
