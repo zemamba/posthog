@@ -36,7 +36,7 @@ export function formatMemoryKillNotice(kills: ProcessKilledParams[]): string {
     ...lines,
     "",
     "This notice describes memory pressure shared by every agent in the sandbox; it does not identify which tool call was stopped.",
-    "Do not rerun a stopped validation command unchanged.",
+    "Do not rerun a stopped command unchanged.",
     "Run a smaller command instead: fewer test files, fewer parallel workers, or one package at a time.",
     "Coordinate with the parent and other agents: run only one memory-heavy build, test suite, or typecheck at a time across all worktrees. Do not start another copy in the background.",
   ].join("\n");
@@ -105,21 +105,27 @@ export const createMemoryKillNoticeHook = (
     const command =
       typeof toolInput?.command === "string" ? toolInput.command : undefined;
     const validation = command && validationCommandKey(command);
-    const validationKey = validation && JSON.stringify([input.cwd, validation]);
+    // Any command can trigger a kill loop, so every Bash command gets a retry
+    // limit. Only validation commands share the sandbox-wide lock.
+    const retryKey =
+      input.tool_name === "Bash" && command
+        ? JSON.stringify([input.cwd, validation || command.trim()])
+        : undefined;
     if (input.hook_event_name === "PreToolUse") {
-      if (input.tool_name !== "Bash" || !validationKey || !command)
-        return { continue: true };
-      if ((stoppedCommands.get(validationKey)?.failures ?? 0) >= 2) {
+      if (!retryKey || !command) return { continue: true };
+      if ((stoppedCommands.get(retryKey)?.failures ?? 0) >= 2) {
         return {
           continue: true,
           hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason:
-              "This validation command has failed repeatedly during watchdog memory interventions. Do not retry it unchanged. Reduce its scope or worker count, or report that validation could not complete within the sandbox memory limit.",
+            permissionDecisionReason: validation
+              ? "This validation command has failed repeatedly during watchdog memory interventions. Do not retry it unchanged. Reduce its scope or worker count, or report that validation could not complete within the sandbox memory limit."
+              : "The sandbox memory watchdog stopped this command twice. Do not retry it unchanged. Reduce its memory use, scope, or worker count, or report that it could not complete within the sandbox memory limit.",
           },
         };
       }
+      if (!validation) return { continue: true };
       return {
         continue: true,
         hookSpecificOutput: {
@@ -169,8 +175,8 @@ export const createMemoryKillNoticeHook = (
     if (kills.length === 0) return { continue: true };
 
     for (const kill of kills) seen.add(`${kill.at}:${kill.pid}`);
-    if (validationKey && endedBySignal(input)) {
-      const interventions = stoppedCommands.get(validationKey) ?? {
+    if (retryKey && endedBySignal(input)) {
+      const interventions = stoppedCommands.get(retryKey) ?? {
         failures: 0,
         killIds: new Set<string>(),
       };
@@ -179,7 +185,7 @@ export const createMemoryKillNoticeHook = (
         interventions.failures += 1;
         for (const id of ids) interventions.killIds.add(id);
       }
-      stoppedCommands.set(validationKey, interventions);
+      stoppedCommands.set(retryKey, interventions);
     }
     logger.info("Memory watchdog feedback delivered to hook", {
       agentId: input.agent_id ?? null,

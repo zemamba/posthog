@@ -252,4 +252,46 @@ describe("createMemoryKillNoticeHook", () => {
       }
     },
   );
+  it("denies a third unchanged run of any command the watchdog stopped twice", async () => {
+    await writeFile(path, "");
+    const hook = createMemoryKillNoticeHook(new Logger({ debug: false }), {
+      reader: new MemoryWatchdogKillReader(path),
+      startedAtMs: STARTED_AT_SECONDS * 1000,
+      killRecordWaitMs: 0,
+    });
+    const opts = { signal: new AbortController().signal };
+    const command = "npx next build";
+    const pre = {
+      ...shellInput("PostToolUse"),
+      hook_event_name: "PreToolUse" as const,
+      tool_input: { command },
+    };
+    expect(await hook(pre, "toolu_1", opts)).toEqual({ continue: true });
+    for (const pid of [8, 9]) {
+      await appendFile(path, `${killRecord(pid, STARTED_AT_SECONDS + pid)}\n`);
+      await hook(
+        {
+          ...shellInput("PostToolUseFailure", "Bash", "Exit code 143"),
+          tool_input: { command },
+        },
+        `toolu_${pid}`,
+        opts,
+      );
+    }
+    expect(await hook(pre, "toolu_3", opts)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+    expect(
+      await hook(
+        {
+          ...pre,
+          tool_input: {
+            command: "NODE_OPTIONS=--max-old-space-size=2048 npx next build",
+          },
+        },
+        "toolu_4",
+        opts,
+      ),
+    ).toEqual({ continue: true });
+  });
 });
