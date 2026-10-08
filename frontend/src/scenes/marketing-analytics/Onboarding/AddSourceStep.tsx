@@ -1,8 +1,10 @@
 import { useActions, useValues } from 'kea'
 
-import { IconArrowRight, IconCheckCircle, IconInfo } from '@posthog/icons'
+import * as moneyPng from '@posthog/brand/hoggies/png/money'
+import { IconArrowRight, IconCheckCircle, IconExternal, IconInfo } from '@posthog/icons'
 import { LemonButton, LemonCard, LemonInput, Link, Tooltip } from '@posthog/lemon-ui'
 
+import { pngHoggie } from 'lib/brand/hoggies'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { eventUsageLogic } from 'lib/utils/eventUsageLogic'
 import { teamLogic } from 'scenes/teamLogic'
@@ -16,10 +18,12 @@ import { marketingAnalyticsLogic } from '../../web-analytics/tabs/marketing-anal
 import {
     VALID_NON_NATIVE_MARKETING_SOURCES,
     VALID_SELF_MANAGED_MARKETING_SOURCES,
-    getEnabledNativeMarketingSources,
+    getEnabledNativeMarketingSourcesInDisplayOrder,
     nativeSourceDisplayLabel,
 } from '../../web-analytics/tabs/marketing-analytics/frontend/logic/utils'
 import { marketingOnboardingLogic } from './marketingOnboardingLogic'
+
+const HedgehogMoney = pngHoggie(moneyPng)
 
 interface MarketingSource {
     id: string
@@ -41,7 +45,7 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
     const { reportMarketingAnalyticsDataSourceConnected } = useActions(eventUsageLogic)
     const { addProductIntent } = useActions(teamLogic)
 
-    const enabledNativeSources = getEnabledNativeMarketingSources(featureFlags)
+    const enabledNativeSources = getEnabledNativeMarketingSourcesInDisplayOrder(featureFlags)
 
     const allSources: MarketingSource[] = [
         ...enabledNativeSources.map((sourceType) => ({
@@ -97,8 +101,8 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
         <LemonCard hoverEffect={false} className="max-w-3xl w-full mx-auto mt-6 !p-0 overflow-hidden">
             <div className="p-6 space-y-3">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                         <h3 className="text-base font-semibold mb-0.5">Connect your marketing sources</h3>
                         <p className="text-xs text-muted-alt">
                             {hasSources
@@ -106,6 +110,7 @@ export function AddSourceStep({ onContinue, hasSources, onBack }: AddSourceStepP
                                 : 'Choose a platform to start importing spend data.'}
                         </p>
                     </div>
+                    <HedgehogMoney className="w-20 shrink-0" />
                 </div>
 
                 <LemonInput
@@ -203,6 +208,7 @@ function SourceChip({ source, onSelect }: { source: MarketingSource; onSelect: (
         <LemonButton
             type="secondary"
             icon={<SourceIcon type={source.id} size="small" disableTooltip />}
+            sideIcon={<IconExternal className="!w-3 !h-3 text-muted" />}
             onClick={() => onSelect(source.id)}
             data-attr="marketing-manual-connect-source"
         >

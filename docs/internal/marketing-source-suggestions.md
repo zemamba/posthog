@@ -105,3 +105,9 @@ The legacy dashboard and ad performance tab show search tables only after a sear
 Dashboard sections keep the Ad performance and Search performance headings outside their setup cards. The cards retain titles that describe the current setup state.
 
 The empty ad setup card uses the money hedgehog illustration. The search connection card uses the magnifying glass hedgehog. Both sit to the right of their headings and descriptions.
+
+The money hedgehog stays in the manual integration catalog so switching from suggestions keeps the same illustration.
+
+Integration buttons show the external-link icon because their connection panels open in a new tab.
+
+The native integration catalog uses a consistent display order: Google Ads, Meta Ads, Bing Ads, LinkedIn Ads, TikTok Ads, Reddit Ads, Pinterest Ads, Snapchat Ads, OpenAI Ads, Apple Ads, Amazon Ads, Rokt Ads, and X Ads. Google Search Console stays in the search section.
