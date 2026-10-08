@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from posthog.test.base import BaseTest
+from unittest.mock import patch
 
 from parameterized import parameterized
 
@@ -25,6 +26,8 @@ from products.warehouse_suggestions.backend.logic.lifecycle import apply_run
 from products.warehouse_suggestions.backend.logic.suggestions import transition_to
 from products.warehouse_suggestions.backend.models import WarehouseSuggestion
 from products.warehouse_suggestions.backend.tests.factories import busy_reads, context, team_reads, view, view_subject
+
+from .test_accept import REPORT
 
 NOW = datetime(2026, 10, 7, 9, tzinfo=UTC)
 PAYLOADS: dict[WarehouseSuggestionKind, SuggestionPayload] = {
@@ -127,14 +130,29 @@ class TestApplyRun(BaseTest):
         row = WarehouseSuggestion.objects.for_team(self.team.pk).get()
         transition_to(row.id, self.team.pk, WarehouseSuggestionStatus.DISMISSED, user_id=self.user.id, reason=reason)
 
-        apply_run(
-            ctx, self.team, [self._draft(ctx, WarehouseSuggestionKind.CERTIFY, view_id, new_score)], NOW, surface=False
-        )
+        with patch(REPORT) as report:
+            with self.captureOnCommitCallbacks() as on_commit:
+                apply_run(
+                    ctx,
+                    self.team,
+                    [self._draft(ctx, WarehouseSuggestionKind.CERTIFY, view_id, new_score)],
+                    NOW,
+                    surface=False,
+                )
+            reports_before_commit = report.call_count
+            for callback in on_commit:
+                callback()
 
         row.refresh_from_db()
+        reported_counts = [
+            call.args[1]["reproposed_count"]
+            for call in report.call_args_list
+            if call.args[0] == "warehouse suggestion reproposed"
+        ]
         assert (row.status, row.reproposed_count) == (
             (WarehouseSuggestionStatus.PROPOSED, 1) if expect_reproposed else (WarehouseSuggestionStatus.DISMISSED, 0)
         )
+        assert (reports_before_commit, reported_counts) == (0, [1] if expect_reproposed else [])
 
     @parameterized.expand(
         [
